@@ -1,0 +1,50 @@
+# .pre-commit-config.yaml
+
+# (Facultatif) Assurez-vous que le script est exécuté dans l'environnement virtuel
+# default_language_version:
+#   python: python3.12 # ou la version de votre choix
+
+repos:
+  # --- VÉRIFICATIONS GÉNÉRIQUES RAPIDES ---
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: ^src/  # S'applique uniquement au répertoire src
+      - id: end-of-file-fixer
+        files: ^src/
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: debug-statements
+        files: ^src/
+
+  # --- FORMATTING & LINTING RAPIDE ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.5
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^src/.*\.py$  # S'applique uniquement aux fichiers Python dans src
+      - id: ruff-format
+        files: ^src/.*\.py$
+
+  # --- DÉTECTION DE CODE MORT ---
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        args: [--min-confidence, "80", "src/"]
+        files: ^src/.*\.py$
+
+  # --- VÉRIFICATION DE SÉCURITÉ ---
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args: [-r, src/, -f, json, -c, bandit.yaml, -o, bandit-report.json] # Assurez-vous que bandit.yaml existe
+        pass_filenames: false # Bandit analyse récursivement
+        files: ^src/.*\.py$
+
