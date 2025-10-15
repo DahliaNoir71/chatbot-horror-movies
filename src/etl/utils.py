@@ -6,10 +6,9 @@ Logging, retry, checkpoints, helpers, etc.
 import json
 import logging
 import sys
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypeVar, TypeAlias, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pythonjsonlogger.json import JsonFormatter
 from tenacity import (
@@ -19,27 +18,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from src.etl.config import config
-
-# Import conditionnel de colorlog
-try:
-    import colorlog
-except ImportError:
-    colorlog = None
-
-# Type variable pour les valeurs génériques
-T = TypeVar("T")
-
-# Type pour les données sérialisables en JSON
-JsonSerializable: TypeAlias = Union[
-    None,
-    int,
-    float,
-    str,
-    bool,
-    List[Any],
-    Dict[str, Any],
-]
+from src.etl.settings import settings
 
 
 # ============================================================================
@@ -47,68 +26,64 @@ JsonSerializable: TypeAlias = Union[
 # ============================================================================
 
 
-def setup_logger(name: str) -> logging.Logger:
+def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
-    Configure un logger avec format JSON ou texte coloré selon config.
+    Configure un logger avec sortie console + fichier JSON.
 
     Args:
-        name: Nom du logger (ex: 'etl.tmdb_extractor')
+        name: Nom du logger (ex: "etl.main")
+        level: Niveau de log (default: INFO)
 
     Returns:
-        Instance de logger configurée
+        Logger configuré
     """
     logger = logging.getLogger(name)
-    logger.setLevel(config.LOG_LEVEL)
+    logger.setLevel(level)
+    logger.handlers.clear()
 
-    # Éviter duplication des handlers
-    if logger.handlers:
-        return logger
-
-    # Handler console (toujours actif)
+    # =========================================================================
+    # HANDLER 1 : Console (lisible pour humain)
+    # =========================================================================
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(level)
 
-    if config.LOG_FORMAT == "json":
-        # Format JSON structuré (production)
-        formatter = JsonFormatter(
-            "%(asctime)s %(name)s %(levelname)s %(message)s",
-            timestamp=True,
-        )
-        console_handler.setFormatter(formatter)
-    else:
-        # Format texte coloré (développement)
-        if colorlog is not None:
-            formatter = colorlog.ColoredFormatter(
-                "%(log_color)s%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-                log_colors={
-                    "DEBUG": "cyan",
-                    "INFO": "green",
-                    "WARNING": "yellow",
-                    "ERROR": "red",
-                    "CRITICAL": "red,bg_white",
-                },
-            )
-        else:
-            # Fallback si colorlog pas installé
-            formatter = logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
-        console_handler.setFormatter(formatter)
-
+    console_format = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    console_handler.setFormatter(console_format)
     logger.addHandler(console_handler)
 
-    # Handler fichier (logs persistants)
-    log_file = (
-        config.logs_dir / f"{name.replace('.', '_')}_{datetime.now():%Y-%m-%d}.log"
+    # =========================================================================
+    # HANDLER 2 : Fichier JSON (parsable pour monitoring)
+    # =========================================================================
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    log_file = log_dir / f"{datetime.now().strftime('%Y%m%d')}_etl.json"
+
+    # ✅ FIX : encoding='utf-8' pour Windows
+    file_handler = logging.FileHandler(
+        log_file,
+        encoding="utf-8",
     )
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+    file_handler.setLevel(level)
+
+    # ✅ FIX : json_ensure_ascii=False pour emojis corrects
+    json_formatter = JsonFormatter(
+        fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
+        json_ensure_ascii=False,
+        # Optionnel : renommer les champs pour plus de clarté
+        # rename_fields={
+        #     "asctime": "timestamp",
+        #     "levelname": "level",
+        #     "name": "logger",
+        # }
     )
-    file_handler.setFormatter(file_formatter)
+    file_handler.setFormatter(json_formatter)
     logger.addHandler(file_handler)
+
+    logger.propagate = False
 
     return logger
 
@@ -120,10 +95,10 @@ def setup_logger(name: str) -> logging.Logger:
 
 def retry_on_error(
     max_attempts: int = 3,
-    exceptions: tuple[type[BaseException], ...] = (Exception,),
+    exceptions: tuple[type[Exception], ...] = (Exception,),
     wait_min: int = 1,
     wait_max: int = 10,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+) -> Callable:
     """
     Décorateur pour retry automatique avec backoff exponentiel.
 
@@ -150,6 +125,9 @@ def retry_on_error(
     )
 
 
+# Type pour les données JSON
+JSONType = Union[Dict[str, "JSONType"], List["JSONType"], str, int, float, bool, None]
+
 # ============================================================================
 # Gestion des checkpoints
 # ============================================================================
@@ -161,15 +139,31 @@ class CheckpointManager:
     Permet de reprendre l'extraction en cas d'échec.
     """
 
-    def __init__(self, checkpoint_dir: Optional[Path] = None) -> None:
+    def __init__(self, checkpoint_dir: Optional[Union[str, Path]] = None) -> None:
         """
         Args:
-            checkpoint_dir: Répertoire des checkpoints (défaut: config.CHECKPOINTS_DIR)
+            checkpoint_dir: Répertoire des checkpoints (défaut: data/checkpoints)
         """
-        self.checkpoint_dir = checkpoint_dir or config.checkpoints_dir
-        self.logger = setup_logger(f"{__name__}.CheckpointManager")
+        if checkpoint_dir is None:
+            # Use the checkpoints directory from config if available, otherwise use default
+            try:
+                self.checkpoint_dir = settings.checkpoints_dir
+            except AttributeError:
+                # Fallback to default path if config doesn't have checkpoints_dir
+                default_dir = Path("data/checkpoints")
+                default_dir.mkdir(parents=True, exist_ok=True)
+                self.checkpoint_dir = default_dir
+        else:
+            # Convert string to Path if needed
+            self.checkpoint_dir = Path(checkpoint_dir)
+            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, name: str, data: JsonSerializable) -> None:
+        self.logger = setup_logger(f"{__name__}.CheckpointManager")
+        self.logger.debug(
+            f"Using checkpoint directory: {self.checkpoint_dir.absolute()}"
+        )
+
+    def save(self, name: str, data: "JSONType") -> None:
         """
         Sauvegarde un checkpoint.
 
@@ -177,6 +171,9 @@ class CheckpointManager:
             name: Nom du checkpoint (ex: 'tmdb_extraction')
             data: Données à sauvegarder (doit être JSON-serializable)
         """
+        # S'assurer que le répertoire existe
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
         checkpoint_file = self.checkpoint_dir / f"{name}.json"
 
         try:
@@ -190,7 +187,8 @@ class CheckpointManager:
                     indent=2,
                     ensure_ascii=False,
                 )
-            self.logger.info(f"💾 Checkpoint sauvegardé : {checkpoint_file}")
+            # Afficher chemin ABSOLU pour debug
+            self.logger.info(f"💾 Checkpoint sauvegardé : {checkpoint_file.absolute()}")
         except Exception as e:
             self.logger.error(f"❌ Erreur sauvegarde checkpoint {name} : {e}")
             raise
@@ -294,8 +292,8 @@ def calculate_levenshtein_distance(s1: str, s2: str) -> int:
 
 
 def safe_dict_get(
-    data: dict[str, Any], *keys: str, default: T = None
-) -> Union[Any, T, None]:
+    data: dict[str, object], *keys: str, default: object = None
+) -> object:
     """
     Récupère une valeur imbriquée dans un dictionnaire de manière sécurisée.
 
