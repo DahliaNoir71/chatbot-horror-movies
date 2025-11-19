@@ -1,21 +1,11 @@
+# Installation pre-commit
+pip install pre-commit
+
 # Nettoyage configuration
 pre-commit clean
 
 # Installation des hooks
-pre-commit install
-
-
-# Linting avec corrections automatiques
-pre-commit run ruff --all-files
-
-# Formatage du code (src uniquement)
-pre-commit run ruff-format --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
-
-# Détection de code inutilisé (src uniquement)
-pre-commit run vulture --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
-
-# Analyse de sécurité (src uniquement)
-pre-commit run bandit --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
+pre-commit install --install-hooks
 
 # Tous les hooks sur tous les fichiers
 pre-commit run --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
@@ -23,6 +13,3 @@ pre-commit run --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach
 #  PyTest Coverage
 pytest --cov=src --cov-report=term-missing --cov-report=html
 start htmlcov/index.html
-
-# Upgrade all venv's packages (Windows)
-pip list --outdated --format=json | ConvertFrom-Json | ForEach-Object { pip install --upgrade $_.name }

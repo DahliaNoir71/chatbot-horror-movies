@@ -1,452 +1,265 @@
-name: CI Pipeline
+# .github/workflows/ci.yml
+# ===================================================
+# Pipeline CI/CD GitHub Actions
+# ===================================================
+# Ce pipeline exécute les tests unitaires et les analyses de sécurité
+# Il s'exécute sur les push/PR vers main et develop
 
-# ------------------------------------------------------------------
-# Triggers
-# ------------------------------------------------------------------
+name: CI/CD Pipeline
+
+# ===================================================
+# Déclencheurs du pipeline
+# ===================================================
 on:
+  # Exécution sur push vers les branches principales
   push:
-    branches: [ "**" ]
+    branches: [ main, develop ]
+  
+  # Exécution sur les pull requests vers main
   pull_request:
-    branches: [ "**" ]
-  workflow_dispatch: {}
+    branches: [ main ]
+  
+  # Permet le déclenchement manuel depuis l'interface GitHub
+  workflow_dispatch:
 
-# ------------------------------------------------------------------
-# Global environment variables (folders, pip options, etc.)
-# ------------------------------------------------------------------
+# ===================================================
+# Variables d'environnement globales
+# ===================================================
 env:
-  # Dossiers
-  REPORT_DIR: reports
-  SECURITY_DIR: security-reports
+  PYTHON_VERSION: "3.12"                    # Version Python utilisée
+  PIP_CACHE_DIR: ~/.cache/pip               # Cache des dépendances pip
+  PYTHONUNBUFFERED: "1"                     # Désactive le buffering Python
 
-  # Pip configuration
-  PIP_CACHE_DIR: .cache/pip
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PIP_NO_INPUT: "1"
-  PYTHONUNBUFFERED: "1"
-
-# ==================================================================
-# 1️⃣  SETUP – installer les dépendances, mettre en cache pip
-# ==================================================================
+# ===================================================
+# JOBS DU PIPELINE
+# ===================================================
 jobs:
-  setup:
-    name: Setup
+  # ============================================
+  # JOB 1 : Tests unitaires avec couverture
+  # ============================================
+  # Exécute pytest avec calcul de la couverture de code
+  # Génère des rapports JUnit et Cobertura
+  unit-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    
     steps:
-      # ----------------------------------------------------------------
-      # Checkout (full history – needed for tools that read git blame)
-      # ----------------------------------------------------------------
-      - name: Checkout repository
+      # Récupère le code source du repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      # ----------------------------------------------------------------
-      # Install Python 3.13 and enable pip cache
-      # ----------------------------------------------------------------
-      - name: Set up Python 3.13
+      # Configure Python avec cache automatique des dépendances
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt   # <-- unique requirements file
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'  # Active le cache pip automatique
 
-      # ----------------------------------------------------------------
-      # Create working directories (reports, security‑reports)
-      # ----------------------------------------------------------------
-      - name: Create working directories
-        run: |
-          mkdir -p "${REPORT_DIR}" "${SECURITY_DIR}"
-
-      # ----------------------------------------------------------------
-      # Install *all* project dependencies (single requirements.txt)
-      # ----------------------------------------------------------------
+      # Installe les dépendances du projet et de test
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt -r requirements-tests.txt
 
-# ==================================================================
-# 2️⃣  UNIT TESTS (pytest + coverage + JUnit)
-# ==================================================================
-  unit_tests:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 20
-    steps:
-      # ----------------------------------------------------------------
-      # 1️⃣ Checkout du code
-      # ----------------------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ----------------------------------------------------------------
-      # 2️⃣ Ré‑utiliser le même Python 3.13 + cache pip
-      # ----------------------------------------------------------------
-      - name: Set up Python 3.13 (reuse cache)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt   # <- même fichier de dépendances que le job setup
-
-      # ----------------------------------------------------------------
-      # 3️⃣ (Re)installer les dépendances (le cache pip rend cela quasi‑instantané)
-      # ----------------------------------------------------------------
-      - name: Install dependencies (cached)
+      # Exécute les tests avec pytest et génère les rapports de couverture
+      - name: Run tests with coverage
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          mkdir -p reports
+          pytest -v --tb=short \
+            --junitxml=reports/junit.xml \
+            --cov=src \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=html:reports/htmlcov \
+            --cov-report=term
 
-      # ----------------------------------------------------------------
-      # 4️⃣ Exécuter les tests avec pytest → génère le rapport JUnit
-      # ----------------------------------------------------------------
-      - name: Run pytest
-        # On laisse pytest retourner un code non‑zéro s’il n’y a aucun test,
-        # mais on ne veut pas que le job s’arrête ici.
-        run: |
-          mkdir -p "${REPORT_DIR}"
-          pytest -q -n auto --maxfail=1 --disable-warnings \
-            --junitxml="${REPORT_DIR}/junit.xml" \
-            --cov=src --cov-report=xml:"${REPORT_DIR}/coverage.xml" \
-            || true
-
-      # ----------------------------------------------------------------
-      # 5️⃣ Publier le rapport JUnit **uniquement** s’il existe
-      # ----------------------------------------------------------------
-      - name: Publish JUnit report (only if file exists)
-        uses: dorny/test-reporter@v1
-        # `files.exists` vérifie la présence du fichier avant d’appeler le step.
-        # `always()` garantit que le step est évalué même si les précédents ont échoué.
-        if: always() && github.workspace != '' && contains(runner.os, 'Linux') && contains(runner.os, 'Ubuntu')
+      # Upload optionnel vers Codecov pour visualisation (nécessite compte gratuit)
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push'
+        uses: codecov/codecov-action@v4
         with:
-          name: PyTest Results
-          path: ${{ env.REPORT_DIR }}/junit.xml
-          reporter: java-junit
+          files: reports/coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
 
-      # ----------------------------------------------------------------
-      # 6️⃣ Upload des artefacts (rapports de test et couverture)
-      # ----------------------------------------------------------------
+      # Conserve les rapports de test comme artifacts (7 jours)
       - name: Upload test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: ${{ env.REPORT_DIR }}
+          path: reports/
+          retention-days: 7
 
-      - name: Publish coverage (Cobertura)
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: ${{ env.REPORT_DIR }}/coverage.xml
-
-# ==================================================================
-# 3️⃣  LINT – Ruff (lint + optional auto‑fix)
-# ==================================================================
-  ruff:
-    name: Ruff Lint & Format
+  # ============================================
+  # JOB 2 : Analyse de sécurité Bandit
+  # ============================================
+  # Scanne le code Python à la recherche de vulnérabilités de sécurité
+  # Détecte : injections SQL, hardcoded passwords, imports dangereux, etc.
+  security-bandit:
     runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.13 (reuse cache)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies (cached)
+      # Installe Bandit avec support TOML pour configuration
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      # Exécute le scan de sécurité sur le dossier src/
+      # continue-on-error: ne bloque pas le pipeline si des vulnérabilités sont trouvées
+      - name: Run Bandit security scan
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          mkdir -p security-reports
+          bandit -r src -f json -o security-reports/bandit-report.json
+        continue-on-error: true
 
-      - name: Ensure Ruff is installed
-        run: |
-          if ! command -v ruff >/dev/null; then
-            pip install ruff
-          fi
-
-      - name: Run Ruff (check only)
-        id: ruff_check
-        run: |
-          mkdir -p "${REPORT_DIR}"
-          ruff check src tests > "${REPORT_DIR}/ruff-check.txt" || true
-          echo "status=$?" >> $GITHUB_OUTPUT
-
-      # ── Optional auto‑fix (uncomment if you want commits auto‑fixed) ───────
-      # - name: Run Ruff (auto‑fix)
-      #   run: |
-      #     ruff --fix src tests
-      #     git config user.name "github-actions[bot]"
-      #     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      #     git add .
-      #     git commit -m "style: ruff auto‑fixes" || echo "No changes"
-      #     git push origin HEAD:${{ github.head_ref }}
-
-      - name: Upload Ruff report
-        uses: actions/upload-artifact@v4
-        with:
-          name: ruff-report
-          path: ${{ env.REPORT_DIR }}/ruff-check.txt
-
-# ==================================================================
-# 4️⃣  TYPE CHECK – MyPy
-# ==================================================================
-  mypy:
-    name: MyPy Type Check
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python 3.13 (reuse cache)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install dependencies (cached)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
-
-      - name: Ensure MyPy is installed
-        run: |
-          if ! command -v mypy >/dev/null; then
-            pip install mypy
-          fi
-
-      - name: Run MyPy
-        id: mypy
-        run: |
-          mkdir -p "${REPORT_DIR}"
-          mypy src tests --show-error-codes --pretty --hide-error-context \
-            --no-color-output --ignore-missing-imports --allow-redefinition \
-            > "${REPORT_DIR}/mypy-report.txt" || true
-          echo "status=$?" >> $GITHUB_OUTPUT
-
-      - name: Upload MyPy report
-        uses: actions/upload-artifact@v4
-        with:
-          name: mypy-report
-          path: ${{ env.REPORT_DIR }}/mypy-report.txt
-
-# ==================================================================
-# 5️⃣  SECURITY – Bandit
-# ==================================================================
-  bandit:
-    name: Bandit Scan
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-    env:
-      FAIL_ON_BANDIT_FINDINGS: "false"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python 3.13 (reuse cache)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install dependencies (cached)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
-
-      - name: Ensure Bandit is installed
-        run: |
-          if ! command -v bandit >/dev/null; then
-            pip install bandit
-          fi
-
-      - name: Run Bandit
-        id: bandit
-        run: |
-          mkdir -p "${SECURITY_DIR}"
-          bandit -r src -f json -o "${SECURITY_DIR}/bandit-report.json" || true
-          if [ -s "${SECURITY_DIR}/bandit-report.json" ]; then
-            echo "status=0" >> $GITHUB_OUTPUT
-          else
-            echo "status=1" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Fail on findings (optional)
-        if: env.FAIL_ON_BANDIT_FINDINGS == 'true' && steps.bandit.outputs.status != '0'
-        run: exit 1
-
+      # Sauvegarde le rapport JSON pour consultation ultérieure
       - name: Upload Bandit report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
-          path: ${{ env.SECURITY_DIR }}/bandit-report.json
+          path: security-reports/bandit-report.json
+          retention-days: 7
 
-# ==================================================================
-# 6️⃣  SECURITY – Safety
-# ==================================================================
-  safety:
-    name: Safety Scan
+  # ============================================
+  # JOB 3 : Scan des dépendances Python
+  # ============================================
+  # Vérifie les vulnérabilités connues dans les dépendances pip
+  # Utilise Safety (base PyUp) et pip-audit (base OSV)
+  security-dependencies:
     runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-    env:
-      FAIL_ON_SAFETY_FINDINGS: "false"
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.13 (reuse cache)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies (cached)
+      # Installe les outils de scan de dépendances
+      - name: Install security scanners
+        run: pip install safety pip-audit
+
+      # Safety : vérifie les vulnérabilités connues (base de données PyUp)
+      - name: Run Safety scan
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          mkdir -p security-reports
+          safety check \
+            -r requirements.txt \
+            -r requirements-tests.txt \
+            --output json > security-reports/safety-report.json || true
 
-      - name: Ensure Safety is installed
+      # pip-audit : vérifie les vulnérabilités (base OSV - Open Source Vulnerabilities)
+      - name: Run pip-audit scan
         run: |
-          if ! command -v safety >/dev/null; then
-            pip install safety
-          fi
+          pip-audit \
+            -r requirements.txt \
+            -r requirements-tests.txt \
+            -f json \
+            -o security-reports/pip-audit.json || true
 
-      - name: Run Safety
-        id: safety
-        run: |
-          mkdir -p "${SECURITY_DIR}"
-          safety check -r requirements.txt --output json > "${SECURITY_DIR}/safety-report.json"
-          SAFETY_STATUS=$?
-          echo "status=${SAFETY_STATUS}" >> $GITHUB_OUTPUT
-
-      - name: Fail on findings (optional)
-        if: env.FAIL_ON_SAFETY_FINDINGS == 'true' && steps.safety.outputs.status != '0'
-        run: exit ${{ steps.safety.outputs.status }}
-
-      - name: Upload Safety report
+      # Conserve les rapports des deux outils
+      - name: Upload security reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: safety-report
-          path: ${{ env.SECURITY_DIR }}/safety-report.json
+          name: dependency-security-reports
+          path: security-reports/
+          retention-days: 7
 
-# ==================================================================
-# 7️⃣  SECURITY – pip‑audit
-# ==================================================================
-  pip_audit:
-    name: pip‑audit Scan
+  # ============================================
+  # JOB 4 : OWASP Dependency-Check
+  # ============================================
+  # Analyse complète des dépendances avec la base OWASP NVD
+  # Détecte les CVE dans toutes les dépendances du projet
+  # Attention : Ce job peut prendre 15-30 minutes à s'exécuter
+  security-owasp:
     runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
+    
+    # Utilise le container Docker officiel OWASP
+    container:
+      image: owasp/dependency-check-action:latest
+      options: --user root  # Nécessaire pour les permissions d'écriture
+    
+    # Configuration JVM pour optimiser les performances
     env:
-      FAIL_ON_PIP_AUDIT_FINDINGS: "false"
+      _JAVA_OPTIONS: "-Xmx2g -Xms256m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:+UseStringDeduplication"
+      JAVA_OPTS: "-Xmx2g"
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.13 (reuse cache)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install dependencies (cached)
+      # Exécute OWASP Dependency-Check avec exclusions des dossiers inutiles
+      - name: Run OWASP Dependency-Check
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
+          mkdir -p security-reports/dependency-check
+          /usr/share/dependency-check/bin/dependency-check.sh \
+            --project "chatbot-api" \
+            --scan . \
+            --format HTML \
+            --format JSON \
+            --format XML \
+            --out security-reports/dependency-check \
+            --noupdate \
+            --enableExperimental \
+            --exclude "**/node_modules/**" \
+            --exclude "**/tests/**" \
+            --exclude "**/test/**" \
+            --exclude "**/__pycache__/**" \
+            --exclude "**/.git/**" \
+            --exclude "**/.pytest_cache/**" \
+            --exclude "**/*.pyc" \
+            --exclude "**/htmlcov/**" \
+            --exclude "**/.cache/**" \
+            --exclude "**/reports/**" \
+            --exclude "**/security-reports/**" \
+            --exclude "**/dist/**" \
+            --exclude "**/build/**" \
+            --failOnCVSS 7 || true
 
-      - name: Ensure pip‑audit is installed
+      # Vérifie que les rapports ont bien été générés
+      - name: Check reports generated
+        if: always()
         run: |
-          if ! command -v pip-audit >/dev/null; then
-            pip install pip-audit
+          ls -lh security-reports/dependency-check/ || true
+          if [ -f "security-reports/dependency-check/dependency-check-report.json" ]; then
+            echo "✅ Reports generated successfully"
+          else
+            echo "⚠️ Reports not found"
           fi
 
-      - name: Run pip‑audit
-        id: pipaudit
-        run: |
-          mkdir -p "${SECURITY_DIR}"
-          pip-audit -r requirements.txt -f json -o "${SECURITY_DIR}/pip-audit.json"
-          PIPA_STATUS=$?
-          echo "status=${PIPA_STATUS}" >> $GITHUB_OUTPUT
-
-      - name: Fail on findings (optional)
-        if: env.FAIL_ON_PIP_AUDIT_FINDINGS == 'true' && steps.pipaudit.outputs.status != '0'
-        run: exit ${{ steps.pipaudit.outputs.status }}
-
-      - name: Upload pip‑audit report
+      # Conserve les rapports HTML, JSON et XML pour consultation
+      - name: Upload OWASP reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pip-audit-report
-          path: ${{ env.SECURITY_DIR }}/pip-audit.json
+          name: owasp-dependency-check
+          path: security-reports/dependency-check/
+          retention-days: 7
 
-# ==================================================================
-# 8️⃣  SECURITY – Vulture (dead‑code detection)
-# ==================================================================
-  vulture:
-    name: Vulture Scan
+  # ============================================
+  # JOB 5 : Validation finale
+  # ============================================
+  # Job récapitulatif qui s'exécute seulement si tous les jobs précédents réussissent
+  # Utile pour les branch protection rules et les badges de statut
+  build-success:
     runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 10
-    env:
-      FAIL_ON_VULTURE_FINDINGS: "false"
+    
+    # Attend la fin de tous les autres jobs
+    needs: [unit-tests, security-bandit, security-dependencies, security-owasp]
+    
+    # S'exécute uniquement si tous les jobs précédents ont réussi
+    if: success()
+    
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python 3.13 (reuse cache)
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install dependencies (cached)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt --no-cache-dir
-
-      - name: Ensure Vulture is installed
-        run: |
-          if ! command -v vulture >/dev/null; then
-            pip install vulture
-          fi
-
-      - name: Run Vulture
-        id: vulture
-        run: |
-          mkdir -p "${SECURITY_DIR}"
-          # –min-confidence 80 % pour limiter les faux‑positifs
-          vulture src tests --min-confidence 80 --exclude .git,__pycache__ \
-            --output "${SECURITY_DIR}/vulture-report.txt" || true
-          echo "status=0" >> $GITHUB_OUTPUT   # Vulture renvoie 0 même s’il trouve du code mort
-
-      - name: Fail on findings (optional)
-        if: env.FAIL_ON_VULTURE_FINDINGS == 'true' && steps.vulture.outputs.status != '0'
-        run: exit 1
-
-      - name: Upload Vulture report
-        uses: actions/upload-artifact@v4
-        with:
-          name: vulture-report
-          path: ${{ env.SECURITY_DIR }}/vulture-report.txt
+      - name: Build successful
+        run: echo "✅ All checks passed successfully"

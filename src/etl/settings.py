@@ -1,360 +1,360 @@
-"""
-Configuration unifiée pour le projet HorrorBot.
-Utilise Pydantic Settings pour charger depuis .env avec validation automatique.
-"""
+"""Configuration centralisée du projet HorrorBot avec Pydantic Settings."""
 
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from pydantic import Field, field_validator, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+# ✅ Chargement explicite du .env AVANT tout le reste
+from dotenv import load_dotenv
 
-# Détecter le chemin du .env (à la racine du projet)
-ENV_FILE = Path(__file__).parent.parent.parent / ".env"
+# Trouve le .env à la racine du projet (2 niveaux au-dessus de ce fichier)
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
 
-
-class Settings(BaseSettings):
-    """Configuration globale unifiée pour HorrorBot."""
-
-    model_config = SettingsConfigDict(
-        env_file=str(ENV_FILE),
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
+if not _ENV_FILE.exists():
+    raise FileNotFoundError(
+        f"Fichier .env introuvable : {_ENV_FILE}\n"
+        f"Créer un fichier .env à la racine du projet avec TMDB_API_KEY=votre_clé"
     )
 
-    # =========================================================================
-    # ENVIRONNEMENT
-    # =========================================================================
-    environment: str = Field(default="development")
-    debug: bool = Field(default=True)
-    log_level: str = Field(default="INFO")
-    log_format: str = Field(default="json")
+load_dotenv(_ENV_FILE)
 
-    # =========================================================================
-    # TMDB API
-    # =========================================================================
-    tmdb_api_key: str = Field(default="", description="Clé API TMDB")
-    tmdb_base_url: str = Field(default="https://api.themoviedb.org/3")
-    tmdb_image_base_url: str = Field(default="https://image.tmdb.org/t/p/w500")
+from pydantic import Field, field_validator  # noqa: E402
+from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
-    # Paramètres TMDB
-    tmdb_horror_genre_id: int = Field(default=27)
-    tmdb_requests_per_period: int = Field(default=40)
-    tmdb_period_seconds: int = Field(default=10)
-    tmdb_language: str = Field(default="en-US")
-    tmdb_include_adult: bool = Field(default=True)
-    tmdb_default_max_pages: Optional[int] = Field(default=None)
-    tmdb_enrich_movies: bool = Field(default=True)
-    tmdb_save_checkpoints: bool = Field(default=True)
-    tmdb_checkpoint_save_interval: int = Field(default=10)
 
-    @computed_field
-    @property
-    def tmdb_min_request_delay(self) -> float:
-        """Délai minimal entre requêtes TMDB."""
-        return self.tmdb_period_seconds / self.tmdb_requests_per_period
+# === Chemins du projet ===
 
-    # =========================================================================
-    # POSTGRESQL - Base principale
-    # =========================================================================
-    postgres_host: str = Field(default="localhost")
-    postgres_port: int = Field(default=5432)
-    postgres_db: str = Field(default="horrorbot")
-    postgres_user: str = Field(default="horrorbot_user")
-    postgres_password: str = Field(default="")
 
-    @computed_field
-    @property
-    def database_url(self) -> str:
-        """URL de connexion PostgreSQL."""
-        return (
-            f"postgresql://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+class PathsSettings(BaseSettings):
+    """Configuration des chemins de données et logs."""
 
-    # =========================================================================
-    # POSTGRESQL - Base IMDb externe
-    # =========================================================================
-    imdb_postgres_host: str = Field(default="localhost")
-    imdb_postgres_port: int = Field(default=5433)
-    imdb_postgres_db: str = Field(default="imdb_subset")
-    imdb_postgres_user: str = Field(default="imdb_reader")
-    imdb_postgres_password: str = Field(default="")
+    raw_dir: Path = Field(default=Path("data/raw"), alias="DATA_RAW_DIR")
+    processed_dir: Path = Field(
+        default=Path("data/processed"), alias="DATA_PROCESSED_DIR"
+    )
+    checkpoints_dir: Path = Field(
+        default=Path("data/checkpoints"), alias="DATA_CHECKPOINTS_DIR"
+    )
+    logs_dir: Path = Field(default=Path("logs"), alias="LOG_DIR")
 
-    @computed_field
-    @property
-    def imdb_database_url(self) -> str:
-        """URL de connexion PostgreSQL IMDb."""
-        return (
-            f"postgresql://{self.imdb_postgres_user}:{self.imdb_postgres_password}"
-            f"@{self.imdb_postgres_host}:{self.imdb_postgres_port}/{self.imdb_postgres_db}"
-        )
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
-    # =========================================================================
-    # WIKIPEDIA
-    # =========================================================================
-    wikipedia_base_url: str = Field(default="https://en.wikipedia.org")
-    wikipedia_user_agent: str = Field(default="HorrorBot/1.0 (Educational Project)")
-    wikipedia_request_timeout: int = Field(default=30)
-    wikipedia_rate_limit_delay: float = Field(default=1.0)
-    wikipedia_max_retries: int = Field(default=3)
-    wikipedia_min_title_length: int = Field(default=2)
-    wikipedia_start_year: int = Field(default=1900)
-    wikipedia_end_year: int = Field(default=2025)
-    wikipedia_max_films: int = Field(default=50)
-    wikipedia_cache_expiry_days: int = Field(default=7)
-    wikipedia_save_checkpoints: bool = Field(default=True)
-
-    # =========================================================================
-    # SPARK
-    # =========================================================================
-    spark_home: str = Field(default="/opt/spark")
-    spark_master: str = Field(default="local[4]")
-    spark_driver_memory: str = Field(default="4g")
-    spark_executor_memory: str = Field(default="4g")
-    spark_parquet_path: str = Field(default="data/big_data/movies_large.parquet")
-    spark_app_name: str = Field(default="HorrorBotExtractor")
-    spark_default_parallelism: int = Field(default=4)
-
-    # =========================================================================
-    # API REST
-    # =========================================================================
-    api_host: str = Field(default="127.0.0.1")
-    api_port: int = Field(default=8000)
-    api_reload: bool = Field(default=True)
-    api_workers: int = Field(default=4)
-    api_public_url: str = Field(default="http://localhost:8000")
-
-    # JWT
-    jwt_secret_key: str = Field(default="")
-    jwt_algorithm: str = Field(default="HS256")
-    jwt_expire_minutes: int = Field(default=30)
-
-    # Rate limiting
-    rate_limit_per_minute: int = Field(default=100)
-    rate_limit_per_hour: int = Field(default=1000)
-
-    # CORS
-    cors_origins: str = Field(default="http://localhost:3000,http://localhost:8000")
-
-    @computed_field
-    @property
-    def cors_origins_list(self) -> list[str]:
-        """Parse CORS origins."""
-        return [origin.strip() for origin in self.cors_origins.split(",")]
-
-    # =========================================================================
-    # CHEMINS
-    # =========================================================================
-    data_raw_dir: str = Field(default="data/raw")
-    data_processed_dir: str = Field(default="data/processed")
-    data_checkpoints_dir: str = Field(default="data/checkpoints")
-    log_dir: str = Field(default="logs")
-
-    @computed_field
-    @property
-    def raw_dir(self) -> Path:
-        """Chemin absolu vers data/raw."""
-        path = Path(self.data_raw_dir)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @computed_field
-    @property
-    def processed_dir(self) -> Path:
-        """Chemin absolu vers data/processed."""
-        path = Path(self.data_processed_dir)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @computed_field
-    @property
-    def checkpoints_dir(self) -> Path:
-        """Chemin absolu vers data/checkpoints."""
-        path = Path(self.data_checkpoints_dir)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @computed_field
-    @property
-    def logs_dir(self) -> Path:
-        """Chemin absolu vers logs/."""
-        path = Path(self.log_dir)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    # =========================================================================
-    # ETL
-    # =========================================================================
-    etl_max_workers: int = Field(default=4)
-    scraping_delay: float = Field(default=2.0)
-    user_agent: str = Field(default="HorrorBot-ETL/1.0 (Educational Project)")
-
-    # =========================================================================
-    # VALIDATION
-    # =========================================================================
-    @field_validator("tmdb_api_key")
-    def validate_tmdb_api_key(self, v: str) -> str:
-        """Valide que la clé API TMDB n'est pas vide."""
-        if not v:
-            raise ValueError(
-                "TMDB_API_KEY manquante. "
-                "Obtenir une clé sur https://www.themoviedb.org/settings/api"
-            )
+    @field_validator("raw_dir", "processed_dir", "checkpoints_dir", "logs_dir")
+    @classmethod
+    def create_directories(cls, v: Path) -> Path:
+        """Crée les répertoires s'ils n'existent pas."""
+        v.mkdir(parents=True, exist_ok=True)
         return v
 
 
-# =========================================================================
-# CLASSES D'ACCÈS PRATIQUE (pour compatibilité avec ancien code)
-# =========================================================================
+# === Configuration TMDB ===
 
 
-class TMDBConfig:
-    """Wrapper pour accès style settings.tmdb.api_key"""
+class TMDBSettings(BaseSettings):
+    """Configuration API TMDB."""
 
-    def __init__(self, settings_obj: Settings) -> None:
-        self._settings = settings_obj
+    api_key: str = Field(..., alias="TMDB_API_KEY")
+    base_url: str = Field(default="https://api.themoviedb.org/3", alias="TMDB_BASE_URL")
+    image_base_url: str = Field(
+        default="https://image.tmdb.org/t/p/w500", alias="TMDB_IMAGE_BASE_URL"
+    )
 
-    @property
-    def api_key(self) -> str:
-        return self._settings.tmdb_api_key
+    # Paramètres d'extraction
+    language: str = Field(default="en-US", alias="TMDB_LANGUAGE")
+    include_adult: bool = Field(default=False, alias="TMDB_INCLUDE_ADULT")
+    horror_genre_id: int = Field(default=27, alias="TMDB_HORROR_GENRE_ID")
 
-    @property
-    def base_url(self) -> str:
-        return self._settings.tmdb_base_url
+    # ✅ Filtres temporels
+    year_min: int = Field(default=1960, alias="TMDB_YEAR_MIN")
+    year_max: int = Field(default=datetime.now().year, alias="TMDB_YEAR_MAX")
+    years_per_batch: int = Field(default=5, alias="TMDB_YEARS_PER_BATCH")
 
-    @property
-    def image_base_url(self) -> str:
-        return self._settings.tmdb_image_base_url
+    # Rate limiting
+    requests_per_period: int = 40
+    period_seconds: int = 10
+    min_request_delay: float = 0.25
+    use_period_batching: bool = Field(
+        default=False, alias="TMDB_USE_PERIOD_BATCHING"
+    )  # ✅
 
-    @property
-    def horror_genre_id(self) -> int:
-        return self._settings.tmdb_horror_genre_id
+    # Extraction
+    default_max_pages: int = Field(default=5, alias="TMDB_MAX_PAGES")
+    checkpoint_save_interval: int = 10
+    enrich_movies: bool = False
+    save_checkpoints: bool = True
 
-    @property
-    def requests_per_period(self) -> int:
-        return self._settings.tmdb_requests_per_period
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
-    @property
-    def period_seconds(self) -> int:
-        return self._settings.tmdb_period_seconds
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key(cls, v: str) -> str:
+        """Valide que la clé API est définie."""
+        if not v or v == "your_api_key_here":
+            raise ValueError(
+                "TMDB_API_KEY invalide. Obtenir une clé sur "
+                "https://www.themoviedb.org/settings/api"
+            )
+        return v
 
-    @property
-    def language(self) -> str:
-        return self._settings.tmdb_language
+    @field_validator("year_min")
+    @classmethod
+    def validate_year_min(cls, v: int) -> int:
+        """Valide que l'année minimale est plausible."""
+        current_year = datetime.now().year
+        if v < 1888:
+            raise ValueError("TMDB_YEAR_MIN doit être >= 1888")
+        if v > current_year:
+            raise ValueError(
+                f"TMDB_YEAR_MIN ne peut pas être dans le futur (année courante: {current_year})"
+            )
+        return v
 
-    @property
-    def include_adult(self) -> bool:
-        return self._settings.tmdb_include_adult
+    @field_validator("year_max")
+    @classmethod
+    def validate_year_max(cls, v: int, values: dict[str, Any]) -> int:
+        """Valide que l'année maximale est plausible par rapport à l'année minimale."""
+        current_year = datetime.now().year
+        year_min = values.data.get("year_min", 1900)
 
-    @property
-    def default_max_pages(self) -> Optional[int]:
-        return self._settings.tmdb_default_max_pages
+        if v < year_min:
+            raise ValueError(
+                f"TMDB_YEAR_MAX ({v}) ne peut pas être inférieur à TMDB_YEAR_MIN ({year_min})"
+            )
 
-    @property
-    def enrich_movies(self) -> bool:
-        return self._settings.tmdb_enrich_movies
+        if v > current_year:
+            raise ValueError(
+                f"TMDB_YEAR_MAX ne peut pas être dans le futur (année courante: {current_year})"
+            )
 
-    @property
-    def save_checkpoints(self) -> bool:
-        return self._settings.tmdb_save_checkpoints
+        return v
 
-    @property
-    def checkpoint_save_interval(self) -> int:
-        return self._settings.tmdb_checkpoint_save_interval
-
-    @property
-    def min_request_delay(self) -> float:
-        return self._settings.tmdb_min_request_delay
-
-
-class WikipediaConfig:
-    """Wrapper pour accès style settings.wikipedia.base_url"""
-
-    def __init__(self, settings_obj: Settings) -> None:
-        self._settings = settings_obj
-
-    @property
-    def base_url(self) -> str:
-        return self._settings.wikipedia_base_url
-
-    @property
-    def user_agent(self) -> str:
-        return self._settings.wikipedia_user_agent
-
-    @property
-    def request_timeout(self) -> int:
-        return self._settings.wikipedia_request_timeout
-
-    @property
-    def rate_limit_delay(self) -> float:
-        return self._settings.wikipedia_rate_limit_delay
-
-    @property
-    def max_retries(self) -> int:
-        return self._settings.wikipedia_max_retries
-
-    @property
-    def start_year(self) -> int:
-        return self._settings.wikipedia_start_year
-
-    @property
-    def end_year(self) -> int:
-        return self._settings.wikipedia_end_year
-
-    @property
-    def max_films(self) -> int:
-        return self._settings.wikipedia_max_films
-
-    @property
-    def save_checkpoints(self) -> bool:
-        return self._settings.wikipedia_save_checkpoints
+    @field_validator("years_per_batch")
+    @classmethod
+    def validate_years_per_batch(cls, v: int) -> int:
+        """Valide que years_per_batch est raisonnable."""
+        if not 1 <= v <= 10:
+            raise ValueError("TMDB_YEARS_PER_BATCH doit être entre 1 et 10")
+        return v
 
 
-class PathsConfig:
-    """Wrapper pour accès style settings.paths.checkpoints_dir"""
+# === Configuration PostgreSQL ===
 
-    def __init__(self, settings_obj: Settings) -> None:
-        self._settings = settings_obj
+
+class DatabaseSettings(BaseSettings):
+    """Configuration PostgreSQL principale."""
+
+    host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    port: int = Field(default=5432, alias="POSTGRES_PORT")
+    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
+    user: str = Field(default="horrorbot_user", alias="POSTGRES_USER")
+    password: str = Field(default="", alias="POSTGRES_PASSWORD")
+    url: str | None = Field(default=None, alias="DATABASE_URL")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     @property
-    def raw_dir(self) -> Path:
-        return self._settings.raw_dir
+    def connection_url(self) -> str:
+        """Génère l'URL de connexion PostgreSQL."""
+        if self.url:
+            return self.url
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+
+class IMDbDatabaseSettings(BaseSettings):
+    """Configuration PostgreSQL externe IMDb (pour extraction C1)."""
+
+    host: str = Field(default="localhost", alias="IMDB_POSTGRES_HOST")
+    port: int = Field(default=5433, alias="IMDB_POSTGRES_PORT")
+    database: str = Field(default="imdb_subset", alias="IMDB_POSTGRES_DB")
+    user: str = Field(default="imdb_reader", alias="IMDB_POSTGRES_USER")
+    password: str = Field(default="", alias="IMDB_POSTGRES_PASSWORD")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     @property
-    def processed_dir(self) -> Path:
-        return self._settings.processed_dir
+    def connection_url(self) -> str:
+        """Génère l'URL de connexion PostgreSQL IMDb."""
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+
+# === Configuration API REST ===
+
+
+class APISettings(BaseSettings):
+    """Configuration FastAPI."""
+
+    host: str = Field(default="0.0.0.0", alias="API_HOST")
+    port: int = Field(default=8000, alias="API_PORT")
+    reload: bool = Field(default=True, alias="API_RELOAD")
+    workers: int = Field(default=4, alias="API_WORKERS")
+    public_url: str = Field(default="http://localhost:8000", alias="API_PUBLIC_URL")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+# === Configuration Sécurité ===
+
+
+class SecuritySettings(BaseSettings):
+    """Configuration JWT et rate limiting."""
+
+    jwt_secret_key: str = Field(..., alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_expire_minutes: int = Field(default=30, alias="JWT_EXPIRE_MINUTES")
+    rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
+    rate_limit_per_hour: int = Field(default=1000, alias="RATE_LIMIT_PER_HOUR")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret(cls, v: str) -> str:
+        """Valide que la clé JWT est définie et sécurisée."""
+        if not v or "generate_" in v.lower():
+            raise ValueError(
+                "JWT_SECRET_KEY invalide. Générer avec: openssl rand -hex 32"
+            )
+        if len(v) < 32:
+            raise ValueError("JWT_SECRET_KEY trop courte (minimum 32 caractères)")
+        return v
+
+
+# === Configuration CORS ===
+
+
+class CORSSettings(BaseSettings):
+    """Configuration CORS."""
+
+    origins_raw: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     @property
-    def checkpoints_dir(self) -> Path:
-        return self._settings.checkpoints_dir
-
-    @property
-    def logs_dir(self) -> Path:
-        return self._settings.logs_dir
+    def origins(self) -> list[str]:
+        """Parse et retourne la liste des origines."""
+        return [origin.strip() for origin in self.origins_raw.split(",")]
 
 
-class SettingsWrapper:
-    """Wrapper pour compatibilité avec l'ancien code"""
-
-    def __init__(self, settings_obj: Settings) -> None:
-        self._settings = settings_obj
-        self.tmdb = TMDBConfig(settings_obj)
-        self.wikipedia = WikipediaConfig(settings_obj)
-        self.paths = PathsConfig(settings_obj)
-
-    def __getattr__(self, name: str) -> object:
-        """Fallback pour accès direct aux attributs"""
-        return getattr(self._settings, name)
+# === Configuration ETL ===
 
 
-# Instance globale
-_settings_obj = Settings()
-settings = SettingsWrapper(_settings_obj)
+class ETLSettings(BaseSettings):
+    """Configuration pipeline ETL."""
 
-# Debug
-if not ENV_FILE.exists():
-    print(f"⚠️ Fichier .env introuvable à : {ENV_FILE.absolute()}")
-else:
-    print(f"✅ Fichier .env chargé depuis : {ENV_FILE.absolute()}")
+    max_workers: int = Field(default=4, alias="ETL_MAX_WORKERS")
+    scraping_delay: float = Field(default=2.0, alias="SCRAPING_DELAY")
+    user_agent: str = Field(
+        default="HorrorBot-ETL/1.0 (Educational Project)", alias="USER_AGENT"
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+# === Configuration Logging ===
+
+
+class LoggingSettings(BaseSettings):
+    """Configuration logs."""
+
+    level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_dir: Path = Field(default=Path("logs"), alias="LOG_DIR")
+    format: str = Field(default="json", alias="LOG_FORMAT")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @field_validator("level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Valide le niveau de log."""
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        v_upper = v.upper()
+        if v_upper not in valid_levels:
+            raise ValueError(f"LOG_LEVEL invalide. Valeurs: {valid_levels}")
+        return v_upper
+
+
+# === Configuration Globale ===
+
+
+class Settings(BaseSettings):
+    """Configuration globale de l'application."""
+
+    environment: str = Field(default="development", alias="ENVIRONMENT")
+    debug: bool = Field(default=False, alias="DEBUG")
+
+    paths: PathsSettings = Field(default_factory=PathsSettings)
+    tmdb: TMDBSettings = Field(default_factory=TMDBSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    imdb_database: IMDbDatabaseSettings = Field(default_factory=IMDbDatabaseSettings)
+    api: APISettings = Field(default_factory=APISettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
+    cors: CORSSettings = Field(default_factory=CORSSettings)
+    etl: ETLSettings = Field(default_factory=ETLSettings)
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+    )
+
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        """Valide l'environnement."""
+        valid_envs = {"development", "production", "test"}
+        v_lower = v.lower()
+        if v_lower not in valid_envs:
+            raise ValueError(f"ENVIRONMENT invalide. Valeurs: {valid_envs}")
+        return v_lower
+
+
+# === Instance singleton ===
+
+settings = Settings()
+
+
+# === Utilitaire pour afficher la config (debug) ===
+
+
+def print_settings() -> dict[str, Any]:
+    """Affiche la configuration (sans secrets) pour debug."""
+    config_dict = settings.model_dump()
+
+    masked = "***MASKED***"
+
+    # Masquer les secrets
+    if "tmdb" in config_dict and "api_key" in config_dict["tmdb"]:
+        config_dict["tmdb"]["api_key"] = masked
+    if "database" in config_dict and "password" in config_dict["database"]:
+        config_dict["database"]["password"] = masked
+    if "security" in config_dict and "jwt_secret_key" in config_dict["security"]:
+        config_dict["security"]["jwt_secret_key"] = masked
+
+    return config_dict
+
+
+if __name__ == "__main__":
+    """Test de chargement de la configuration."""
+    import json
+
+    print("=== Configuration HorrorBot ===\n")
+    config = print_settings()
+    print(json.dumps(config, indent=2, default=str))

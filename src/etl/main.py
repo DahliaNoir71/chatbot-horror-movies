@@ -1,395 +1,320 @@
-"""
-Orchestrateur principal du pipeline ETL HorrorBot.
-Lance l'extraction depuis les 5 sources requises pour le bloc E1.
-"""
+"""Point d'entrée principal du pipeline ETL HorrorBot."""
 
+import asyncio
 import sys
-from dataclasses import dataclass
+import argparse
+import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any
 
+from src.etl.aggregator import DataAggregator
+from src.etl.extractors.rotten_tomatoes_enricher import RottenTomatoesEnricher
 from src.etl.extractors.tmdb_extractor import TMDBExtractor
-from src.etl.extractors.wikipedia_scraper import WikipediaExtractor
 from src.etl.settings import settings
-from src.etl.utils import CheckpointManager, ETLStats, setup_logger
+from src.etl.utils import CheckpointManager, setup_logger
 
-# Constantes
-LINE_WIDTH = 80
+# === Configuration ===
 
-
-class Extractor(Protocol):
-    """Protocol définissant l'interface d'un extracteur."""
-
-    def extract(self, **_kwargs: object) -> list[dict[str, object]]:
-        """
-        Extrait les données de la source.
-
-        Args:
-            **_kwargs: Arguments supplémentaires spécifiques à l'extracteur.
-                Les implémentations peuvent définir leurs propres paramètres.
-
-        Returns:
-            Liste de dictionnaires contenant les données extraites.
-        """
-        ...
+logger = setup_logger("etl.main")
+checkpoint_manager = CheckpointManager()
 
 
-@dataclass
-class ExtractionConfig:
-    """Configuration pour l'extraction d'une source."""
-
-    name: str
-    enabled: bool
-    icon: str
-    extractor_class: type[Extractor] | None = None
-    extract_kwargs: dict[str, object] | None = None
-
-    def __post_init__(self) -> None:
-        """Initialise les kwargs par défaut si None."""
-        if self.extract_kwargs is None:
-            self.extract_kwargs = {}
+# === Étapes du pipeline ===
 
 
-@dataclass
-class ExtractionResult:
-    """Résultat d'une extraction."""
-
-    source_name: str
-    movies: list[dict[str, object]]
-    duration: float
-    success: bool
-    error_message: str | None = None
-
-
-class ETLOrchestrator:
-    """Orchestrateur du pipeline ETL."""
-
-    def __init__(self) -> None:
-        """Initialise l'orchestrateur avec logger, stats et checkpoint manager."""
-        self.logger = setup_logger("etl.main")
-        self.stats = ETLStats()
-        self.checkpoint_manager = CheckpointManager()
-        self.all_movies: list[dict[str, object]] = []
-        self.extraction_errors: list[tuple[str, str]] = []
-
-    def _log_header(self) -> None:
-        """Affiche l'en-tête du pipeline."""
-        self.logger.info("=" * LINE_WIDTH)
-        self.logger.info("🎬 DÉMARRAGE PIPELINE ETL HORRORBOT")
-        self.logger.info("=" * LINE_WIDTH)
-        self.logger.info(f"Date : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        self.logger.info(f"Environnement : {settings.environment}")
-        self.logger.info(f"Working directory : {Path.cwd().absolute()}")
-        self.logger.info("")
-
-    def _log_enabled_sources(self, sources: list[ExtractionConfig]) -> None:
-        """
-        Affiche les sources activées.
-
-        Args:
-            sources: Liste des configurations d'extraction
-        """
-        enabled_names = [s.name for s in sources if s.enabled]
-        self.logger.info(f"📊 Sources activées : {', '.join(enabled_names)}")
-        self.logger.info("")
-
-    def _extract_from_source(
-        self, extraction_config: ExtractionConfig
-    ) -> ExtractionResult:
-        """
-        Extrait les données d'une source donnée.
-
-        Args:
-            extraction_config: Configuration de l'extraction
-
-        Returns:
-            Résultat de l'extraction
-        """
-        self.logger.info("-" * LINE_WIDTH)
-        self.logger.info(f"{extraction_config.icon} SOURCE : {extraction_config.name}")
-        self.logger.info("-" * LINE_WIDTH)
-
-        # Vérifier si l'extracteur est implémenté
-        if extraction_config.extractor_class is None:
-            self.logger.warning(f"⚠️ {extraction_config.name} pas encore implémenté")
-            return ExtractionResult(
-                source_name=extraction_config.name,
-                movies=[],
-                duration=0.0,
-                success=True,
-                error_message="Non implémenté",
-            )
-
-        try:
-            start_time = datetime.now()
-            extractor = extraction_config.extractor_class()
-            movies = extractor.extract(**extraction_config.extract_kwargs)
-            duration = (datetime.now() - start_time).total_seconds()
-
-            self.logger.info(
-                f"✅ {extraction_config.name} : {len(movies):,} films extraits"
-            )
-            self.logger.info("")
-
-            return ExtractionResult(
-                source_name=extraction_config.name,
-                movies=movies,
-                duration=duration,
-                success=True,
-            )
-
-        except Exception as e:
-            self.logger.error(f"❌ Erreur extraction {extraction_config.name} : {e}")
-            self.logger.info("")
-
-            return ExtractionResult(
-                source_name=extraction_config.name,
-                movies=[],
-                duration=0.0,
-                success=False,
-                error_message=str(e),
-            )
-
-    def _process_results(self, results: list[ExtractionResult]) -> None:
-        """
-        Traite les résultats des extractions.
-
-        Args:
-            results: Liste des résultats d'extraction
-        """
-        for result in results:
-            if result.success and result.movies:
-                self.all_movies.extend(result.movies)
-                self.stats.add_source_stats(
-                    result.source_name, len(result.movies), result.duration
-                )
-            elif not result.success and result.error_message:
-                self.extraction_errors.append(
-                    (result.source_name, result.error_message)
-                )
-
-    def _save_results(self) -> None:
-        """Sauvegarde les résultats de l'extraction."""
-        self.logger.info("=" * LINE_WIDTH)
-        self.logger.info("💾 SAUVEGARDE DES RÉSULTATS")
-        self.logger.info("=" * LINE_WIDTH)
-
-        if self.all_movies:
-            self.checkpoint_manager.save("etl_all_movies", self.all_movies)
-            self.logger.info(
-                f"✅ {len(self.all_movies):,} films sauvegardés dans "
-                "etl_all_movies.json"
-            )
-        else:
-            self.logger.warning("⚠️ Aucun film extrait !")
-
-        stats_file = settings.paths.processed_dir / "etl_stats.json"
-        self.stats.save_to_json(stats_file)
-        self.logger.info(f"✅ Statistiques sauvegardées : {stats_file}")
-        self.logger.info("")
-
-    def _print_final_summary(self) -> int:
-        """
-        Affiche le résumé final et retourne le code de sortie.
-
-        Returns:
-            Code de sortie (0 = succès, 1 = erreur)
-        """
-        self.stats.print_summary()
-
-        if self.extraction_errors:
-            self.logger.warning("=" * LINE_WIDTH)
-            self.logger.warning("⚠️ ERREURS RENCONTRÉES")
-            self.logger.warning("=" * LINE_WIDTH)
-            for source, error in self.extraction_errors:
-                self.logger.warning(f"- {source} : {error}")
-            self.logger.warning("")
-
-        if self.extraction_errors and not self.all_movies:
-            self.logger.error("❌ ÉCHEC : Aucune source n'a fonctionné")
-            return 1
-        if self.extraction_errors:
-            self.logger.warning("⚠️ SUCCÈS PARTIEL : Certaines sources ont échoué")
-            return 0
-
-        self.logger.info("✅ SUCCÈS COMPLET : Toutes les sources ont fonctionné")
-        return 0
-
-    def run(self, sources: list[ExtractionConfig]) -> int:
-        """
-        Exécute le pipeline ETL complet.
-
-        Args:
-            sources: Liste des configurations d'extraction
-
-        Returns:
-            Code de sortie (0 = succès, 1 = erreur)
-        """
-        self._log_header()
-        self._log_enabled_sources(sources)
-
-        # Extraire depuis toutes les sources activées
-        enabled_sources = [s for s in sources if s.enabled]
-        results = [self._extract_from_source(source) for source in enabled_sources]
-
-        # Traiter les résultats
-        self._process_results(results)
-
-        # Sauvegarder
-        self._save_results()
-
-        # Afficher le résumé et retourner le code de sortie
-        return self._print_final_summary()
-
-
-def create_extraction_configs(
-    max_pages_tmdb: int | None = None,
-    start_year_wikipedia: int | None = None,
-    end_year_wikipedia: int | None = None,
-    max_films_wikipedia: int | None = None,
-    enable_tmdb: bool = True,
-    enable_wikipedia: bool = False,
-    enable_csv: bool = False,
-    enable_postgres: bool = False,
-    enable_spark: bool = False,
-) -> list[ExtractionConfig]:
+def step_1_extract_tmdb(max_pages: int | None = None) -> list[dict[str, Any]]:
     """
-    Crée la configuration des sources d'extraction.
+    Étape 1 : Extraction des films depuis TMDB.
 
     Args:
-        max_pages_tmdb: Nombre max de pages TMDB (None = toutes)
-        start_year_wikipedia: Année de début Wikipedia (None = config par défaut)
-        end_year_wikipedia: Année de fin Wikipedia (None = config par défaut)
-        max_films_wikipedia: Nombre max films Wikipedia (None = config par défaut)
-        enable_tmdb: Activer extraction TMDB
-        enable_wikipedia: Activer scraping Wikipedia
-        enable_csv: Activer lecture CSV
-        enable_postgres: Activer extraction PostgreSQL
-        enable_spark: Activer extraction Spark
+        max_pages: Nombre maximum de pages (None = défaut config)
 
     Returns:
-        Liste des configurations d'extraction
+        Liste de films TMDB bruts
     """
-    return [
-        ExtractionConfig(
-            name="TMDB",
-            enabled=enable_tmdb,
-            icon="🔡",
-            extractor_class=TMDBExtractor,
-            extract_kwargs={
-                "max_pages": max_pages_tmdb or settings.tmdb_default_max_pages,
-                "enrich": settings.tmdb_enrich_movies,
-                "save_checkpoint": settings.tmdb_save_checkpoints,
-            },
-        ),
-        ExtractionConfig(
-            name="Wikipedia",
-            enabled=enable_wikipedia,
-            icon="🌐",
-            extractor_class=WikipediaExtractor,
-            extract_kwargs={
-                "start_year": start_year_wikipedia or settings.wikipedia_start_year,
-                "end_year": end_year_wikipedia or settings.wikipedia_end_year,
-                "max_films": max_films_wikipedia or settings.wikipedia_max_films,
-                "save_checkpoint": settings.wikipedia_save_checkpoints,
-            },
-        ),
-        ExtractionConfig(
-            name="CSV",
-            enabled=enable_csv,
-            icon="📄",
-            # À implémenter
-            extractor_class=None,
-            extract_kwargs={},
-        ),
-        ExtractionConfig(
-            name="PostgreSQL",
-            enabled=enable_postgres,
-            icon="🗄️",
-            # À implémenter
-            extractor_class=None,
-            extract_kwargs={},
-        ),
-        ExtractionConfig(
-            name="Spark",
-            enabled=enable_spark,
-            icon="⚡",
-            # À implémenter
-            extractor_class=None,
-            extract_kwargs={},
-        ),
-    ]
+    logger.info("=" * 80)
+    logger.info("🎬 ÉTAPE 1/3 : EXTRACTION TMDB")
+    logger.info("=" * 80)
+
+    try:
+        extractor = TMDBExtractor()
+        movies = extractor.extract(
+            max_pages=max_pages,
+            # Pas d'enrichissement TMDB (trop lent)
+            enrich=False,
+            save_checkpoint=True,
+        )
+
+        logger.info(f"✅ Étape 1 terminée : {len(movies)} films extraits")
+        return movies
+
+    except Exception as e:
+        logger.error(f"❌ Échec étape 1 (TMDB) : {e}", exc_info=True)
+        raise
 
 
-def main(
-    max_pages_tmdb: int | None = None,
-    start_year_wikipedia: int | None = None,
-    end_year_wikipedia: int | None = None,
-    max_films_wikipedia: int | None = None,
-    enable_tmdb: bool = True,
-    enable_wikipedia: bool = False,
-    enable_csv: bool = False,
-    enable_postgres: bool = False,
-    enable_spark: bool = False,
-) -> int:
+async def step_2_enrich_rt(tmdb_movies: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
-    Point d'entrée principal du pipeline ETL.
+    Étape 2 : Enrichissement avec Rotten Tomatoes.
 
     Args:
-        max_pages_tmdb: Nombre max de pages TMDB (None = toutes)
-        start_year_wikipedia: Année de début Wikipedia (None = config par défaut)
-        end_year_wikipedia: Année de fin Wikipedia (None = config par défaut)
-        max_films_wikipedia: Nombre max films Wikipedia (None = config par défaut)
-        enable_tmdb: Activer extraction TMDB
-        enable_wikipedia: Activer scraping Wikipedia
-        enable_csv: Activer lecture CSV
-        enable_postgres: Activer extraction PostgreSQL
-        enable_spark: Activer extraction Spark
+        tmdb_movies: Films depuis TMDB
 
     Returns:
-        Code de sortie (0 = succès, 1 = erreur)
+        Liste de films enrichis RT
     """
-    sources = create_extraction_configs(
-        max_pages_tmdb=max_pages_tmdb,
-        start_year_wikipedia=start_year_wikipedia,
-        end_year_wikipedia=end_year_wikipedia,
-        max_films_wikipedia=max_films_wikipedia,
-        enable_tmdb=enable_tmdb,
-        enable_wikipedia=enable_wikipedia,
-        enable_csv=enable_csv,
-        enable_postgres=enable_postgres,
-        enable_spark=enable_spark,
+    logger.info("=" * 80)
+    logger.info("🍅 ÉTAPE 2/3 : ENRICHISSEMENT ROTTEN TOMATOES")
+    logger.info("=" * 80)
+
+    try:
+        enricher = RottenTomatoesEnricher()
+        enriched = await enricher.enrich_films_async(
+            tmdb_movies,
+            # Éviter rate limiting RT
+            max_concurrent=3,
+        )
+
+        enriched_count = sum(1 for film in enriched if "tomatometer_score" in film)
+        logger.info(
+            f"✅ Étape 2 terminée : {enriched_count}/{len(tmdb_movies)} films enrichis"
+        )
+
+        return enriched
+
+    except Exception as e:
+        logger.error(f"❌ Échec étape 2 (RT) : {e}", exc_info=True)
+        raise
+
+
+def step_3_aggregate(
+    tmdb_movies: list[dict[str, Any]], rt_enriched: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """
+    Étape 3 : Agrégation et nettoyage.
+
+    Args:
+        tmdb_movies: Films TMDB bruts
+        rt_enriched: Films enrichis RT
+
+    Returns:
+        Liste de films agrégés, validés, dédupliqués
+    """
+    logger.info("=" * 80)
+    logger.info("🔄 ÉTAPE 3/3 : AGRÉGATION ET NETTOYAGE")
+    logger.info("=" * 80)
+
+    try:
+        aggregator = DataAggregator()
+        aggregated = aggregator.extract(
+            tmdb_movies=tmdb_movies, rt_enriched=rt_enriched
+        )
+
+        logger.info(f"✅ Étape 3 terminée : {len(aggregated)} films finaux")
+        return aggregated
+
+    except Exception as e:
+        logger.error(f"❌ Échec étape 3 (Agrégation) : {e}", exc_info=True)
+        raise
+
+
+# === Orchestration ===
+
+
+async def run_full_pipeline(max_pages: int | None = None) -> list[dict[str, Any]]:
+    """
+    Exécute le pipeline ETL complet.
+
+    Pipeline :
+    1. Extraction TMDB (API REST)
+    2. Enrichissement Rotten Tomatoes (Web scraping)
+    3. Agrégation et nettoyage
+
+    Args:
+        max_pages: Nombre de pages TMDB à extraire (None = défaut)
+
+    Returns:
+        Dataset final agrégé
+    """
+    start_time = datetime.now()
+
+    logger.info("🚀 DÉMARRAGE PIPELINE ETL HORRORBOT")
+    logger.info(f"Timestamp : {start_time.isoformat()}")
+    logger.info(f"Max pages : {max_pages or settings.tmdb.default_max_pages}")
+
+    try:
+        # Étape 1 : TMDB
+        tmdb_movies = step_1_extract_tmdb(max_pages)
+
+        # Checkpoint étape 1
+        checkpoint_manager.save("pipeline_step1_tmdb", tmdb_movies)
+
+        # Étape 2 : Rotten Tomatoes
+        rt_enriched = await step_2_enrich_rt(tmdb_movies)
+
+        # Checkpoint étape 2
+        checkpoint_manager.save("pipeline_step2_rt", rt_enriched)
+
+        # Étape 3 : Agrégation
+        final_dataset = step_3_aggregate(tmdb_movies, rt_enriched)
+
+        # Checkpoint final
+        final_checkpoint_name = (
+            f"pipeline_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        checkpoint_path = checkpoint_manager.save(final_checkpoint_name, final_dataset)
+
+        # Statistiques finales
+        duration = (datetime.now() - start_time).total_seconds()
+        _log_pipeline_stats(final_dataset, duration, checkpoint_path)
+
+        return final_dataset
+
+    except Exception as e:
+        logger.error(f"❌ ÉCHEC PIPELINE : {e}", exc_info=True)
+        raise
+
+
+def _log_pipeline_stats(
+    dataset: list[dict[str, Any]], duration: float, checkpoint_path: Path
+) -> None:
+    """Affiche les statistiques finales du pipeline."""
+    logger.info("=" * 80)
+    logger.info("📊 STATISTIQUES PIPELINE COMPLET")
+    logger.info("=" * 80)
+    logger.info(f"Films finaux         : {len(dataset):,}")
+    logger.info(f"Durée totale         : {duration:.2f}s ({duration / 60:.1f} min)")
+    logger.info(f"Débit                : {len(dataset) / duration:.2f} films/s")
+    logger.info(f"Checkpoint           : {checkpoint_path.name}")
+    logger.info(
+        f"Taille fichier       : {checkpoint_path.stat().st_size / 1024:.1f} KB"
     )
 
-    orchestrator = ETLOrchestrator()
-    return orchestrator.run(sources)
+    # Statistiques enrichissement RT
+    rt_enriched_count = sum(1 for film in dataset if film.get("tomatometer_score"))
+    if rt_enriched_count > 0:
+        enrichment_rate = (rt_enriched_count / len(dataset)) * 100
+        logger.info(f"Taux enrichissement  : {enrichment_rate:.1f}%")
+
+    logger.info("=" * 80)
+
+
+# === Fonctions de reprise ===
+
+
+async def resume_from_step(
+    step: int, max_pages: int | None = None
+) -> list[dict[str, Any]]:
+    """
+    Reprend le pipeline depuis une étape spécifique.
+
+    Args:
+        step: Numéro de l'étape (1, 2 ou 3)
+        max_pages: Pages TMDB si step=1
+
+    Returns:
+        Dataset final
+    """
+    logger.info(f"🔄 Reprise pipeline depuis étape {step}")
+
+    if step == 1:
+        return await run_full_pipeline(max_pages)
+
+    if step == 2:
+        # Charger checkpoint TMDB
+        tmdb_movies = checkpoint_manager.load("pipeline_step1_tmdb")
+        if not tmdb_movies:
+            raise ValueError("Checkpoint TMDB introuvable. Relancer depuis étape 1.")
+
+        rt_enriched = await step_2_enrich_rt(tmdb_movies)
+        checkpoint_manager.save("pipeline_step2_rt", rt_enriched)
+
+        final_dataset = step_3_aggregate(tmdb_movies, rt_enriched)
+        checkpoint_manager.save(
+            f"pipeline_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}", final_dataset
+        )
+        return final_dataset
+
+    if step == 3:
+        # Charger checkpoints
+        tmdb_movies = checkpoint_manager.load("pipeline_step1_tmdb")
+        rt_enriched = checkpoint_manager.load("pipeline_step2_rt")
+
+        if not tmdb_movies or not rt_enriched:
+            raise ValueError("Checkpoints manquants. Relancer depuis étape 1 ou 2.")
+
+        final_dataset = step_3_aggregate(tmdb_movies, rt_enriched)
+        checkpoint_manager.save(
+            f"pipeline_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}", final_dataset
+        )
+        return final_dataset
+
+    raise ValueError(f"Étape invalide : {step}. Attendu : 1, 2 ou 3")
+
+
+# === CLI ===
+
+
+def main() -> None:
+    """Point d'entrée CLI du pipeline ETL."""
+
+    try:
+        parser = argparse.ArgumentParser(
+            description="Pipeline ETL HorrorBot - Extraction et enrichissement films d'horreur"
+        )
+
+        parser.add_argument(
+            "--max-pages",
+            type=int,
+            default=None,
+            help=f"Nombre de pages TMDB (défaut: {settings.tmdb.default_max_pages})",
+        )
+
+        parser.add_argument(
+            "--resume-from",
+            type=int,
+            choices=[1, 2, 3],
+            default=None,
+            help="Reprendre depuis l'étape N (1=TMDB, 2=RT, 3=Agrégation)",
+        )
+
+        parser.add_argument(
+            "--list-checkpoints",
+            action="store_true",
+            help="Liste les checkpoints disponibles",
+        )
+
+        args = parser.parse_args()
+
+        # Liste checkpoints
+        if args.list_checkpoints:
+            checkpoints = checkpoint_manager.list_checkpoints()
+            print("\n📂 Checkpoints disponibles :")
+            for cp in checkpoints:
+                print(f"  - {cp}")
+            print(f"\nTotal : {len(checkpoints)} checkpoints")
+            return
+
+        # Exécution pipeline
+        if args.resume_from:
+            dataset = asyncio.run(resume_from_step(args.resume_from, args.max_pages))
+        else:
+            dataset = asyncio.run(run_full_pipeline(args.max_pages))
+
+        logger.info(f"✅ Pipeline terminé avec succès : {len(dataset)} films")
+        sys.exit(0)
+
+    except KeyboardInterrupt:
+        logger.warning("⚠️ Pipeline interrompu par l'utilisateur")
+        sys.exit(130)
+
+    except Exception as e:
+        print(f"\n❌ ERREUR FATALE : {e}", file=sys.stderr)
+        traceback.print_exc()
+        logger.error(f"❌ Échec pipeline : {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    """
-    Test de l'orchestrateur ETL.
-    Usage: python -m src.etl.main
-    """
-    print("\n🧪 TEST ORCHESTRATEUR ETL")
-    print("=" * LINE_WIDTH)
-
-    exit_code = main(
-        max_pages_tmdb=5,
-        enable_tmdb=True,
-        start_year_wikipedia=2023,
-        end_year_wikipedia=2024,
-        max_films_wikipedia=30,
-        enable_wikipedia=True,
-        enable_csv=False,
-        enable_postgres=False,
-        enable_spark=False,
-    )
-
-    print("=" * LINE_WIDTH)
-    if exit_code == 0:
-        print("✅ Test réussi !")
-    else:
-        print("❌ Test échoué !")
-
-    sys.exit(exit_code)
+    main()

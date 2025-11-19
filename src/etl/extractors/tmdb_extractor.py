@@ -1,12 +1,11 @@
 """
 Extracteur TMDB (The Movie Database) - API REST.
-Extrait les films du genre Horror depuis l'API TMDB.
+Extrait les films du genre Horror depuis l'API TMDB avec support period batching.
 """
 
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Union, TypedDict
 
 import requests
@@ -71,6 +70,10 @@ class TMDBExtractor:
     API Documentation: https://developers.themoviedb.org/3
     Genre Horror ID: 27
     Rate Limit: 40 requêtes / 10 secondes
+
+    Modes d'extraction:
+    - Standard: Limité à max_pages (défaut 500 pages = 10,000 films)
+    - Period batching: Division par périodes pour extraction exhaustive
     """
 
     def __init__(self, config_overrides: Optional[dict[str, object]] = None) -> None:
@@ -83,25 +86,49 @@ class TMDBExtractor:
         # Configuration
         self.cfg = settings.tmdb
 
-        # Appliquer les surcharges de configuration si fournies
+        # Create a session for making requests
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        )
+
+        # Configuration de l'API avec surcharges
+        config_keys = [
+            "api_key",
+            "base_url",
+            "image_base_url",
+            "language",
+            "include_adult",
+            "requests_per_period",
+            "period_seconds",
+            "default_max_pages",
+            "year_min",
+            "year_max",
+            "years_per_batch",
+            "use_period_batching",
+        ]
+
+        # Initialize config with values from settings
+        config = {
+            key: getattr(self.cfg, key) for key in config_keys if hasattr(self.cfg, key)
+        }
+
+        # Apply overrides if provided
         if config_overrides:
             for key, value in config_overrides.items():
-                if hasattr(self.cfg, key):
-                    setattr(self.cfg, key, value)
+                if key in config_keys:
+                    config[key] = value
 
-        # Configuration de l'API
-        self.api_key = settings.tmdb.api_key
-        self.base_url = settings.tmdb.base_url
-        self.image_base_url = settings.tmdb.image_base_url
-        self.language = self.cfg.language
-        self.include_adult = self.cfg.include_adult
-
-        # Configuration du rate limiting
-        self.requests_per_period = self.cfg.requests_per_period
-        self.period_seconds = self.cfg.period_seconds
+        # Set instance attributes
+        for key, value in config.items():
+            if not hasattr(type(self), key):
+                setattr(self, key, value)
 
         # Initialisation des composants
-        self.logger = setup_logger(f"{__name__}.TMDBExtractor")
+        self.logger = setup_logger("etl.tmdb")
         self.checkpoint_manager = CheckpointManager()
 
         # Validation de la clé API
@@ -129,6 +156,9 @@ class TMDBExtractor:
         self, response_headers: "requests.structures.CaseInsensitiveDict[str, str]"
     ) -> None:
         """Vérifie les en-têtes de taux limite et émet un avertissement si nécessaire."""
+        if "X-RateLimit-Remaining" not in response_headers:
+            return
+
         remaining = int(response_headers.get("X-RateLimit-Remaining", 0))
         if remaining < 10:
             self.logger.warning(
@@ -168,8 +198,8 @@ class TMDBExtractor:
         time.sleep(self.min_request_delay)
 
         try:
-            self.logger.debug(f"Requête TMDB: {endpoint} - Params: {params}")
-            response = requests.get(url, params=params, timeout=30)
+            self.logger.info(f"Requête TMDB: {endpoint}")
+            response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
 
             self.stats["total_requests"] = int(self.stats.get("total_requests", 0)) + 1
@@ -180,20 +210,22 @@ class TMDBExtractor:
             self.stats["failed_requests"] = (
                 int(self.stats.get("failed_requests", 0)) + 1
             )
-            self.logger.error(
-                f"❌ Erreur requête TMDB {endpoint}: {req_err} - "
-                f"URL: {url} - Params: {params}"
-            )
+            self.logger.error(f"❌ Erreur requête TMDB {endpoint}: {req_err}")
             raise
 
     def _initialize_extraction(self, max_pages: Optional[int]) -> Optional[int]:
         """Initialise l'extraction avec logging et stats."""
-        self.logger.info("🔡 Démarrage extraction TMDB - Endpoint /discover/movie")
+        self.logger.info("📡 DÉMARRAGE EXTRACTION TMDB - Endpoint /discover/movie")
         self.stats["start_time"] = datetime.now()
+
+        # max_pages ignoré si period batching actif
+        if self.cfg.use_period_batching:
+            self.logger.info("Mode period batching : max_pages ignoré")
+            return None
 
         if max_pages is None and hasattr(self.cfg, "default_max_pages"):
             max_pages = self.cfg.default_max_pages
-            self.logger.debug(
+            self.logger.info(
                 f"Utilisation de la limite de pages par défaut : {max_pages}"
             )
 
@@ -230,28 +262,39 @@ class TMDBExtractor:
 
         return False, None
 
-    def _fetch_page(self, page: int) -> dict[str, object]:
+    def _fetch_page(
+        self, page: int, year_min: int | None = None, year_max: int | None = None
+    ) -> dict[str, object]:
         """
         Récupère une page de films depuis l'API TMDB.
 
         Args:
             page: Numéro de la page à récupérer
+            year_min: Année minimum (optionnel)
+            year_max: Année maximum (optionnel)
 
         Returns:
             Réponse JSON de l'API
         """
-        self.logger.debug(f"🔍 Requête page {page}")
+        self.logger.info(f"🔍 Requête page {page}")
 
-        return self._make_request(
-            "/discover/movie",
-            params={
-                "with_genres": self.cfg.horror_genre_id,
-                "sort_by": "popularity.desc",
-                "page": page,
-                "include_adult": "false",
-                "language": self.language,
-            },
-        )
+        params: dict[str, object] = {
+            "with_genres": self.cfg.horror_genre_id,
+            "sort_by": "popularity.desc",
+            "page": page,
+            "include_adult": "false",
+            "language": self.language,
+            # Exclut courts-métrages
+            "with_runtime.gte": 40,
+        }
+
+        # Ajoute filtres temporels si fournis
+        if year_min:
+            params["primary_release_date.gte"] = f"{year_min}-01-01"
+        if year_max:
+            params["primary_release_date.lte"] = f"{year_max}-12-31"
+
+        return self._make_request("/discover/movie", params=params)
 
     def _extract_pagination_metadata(
         self, response: dict[str, object], state: ExtractionState
@@ -297,7 +340,7 @@ class TMDBExtractor:
                 "tmdb_discover",
                 {"movies": state.all_movies, "last_page": state.current_page},
             )
-            self.logger.debug(f"💾 Checkpoint sauvegardé (page {state.current_page})")
+            self.logger.info(f"💾 Checkpoint sauvegardé (page {state.current_page})")
 
     def _handle_extraction_error(
         self, error: requests.RequestException, state: ExtractionState
@@ -325,6 +368,9 @@ class TMDBExtractor:
         """
         Découvre les films d'horreur via l'endpoint /discover/movie.
 
+        Si use_period_batching=true : Extraction par périodes pour contourner limite 500 pages
+        Sinon : Extraction standard limitée à max_pages
+
         Args:
             max_pages: Nombre maximum de pages à récupérer (None = toutes)
 
@@ -333,6 +379,21 @@ class TMDBExtractor:
         """
         # Initialisation
         max_pages = self._initialize_extraction(max_pages)
+
+        self.logger.info(
+            f"Critères extraction - Genre: {self.cfg.horror_genre_id}, "
+            f"Années: {self.cfg.year_min}-{self.cfg.year_max}, "
+            f"Max pages: {max_pages}, Period batching: {self.cfg.use_period_batching}"
+        )
+
+        # Choix de la stratégie
+        if self.cfg.use_period_batching:
+            return self._discover_by_periods()
+        else:
+            return self._discover_standard(max_pages)
+
+    def _discover_standard(self, max_pages: int | None) -> list[dict[str, object]]:
+        """Extraction standard (mode actuel)."""
         all_movies, page = self._load_checkpoint_data()
 
         # Créer l'état d'extraction
@@ -352,8 +413,10 @@ class TMDBExtractor:
                 break
 
             try:
-                # Récupérer une page
-                response = self._fetch_page(state.current_page)
+                # Récupérer une page avec filtres temporels
+                response = self._fetch_page(
+                    state.current_page, self.cfg.year_min, self.cfg.year_max
+                )
 
                 # Extraire les métadonnées (première page uniquement)
                 self._extract_pagination_metadata(response, state)
@@ -373,6 +436,65 @@ class TMDBExtractor:
 
         return self._finalize_extraction(state)
 
+    def _discover_by_periods(self) -> list[dict[str, object]]:
+        """Extraction exhaustive par périodes."""
+        all_movies: list[dict[str, object]] = []
+
+        # Génère les périodes
+        for start_year in range(
+            self.cfg.year_min, self.cfg.year_max + 1, self.cfg.years_per_batch
+        ):
+            end_year = min(start_year + self.cfg.years_per_batch - 1, self.cfg.year_max)
+
+            self.logger.info(f"📅 Période {start_year}-{end_year}")
+
+            # Extraction pour cette période
+            period_movies = self._extract_period(start_year, end_year)
+            all_movies.extend(period_movies)
+
+            self.logger.info(
+                f"✅ Période {start_year}-{end_year} : {len(period_movies)} films "
+                f"(Total cumulé : {len(all_movies):,})"
+            )
+
+        return all_movies
+
+    def _extract_period(self, year_min: int, year_max: int) -> list[dict[str, object]]:
+        """Extrait tous les films d'une période donnée."""
+        period_movies: list[dict[str, object]] = []
+        page = 1
+
+        while True:
+            try:
+                response = self._fetch_page(page, year_min, year_max)
+
+                # Métadonnées première page
+                if page == 1:
+                    total_pages = min(response.get("total_pages", 500), 500)
+                    total_results = response.get("total_results", 0)
+                    self.logger.info(
+                        f"   {total_results:,} films trouvés ({total_pages} pages)"
+                    )
+
+                # Récupérer films
+                page_movies = response.get("results", [])
+                if not page_movies:
+                    break
+
+                period_movies.extend(page_movies)
+
+                # Arrêt si dernière page
+                if page >= response.get("total_pages", 1):
+                    break
+
+                page += 1
+
+            except requests.RequestException as e:
+                self.logger.warning(f"⚠️ Erreur page {page} : {e}")
+                break
+
+        return period_movies
+
     def enrich_movie_details(
         self, movies_to_enrich: list[MovieBase]
     ) -> list[Union[MovieBase, MovieDetails]]:
@@ -387,7 +509,7 @@ class TMDBExtractor:
             Liste de films enrichis avec cast, réalisateurs, etc.
         """
         self.logger.info(
-            f"🔍 Enrichissement de {len(movies_to_enrich):,} films avec détails complets"
+            f"🔎 Enrichissement de {len(movies_to_enrich):,} films avec détails complets"
         )
 
         enriched_movies = []
@@ -464,9 +586,7 @@ class TMDBExtractor:
 
         try:
             # Étape 1 : Découverte des films Horror
-            horror_movies = self.discover_horror_movies(
-                max_pages=max_pages or self.cfg.default_max_pages
-            )
+            horror_movies = self.discover_horror_movies(max_pages=max_pages)
 
             # Étape 2 : Enrichissement (optionnel)
             if enrich and horror_movies:
@@ -526,14 +646,13 @@ class TMDBExtractor:
 if __name__ == "__main__":
     """
     Test de l'extracteur TMDB en standalone.
-    Usage: python etl/extractors/tmdb_extractor.py
+    Usage: python src/etl/extractors/tmdb_extractor.py
     """
     import sys
+    from pathlib import Path
 
     # Configuration du test
-    # Limiter à 5 pages pour test rapide (100 films)
     MAX_PAGES_TEST = 5
-    # Désactiver enrichissement pour test rapide
     ENRICH_TEST = False
 
     print("\n🧪 TEST EXTRACTEUR TMDB")
@@ -568,23 +687,23 @@ if __name__ == "__main__":
                 f"\n{i}. {movie.get('title', 'Unknown')} ({movie.get('release_date', 'N/A')[:4]})"
             )
             print(f"   Note: {movie.get('vote_average', 0)}/10")
-            print(f"   Genres: {[g.get('name') for g in movie.get('genres', [])]}")
             print(f"   Synopsis: {movie.get('overview', 'N/A')[:100]}...")
 
         print(f"\n✅ Test réussi : {len(movies)} films extraits")
-        print(
-            f"💾 Checkpoint sauvegardé dans : {settings.paths.checkpoints_dir.absolute()}/tmdb_final.json"
-        )
 
-        # Vérifier que le fichier existe
-        checkpoint_file = settings.paths.checkpoints_dir / "tmdb_final.json"
-        if checkpoint_file.exists():
-            file_size = checkpoint_file.stat().st_size
+        # Vérifier que le fichier a été créé
+        checkpoint_files = list(
+            settings.paths.checkpoints_dir.glob("tmdb_movies_*.json")
+        )
+        if checkpoint_files:
+            latest_checkpoint = max(checkpoint_files, key=lambda p: p.stat().st_mtime)
+            file_size = latest_checkpoint.stat().st_size
             print(
-                f"📄 Taille du fichier : {file_size:,} octets ({file_size / 1024:.1f} KB)"
+                f"📄 Checkpoint créé : {latest_checkpoint.name} "
+                f"({file_size:,} octets / {file_size / 1024:.1f} KB)"
             )
         else:
-            print("⚠️ ATTENTION : Le fichier checkpoint n'a pas été créé !")
+            print("⚠️ ATTENTION : Aucun fichier checkpoint trouvé !")
 
     except Exception as e:
         print(f"\n❌ Erreur durant le test : {e}")

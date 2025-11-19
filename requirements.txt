@@ -1,72 +1,50 @@
 # ============================================================================
-# HORRORBOT - Requirements
-# Python 3.12+
+# HorrorBot - Python Dependencies
 # ============================================================================
 
-# -------------------------------------------------------------------------
-# ETL - Extraction de données
-# -------------------------------------------------------------------------
-requests==2.32.5                # Requêtes HTTP (TMDB API)
-beautifulsoup4==4.14.2          # Parsing HTML (Wikipedia scraping)
-lxml==6.0.2                     # Parser HTML performant
-pandas==2.3.3                   # Manipulation CSV et DataFrames
-openpyxl==3.1.5                # Support fichiers Excel (optionnel)
+# --- Core Framework ---
+fastapi==0.121.2
+uvicorn[standard]==0.38.0
+pydantic==2.12.4
+pydantic-settings==2.12.0
 
-# PostgreSQL
-psycopg2-binary==2.9.11          # Connexion PostgreSQL (pas besoin de compiler)
-sqlalchemy==2.0.44              # ORM PostgreSQL
+# --- Database ---
+psycopg2-binary==2.9.11
+sqlalchemy==2.0.44
+alembic==1.17.2
 
-# Big Data Spark
-pyspark==4.0.1                  # Apache Spark pour traitement distribué
+# --- ETL & Data Processing ---
+requests==2.32.5
+httpx==0.28.1
+beautifulsoup4==4.14.2
+lxml==6.0.2
+pandas==2.3.3
+tenacity==9.1.2
 
-# -------------------------------------------------------------------------
-# Utilitaires ETL
-# -------------------------------------------------------------------------
-tenacity==9.1.2                 # Retry automatique sur erreurs
-python-dotenv==1.1.1           # Chargement variables .env
-tqdm==4.67.1                    # Barres de progression
-jellyfish==1.2.1                # Distance Levenshtein (fuzzy matching)
+# --- Web Scraping ---
+crawl4ai==0.7.7
 
-# -------------------------------------------------------------------------
-# API REST - FastAPI
-# -------------------------------------------------------------------------
-fastapi==0.119.0                # Framework web asynchrone
-uvicorn==0.37.0       # Serveur ASGI
-pydantic==2.12.1                # Validation de données
-pydantic-settings==2.11.0        # Configuration depuis .env
+# --- Testing ---
+pytest==9.0.1
+pytest-asyncio==1.3.0
+pytest-cov==7.0.0
+pytest-mock==3.15.1
 
-# Sécurité API
-python-jose==3.5.0  # JWT (JSON Web Tokens)
-passlib==1.7.4          # Hashage passwords
-python-multipart==0.0.20         # Support form data
-slowapi==0.1.9                  # Rate limiting
+# --- Code Quality ---
+pre-commit==4.4.0
 
-# CORS
-fastapi-cors==0.0.6             # Gestion CORS simplifiée
+# --- Security ---
+pyjwt==2.10.1
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.20
 
-# -------------------------------------------------------------------------
-# Base de données
-# -------------------------------------------------------------------------
-alembic==1.17.0                 # Migrations DB
-pgvector==0.4.1                # Extension vecteurs PostgreSQL
+# --- Utilities ---
+python-dotenv==1.2.1
+structlog==25.5.0
+tqdm==4.67.1
+unidecode==1.4.0
 
-# -------------------------------------------------------------------------
-# Tests
-# -------------------------------------------------------------------------
-pytest==8.4.2                  # Framework de tests
-pytest-cov==7.0.0               # Couverture de code
-pytest-asyncio==1.2.0          # Tests asynchrones FastAPI
-httpx==0.28.1                  # Client HTTP pour tester API
-faker==37.11.0                 # Génération données de test
-
-# -------------------------------------------------------------------------
-# Logging et monitoring
-# -------------------------------------------------------------------------
-python-json-logger==4.0.0       # Logs structurés JSON
-colorlog==6.9.0               # Logs colorés en console
-
-# -------------------------------------------------------------------------
-# Documentation
-# -------------------------------------------------------------------------
-mkdocs==1.6.1                   # Documentation statique
-mkdocs-material==9.6.21         # Thème Material Design
+# --- LLM & Embeddings (pour E2-E3) ---
+# llama-cpp-python==0.2.79  # À compiler avec CUDA si GPU
+sentence-transformers==5.1.2
