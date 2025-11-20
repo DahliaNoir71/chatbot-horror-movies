@@ -11,13 +11,8 @@ from dotenv import load_dotenv
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
-if not _ENV_FILE.exists():
-    raise FileNotFoundError(
-        f"Fichier .env introuvable : {_ENV_FILE}\n"
-        f"Créer un fichier .env à la racine du projet avec TMDB_API_KEY=votre_clé"
-    )
-
-load_dotenv(_ENV_FILE)
+if _ENV_FILE.exists():
+    load_dotenv(_ENV_FILE)
 
 from pydantic import Field, field_validator  # noqa: E402
 from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
@@ -349,12 +344,3 @@ def print_settings() -> dict[str, Any]:
         config_dict["security"]["jwt_secret_key"] = masked
 
     return config_dict
-
-
-if __name__ == "__main__":
-    """Test de chargement de la configuration."""
-    import json
-
-    print("=== Configuration HorrorBot ===\n")
-    config = print_settings()
-    print(json.dumps(config, indent=2, default=str))

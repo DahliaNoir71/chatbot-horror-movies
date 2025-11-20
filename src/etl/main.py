@@ -184,12 +184,23 @@ def _log_pipeline_stats(
     logger.info("📊 STATISTIQUES PIPELINE COMPLET")
     logger.info("=" * 80)
     logger.info(f"Films finaux         : {len(dataset):,}")
-    logger.info(f"Durée totale         : {duration:.2f}s ({duration / 60:.1f} min)")
-    logger.info(f"Débit                : {len(dataset) / duration:.2f} films/s")
-    logger.info(f"Checkpoint           : {checkpoint_path.name}")
     logger.info(
-        f"Taille fichier       : {checkpoint_path.stat().st_size / 1024:.1f} KB"
+        f"Durée totale         : {duration:.2f}s ({duration / 60:.1f} min)"
+        if duration > 0
+        else "Durée totale         : < 0.01s"
     )
+    if duration > 0:
+        logger.info(f"Débit                : {len(dataset) / duration:.2f} films/s")
+    logger.info(f"Checkpoint           : {checkpoint_path.name}")
+    try:
+        if checkpoint_path.exists():
+            logger.info(
+                f"Taille fichier       : {checkpoint_path.stat().st_size / 1024:.1f} KB"
+            )
+        else:
+            logger.warning(f"Fichier checkpoint non trouvé: {checkpoint_path}")
+    except Exception as e:
+        logger.warning(f"Erreur lors de la vérification du fichier checkpoint: {e}")
 
     # Statistiques enrichissement RT
     rt_enriched_count = sum(1 for film in dataset if film.get("tomatometer_score"))
