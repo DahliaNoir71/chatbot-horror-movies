@@ -58,7 +58,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt -r requirements-tests.txt
+          pip install -r requirements.txt
 
       # Exécute les tests avec pytest et génère les rapports de couverture
       - name: Run tests with coverage
@@ -154,7 +154,6 @@ jobs:
           mkdir -p security-reports
           safety check \
             -r requirements.txt \
-            -r requirements-tests.txt \
             --output json > security-reports/safety-report.json || true
 
       # pip-audit : vérifie les vulnérabilités (base OSV - Open Source Vulnerabilities)
@@ -162,7 +161,6 @@ jobs:
         run: |
           pip-audit \
             -r requirements.txt \
-            -r requirements-tests.txt \
             -f json \
             -o security-reports/pip-audit.json || true
 
