@@ -62,6 +62,8 @@ jobs:
 
       # Exécute les tests avec pytest et génère les rapports de couverture
       - name: Run tests with coverage
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
           mkdir -p reports
           pytest -v --tb=short \
