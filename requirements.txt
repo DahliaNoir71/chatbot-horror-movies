@@ -17,7 +17,7 @@ alembic==1.17.2
 requests==2.32.5
 httpx==0.28.1
 beautifulsoup4==4.14.2
-lxml==6.0.2
+lxml~=5.3.0  # Pinned to be compatible with crawl4ai
 pandas==2.3.3
 tenacity==9.1.2
 
