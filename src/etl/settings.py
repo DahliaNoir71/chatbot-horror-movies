@@ -11,14 +11,21 @@ from dotenv import load_dotenv
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
-if _ENV_FILE.exists():
-    load_dotenv(_ENV_FILE)
+if not _ENV_FILE.exists():
+    raise FileNotFoundError(
+        f"Fichier .env introuvable : {_ENV_FILE}\n"
+        f"Créer un fichier .env à la racine du projet avec TMDB_API_KEY=votre_clé"
+    )
+
+load_dotenv(_ENV_FILE)
 
 from pydantic import Field, field_validator  # noqa: E402
 from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
 
-# === Chemins du projet ===
+# ============================================================================
+# SETTINGS ACTIFS (ETL en cours)
+# ============================================================================
 
 
 class PathsSettings(BaseSettings):
@@ -45,9 +52,6 @@ class PathsSettings(BaseSettings):
         return v
 
 
-# === Configuration TMDB ===
-
-
 class TMDBSettings(BaseSettings):
     """Configuration API TMDB."""
 
@@ -71,9 +75,7 @@ class TMDBSettings(BaseSettings):
     requests_per_period: int = 40
     period_seconds: int = 10
     min_request_delay: float = 0.25
-    use_period_batching: bool = Field(
-        default=False, alias="TMDB_USE_PERIOD_BATCHING"
-    )  # ✅
+    use_period_batching: bool = Field(default=False, alias="TMDB_USE_PERIOD_BATCHING")
 
     # Extraction
     default_max_pages: int = Field(default=5, alias="TMDB_MAX_PAGES")
@@ -137,117 +139,6 @@ class TMDBSettings(BaseSettings):
         return v
 
 
-# === Configuration PostgreSQL ===
-
-
-class DatabaseSettings(BaseSettings):
-    """Configuration PostgreSQL principale."""
-
-    host: str = Field(default="localhost", alias="POSTGRES_HOST")
-    port: int = Field(default=5432, alias="POSTGRES_PORT")
-    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
-    user: str = Field(default="horrorbot_user", alias="POSTGRES_USER")
-    password: str = Field(default="", alias="POSTGRES_PASSWORD")
-    url: str | None = Field(default=None, alias="DATABASE_URL")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    @property
-    def connection_url(self) -> str:
-        """Génère l'URL de connexion PostgreSQL."""
-        if self.url:
-            return self.url
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-
-class IMDbDatabaseSettings(BaseSettings):
-    """Configuration PostgreSQL externe IMDb (pour extraction C1)."""
-
-    host: str = Field(default="localhost", alias="IMDB_POSTGRES_HOST")
-    port: int = Field(default=5433, alias="IMDB_POSTGRES_PORT")
-    database: str = Field(default="imdb_subset", alias="IMDB_POSTGRES_DB")
-    user: str = Field(default="imdb_reader", alias="IMDB_POSTGRES_USER")
-    password: str = Field(default="", alias="IMDB_POSTGRES_PASSWORD")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    @property
-    def connection_url(self) -> str:
-        """Génère l'URL de connexion PostgreSQL IMDb."""
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-
-# === Configuration API REST ===
-
-
-class APISettings(BaseSettings):
-    """Configuration FastAPI."""
-
-    host: str = Field(default="0.0.0.0", alias="API_HOST")
-    port: int = Field(default=8000, alias="API_PORT")
-    reload: bool = Field(default=True, alias="API_RELOAD")
-    workers: int = Field(default=4, alias="API_WORKERS")
-    public_url: str = Field(default="http://localhost:8000", alias="API_PUBLIC_URL")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-
-# === Configuration Sécurité ===
-
-
-class SecuritySettings(BaseSettings):
-    """Configuration JWT et rate limiting."""
-
-    jwt_secret_key: str = Field(..., alias="JWT_SECRET_KEY")
-    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    jwt_expire_minutes: int = Field(default=30, alias="JWT_EXPIRE_MINUTES")
-    rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
-    rate_limit_per_hour: int = Field(default=1000, alias="RATE_LIMIT_PER_HOUR")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    @field_validator("jwt_secret_key")
-    @classmethod
-    def validate_jwt_secret(cls, v: str) -> str:
-        """Valide que la clé JWT est définie et sécurisée."""
-        if not v or "generate_" in v.lower():
-            raise ValueError(
-                "JWT_SECRET_KEY invalide. Générer avec: openssl rand -hex 32"
-            )
-        if len(v) < 32:
-            raise ValueError("JWT_SECRET_KEY trop courte (minimum 32 caractères)")
-        return v
-
-
-# === Configuration CORS ===
-
-
-class CORSSettings(BaseSettings):
-    """Configuration CORS."""
-
-    origins_raw: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    @property
-    def origins(self) -> list[str]:
-        """Parse et retourne la liste des origines."""
-        return [origin.strip() for origin in self.origins_raw.split(",")]
-
-
-# === Configuration ETL ===
-
-
 class ETLSettings(BaseSettings):
     """Configuration pipeline ETL."""
 
@@ -260,9 +151,6 @@ class ETLSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
-
-
-# === Configuration Logging ===
 
 
 class LoggingSettings(BaseSettings):
@@ -287,7 +175,101 @@ class LoggingSettings(BaseSettings):
         return v_upper
 
 
-# === Configuration Globale ===
+# ============================================================================
+# SETTINGS FUTURS (Non implémentés - valeurs par défaut uniquement)
+# ============================================================================
+
+
+class DatabaseSettings(BaseSettings):
+    """Configuration PostgreSQL principale (⚠️ NON IMPLÉMENTÉ - E1 incomplet)."""
+
+    host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    port: int = Field(default=5432, alias="POSTGRES_PORT")
+    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
+    user: str = Field(default="horrorbot_user", alias="POSTGRES_USER")
+    password: str = Field(default="", alias="POSTGRES_PASSWORD")
+    url: str | None = Field(default=None, alias="DATABASE_URL")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @property
+    def connection_url(self) -> str:
+        """Génère l'URL de connexion PostgreSQL."""
+        if self.url:
+            return self.url
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+
+class IMDbDatabaseSettings(BaseSettings):
+    """Configuration PostgreSQL externe IMDb (⚠️ NON IMPLÉMENTÉ - E1 incomplet)."""
+
+    host: str = Field(default="localhost", alias="IMDB_POSTGRES_HOST")
+    port: int = Field(default=5433, alias="IMDB_POSTGRES_PORT")
+    database: str = Field(default="imdb_subset", alias="IMDB_POSTGRES_DB")
+    user: str = Field(default="imdb_reader", alias="IMDB_POSTGRES_USER")
+    password: str = Field(default="", alias="IMDB_POSTGRES_PASSWORD")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @property
+    def connection_url(self) -> str:
+        """Génère l'URL de connexion PostgreSQL IMDb."""
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+
+class APISettings(BaseSettings):
+    """Configuration FastAPI (⚠️ NON IMPLÉMENTÉ - E3 à venir)."""
+
+    host: str = Field(default="0.0.0.0", alias="API_HOST")
+    port: int = Field(default=8000, alias="API_PORT")
+    reload: bool = Field(default=True, alias="API_RELOAD")
+    workers: int = Field(default=4, alias="API_WORKERS")
+    public_url: str = Field(default="http://localhost:8000", alias="API_PUBLIC_URL")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+class SecuritySettings(BaseSettings):
+    """Configuration JWT et rate limiting (⚠️ NON IMPLÉMENTÉ - E3 à venir)."""
+
+    jwt_secret_key: str = Field(
+        default="test_jwt_secret_not_for_production_minimum_32_chars_long",
+        alias="JWT_SECRET_KEY",
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_expire_minutes: int = Field(default=30, alias="JWT_EXPIRE_MINUTES")
+    rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
+    rate_limit_per_hour: int = Field(default=1000, alias="RATE_LIMIT_PER_HOUR")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+class CORSSettings(BaseSettings):
+    """Configuration CORS (⚠️ NON IMPLÉMENTÉ - E3 à venir)."""
+
+    origins_raw: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @property
+    def origins(self) -> list[str]:
+        """Parse et retourne la liste des origines."""
+        return [origin.strip() for origin in self.origins_raw.split(",")]
+
+
+# ============================================================================
+# Configuration Globale
+# ============================================================================
 
 
 class Settings(BaseSettings):
@@ -296,15 +278,20 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=False, alias="DEBUG")
 
+    # ✅ ACTIF - ETL en cours (TMDB + Rotten Tomatoes)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     tmdb: TMDBSettings = Field(default_factory=TMDBSettings)
+    etl: ETLSettings = Field(default_factory=ETLSettings)
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
+
+    # ⚠️ FUTUR - E1 incomplet (5 sources hétérogènes manquantes)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     imdb_database: IMDbDatabaseSettings = Field(default_factory=IMDbDatabaseSettings)
+
+    # ⚠️ FUTUR - E3 (API REST + JWT + Frontend)
     api: APISettings = Field(default_factory=APISettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
-    etl: ETLSettings = Field(default_factory=ETLSettings)
-    logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
@@ -321,12 +308,16 @@ class Settings(BaseSettings):
         return v_lower
 
 
-# === Instance singleton ===
+# ============================================================================
+# Instance singleton
+# ============================================================================
 
 settings = Settings()
 
 
-# === Utilitaire pour afficher la config (debug) ===
+# ============================================================================
+# Utilitaire pour afficher la config (debug)
+# ============================================================================
 
 
 def print_settings() -> dict[str, Any]:
