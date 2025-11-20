@@ -138,3 +138,4 @@ spark-warehouse/
 *.temp
 .cache/
 /src/etl/data/
+/tests/unit/etl/data/
