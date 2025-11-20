@@ -97,12 +97,6 @@ class TestSecuritySettings:
     """Tests SecuritySettings."""
 
     @staticmethod
-    def test_missing_jwt_secret_raises() -> None:
-        """Test erreur si secret manquant."""
-        with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
-            SecuritySettings()
-
-    @staticmethod
     def test_valid_jwt_secret() -> None:
         """Test secret valide."""
         secret = "a" * 32

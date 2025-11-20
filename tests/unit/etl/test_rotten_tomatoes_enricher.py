@@ -5,10 +5,14 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import os
 
 from src.etl.extractors.rotten_tomatoes_enricher import RottenTomatoesEnricher
 
-
+@pytest.mark.skipif(
+    os.getenv("CI") == "true",
+    reason="Tests RT skippés en CI (nécessitent Playwright)"
+)
 @pytest.mark.unit
 class TestRottenTomatoesEnricher:
     """Tests pour RottenTomatoesEnricher (fichier fusionné)."""
