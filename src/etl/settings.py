@@ -11,11 +11,11 @@ from dotenv import load_dotenv
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
-if not _ENV_FILE.exists():
-    raise FileNotFoundError(
-        f"Fichier .env introuvable : {_ENV_FILE}\n"
-        f"Créer un fichier .env à la racine du projet avec TMDB_API_KEY=votre_clé"
-    )
+if _ENV_FILE.exists():
+    load_dotenv(_ENV_FILE)
+    print(f"✅ Configuration chargée depuis {_ENV_FILE}")
+else:
+    print("⚠️ Pas de .env trouvé, utilisation des variables d'environnement")
 
 load_dotenv(_ENV_FILE)
 
