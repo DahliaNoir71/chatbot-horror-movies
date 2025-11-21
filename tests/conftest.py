@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, AsyncMock
 import pytest
 from httpx import Response
 
-from src.settings import settings
+SRC_SETTINGS = 'src.settings'
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -61,7 +61,11 @@ def reset_settings_cache() -> None:
 
 @pytest.fixture
 def tmp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Répertoire temporaire pour données de test."""
+    """Répertoire temporaire pour données de test.
+
+    Crée une structure de répertoires temporaire et configure les chemins via des variables d'environnement.
+    """
+    # Création des répertoires nécessaires
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     (data_dir / "checkpoints").mkdir()
@@ -69,11 +73,23 @@ def tmp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (data_dir / "processed").mkdir()
     (data_dir / "logs").mkdir()
 
-    # Override settings paths
-    monkeypatch.setattr(settings.paths, "checkpoints_dir", data_dir / "checkpoints")
-    monkeypatch.setattr(settings.paths, "raw_dir", data_dir / "raw")
-    monkeypatch.setattr(settings.paths, "processed_dir", data_dir / "processed")
-    monkeypatch.setattr(settings.paths, "logs_dir", data_dir / "logs")
+    # Définition des variables d'environnement pour les chemins
+    monkeypatch.setenv("PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
+
+    # Recharger les paramètres pour prendre en compte les nouveaux chemins
+    from importlib import reload
+    import sys
+
+    # Si le module settings a déjà été chargé, on le recharge
+    if SRC_SETTINGS in sys.modules:
+        reload(sys.modules[SRC_SETTINGS])
+
+    # Importer settings après avoir défini les variables d'environnement
+    from src.settings import settings
+
+    # S'assurer que les répertoires sont créés
+    settings.paths.model_post_init(None)
 
     return data_dir
 
@@ -245,8 +261,20 @@ def checkpoint_file(tmp_data_dir: Path) -> Path:
 @pytest.fixture(autouse=True)
 def override_settings(tmp_data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Override settings pour utiliser répertoires temporaires."""
-    monkeypatch.setattr(settings.paths, "checkpoints_dir", tmp_data_dir / "checkpoints")
-    monkeypatch.setattr(settings.paths, "raw_dir", tmp_data_dir / "raw")
-    monkeypatch.setattr(settings.paths, "processed_dir", tmp_data_dir / "processed")
-    monkeypatch.setattr(settings.paths, "logs_dir", tmp_data_dir / "logs")
+    # Définir les variables d'environnement pour les chemins
+    monkeypatch.setenv("PROJECT_ROOT", str(tmp_data_dir.parent))
+    monkeypatch.setenv("DATA_DIR", str(tmp_data_dir))
 
+    # Recharger les paramètres pour prendre en compte les nouveaux chemins
+    from importlib import reload
+    import sys
+
+    # Si le module settings a déjà été chargé, on le recharge
+    if SRC_SETTINGS in sys.modules:
+        reload(sys.modules[SRC_SETTINGS])
+
+    # Importer settings après avoir défini les variables d'environnement
+    from src.settings import settings
+
+    # S'assurer que les répertoires sont créés
+    settings.paths.model_post_init(None)
