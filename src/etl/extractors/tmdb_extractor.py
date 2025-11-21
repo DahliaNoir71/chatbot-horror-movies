@@ -11,7 +11,7 @@ from typing import Optional, Union, TypedDict
 import requests
 from tqdm import tqdm
 
-from src.etl.settings import settings
+from src.settings import settings
 from src.etl.utils import setup_logger, CheckpointManager
 
 

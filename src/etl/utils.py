@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from src.etl.settings import settings
+from src.settings import settings
 
 # === Configuration Logging Centralisée avec Structlog ===
 
@@ -66,33 +66,31 @@ def setup_logger(name: str) -> logging.Logger:
 
     logger.setLevel(logging.DEBUG if settings.debug else logging.INFO)
 
-    # ✅ Format CONSOLE : Lisible humain
+    # Format console lisible
     console_formatter = logging.Formatter(
         "%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s", datefmt="%H:%M:%S"
     )
 
-    # ✅ Format FICHIER : JSON structuré
+    # Format fichier JSON
     file_formatter = logging.Formatter(
         '{"time": "%(asctime)s", "name": "%(name)s", "level": "%(levelname)s", '
         '"message": "%(message)s"}',
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Handler console (format lisible)
+    # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
-    # Handler fichier (format JSON)
-    if settings.paths.logs_dir:
-        log_file = settings.paths.logs_dir / f"{name}.log"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
+    # ✅ CENTRALISATION : Tous les logs dans logs/{name}.log
+    log_file = settings.paths.logs_dir / f"{name}.log"
 
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
 
     return logger
 

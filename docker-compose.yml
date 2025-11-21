@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: horrorbot_postgres
+    environment:
+      POSTGRES_DB: horrorbot
+      POSTGRES_USER: horrorbot_user
+      POSTGRES_PASSWORD: horrorbot_dev_password
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C --lc-messages=en_US.UTF-8"
+      LC_MESSAGES: en_US.UTF-8      # ✅ CRITIQUE
+      LC_ALL: en_US.UTF-8           # ✅ CRITIQUE
+      LANG: en_US.UTF-8             # ✅ CRITIQUE
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_pgvector.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U horrorbot_user -d horrorbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

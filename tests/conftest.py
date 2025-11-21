@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, AsyncMock
 import pytest
 from httpx import Response
 
-from src.etl.settings import settings
+from src.settings import settings
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -52,7 +52,7 @@ def mock_env_for_tests(monkeypatch: pytest.MonkeyPatch) -> None:
 def reset_settings_cache() -> None:
     """Force rechargement settings entre tests."""
     # Pydantic Settings cache les valeurs, on doit les clear
-    from src.etl.settings import TMDBSettings, SecuritySettings
+    from src.settings import TMDBSettings, SecuritySettings
 
     # Clear caches Pydantic
     TMDBSettings.model_config["validate_assignment"] = True

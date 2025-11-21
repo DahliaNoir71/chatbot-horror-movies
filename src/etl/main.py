@@ -11,7 +11,7 @@ from typing import Any
 from src.etl.aggregator import DataAggregator
 from src.etl.extractors.rotten_tomatoes_enricher import RottenTomatoesEnricher
 from src.etl.extractors.tmdb_extractor import TMDBExtractor
-from src.etl.settings import settings
+from src.settings import settings
 from src.etl.utils import CheckpointManager, setup_logger
 
 # === Configuration ===

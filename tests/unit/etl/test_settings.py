@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.etl.settings import (
+from src.settings import (
     TMDBSettings,
     DatabaseSettings,
     SecuritySettings,

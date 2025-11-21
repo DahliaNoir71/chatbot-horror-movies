@@ -7,8 +7,8 @@ from typing import Any
 # ✅ Chargement explicite du .env AVANT tout le reste
 from dotenv import load_dotenv
 
-# Trouve le .env à la racine du projet (2 niveaux au-dessus de ce fichier)
-_PROJECT_ROOT = Path(__file__).parent.parent.parent
+# Trouve le .env à la racine du projet
+_PROJECT_ROOT = Path(__file__).parent.parent
 _ENV_FILE = _PROJECT_ROOT / ".env"
 
 if _ENV_FILE.exists():
@@ -31,25 +31,56 @@ from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 class PathsSettings(BaseSettings):
     """Configuration des chemins de données et logs."""
 
-    raw_dir: Path = Field(default=Path("data/raw"), alias="DATA_RAW_DIR")
-    processed_dir: Path = Field(
-        default=Path("data/processed"), alias="DATA_PROCESSED_DIR"
-    )
-    checkpoints_dir: Path = Field(
-        default=Path("data/checkpoints"), alias="DATA_CHECKPOINTS_DIR"
-    )
-    logs_dir: Path = Field(default=Path("logs"), alias="LOG_DIR")
+    # ✅ Chemins absolus basés sur la racine projet
+    _project_root: Path = _PROJECT_ROOT
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    @field_validator("raw_dir", "processed_dir", "checkpoints_dir", "logs_dir")
-    @classmethod
-    def create_directories(cls, v: Path) -> Path:
-        """Crée les répertoires s'ils n'existent pas."""
-        v.mkdir(parents=True, exist_ok=True)
-        return v
+    @property
+    def data_dir(self) -> Path:
+        """Répertoire racine des données."""
+        return self._project_root / "data"
+
+    @property
+    def raw_dir(self) -> Path:
+        """Données brutes (CSV, JSON sources)."""
+        return self.data_dir / "raw"
+
+    @property
+    def processed_dir(self) -> Path:
+        """Données finales agrégées."""
+        return self.data_dir / "processed"
+
+    @property
+    def checkpoints_dir(self) -> Path:
+        """Checkpoints ETL et pipeline."""
+        return self.data_dir / "checkpoints"
+
+    @property
+    def imports_dir(self) -> Path:
+        """Fichiers temporaires d'import DB."""
+        return self.data_dir / "imports"
+
+    @property
+    def logs_dir(self) -> Path:
+        """Logs applicatifs."""
+        return self._project_root / "logs"
+
+    def model_post_init(self, _: object) -> None:
+        """Crée automatiquement tous les répertoires nécessaires."""
+        directories = [
+            self.data_dir,
+            self.raw_dir,
+            self.processed_dir,
+            self.checkpoints_dir,
+            self.imports_dir,
+            self.logs_dir,
+        ]
+
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
 
 
 class TMDBSettings(BaseSettings):

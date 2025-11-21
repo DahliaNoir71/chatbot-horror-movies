@@ -11,7 +11,7 @@ from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
 from unidecode import unidecode
 
-from src.etl.settings import settings
+from src.settings import settings
 from src.etl.utils import setup_logger
 
 
