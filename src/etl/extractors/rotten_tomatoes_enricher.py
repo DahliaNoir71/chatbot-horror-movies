@@ -11,8 +11,8 @@ from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
 from unidecode import unidecode
 
-from src.settings import settings
 from src.etl.utils import setup_logger
+from src.settings import settings
 
 
 class RottenTomatoesEnricher:
@@ -25,9 +25,7 @@ class RottenTomatoesEnricher:
         self.logger = setup_logger("etl.rt")
         self.base_url = "https://www.rottentomatoes.com"
         # ✅ Checkpoint centralisé
-        self.checkpoint_path = (
-            settings.paths.checkpoints_dir / "rotten_tomatoes_processed.json"
-        )
+        self.checkpoint_path = settings.paths.checkpoints_dir / "rotten_tomatoes_processed.json"
         self.processed_films: set[str] = self._load_checkpoint()
 
     def _load_checkpoint(self) -> set[str]:
@@ -37,9 +35,7 @@ class RottenTomatoesEnricher:
                 with self.checkpoint_path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
                     processed = set(data.get("processed_films", []))
-                    self.logger.info(
-                        f"✅ Checkpoint RT chargé : {len(processed)} films traités"
-                    )
+                    self.logger.info(f"✅ Checkpoint RT chargé : {len(processed)} films traités")
 
                     return processed
             except json.JSONDecodeError:
@@ -101,9 +97,7 @@ class RottenTomatoesEnricher:
 
         return f"/m/{slug}"
 
-    async def _check_film_url(
-        self, crawler: AsyncWebCrawler, film_url: str, title: str
-    ) -> bool:
+    async def _check_film_url(self, crawler: AsyncWebCrawler, film_url: str, title: str) -> bool:
         """Vérifie si une URL de film est valide (pas une 404).
 
         Args:
@@ -129,7 +123,7 @@ class RottenTomatoesEnricher:
 
             return "404 - Not Found" not in result.html
 
-        except (asyncio.TimeoutError, ConnectionError) as e:
+        except (TimeoutError, ConnectionError) as e:
             self.logger.error(f"❌ Erreur vérification URL pour {title} : {e}")
             return False
 
@@ -181,15 +175,11 @@ class RottenTomatoesEnricher:
                 )
                 return film_url
 
-        self.logger.warning(
-            f"❌ Film introuvable après {len(title_variants)} tentatives : {title}"
-        )
+        self.logger.warning(f"❌ Film introuvable après {len(title_variants)} tentatives : {title}")
         return None
 
     @staticmethod
-    def _extract_critics_scores(
-        scorecard_data: dict[str, Any], details: dict[str, Any]
-    ) -> None:
+    def _extract_critics_scores(scorecard_data: dict[str, Any], details: dict[str, Any]) -> None:
         """Extrait les scores critiques."""
         if critics := scorecard_data.get("criticsScore"):
             if score := critics.get("score"):
@@ -200,9 +190,7 @@ class RottenTomatoesEnricher:
             details["critics_average_rating"] = critics.get("averageRating")
 
     @staticmethod
-    def _extract_audience_scores(
-        scorecard_data: dict[str, Any], details: dict[str, Any]
-    ) -> None:
+    def _extract_audience_scores(scorecard_data: dict[str, Any], details: dict[str, Any]) -> None:
         """Extrait les scores audience."""
         if audience := scorecard_data.get("audienceScore"):
             if score := audience.get("score"):
@@ -250,13 +238,11 @@ class RottenTomatoesEnricher:
                     script_content = script_tag.string.strip()
                     success = True
                 else:
-                    self.logger.warning(
-                        f"⚠️ Script absent/vide pour {full_url}, retry..."
-                    )
+                    self.logger.warning(f"⚠️ Script absent/vide pour {full_url}, retry...")
             else:
                 self.logger.warning(f"⚠️ Échec chargement : {full_url}, retry...")
 
-        except (asyncio.TimeoutError, ConnectionError) as e:
+        except (TimeoutError, ConnectionError) as e:
             self.logger.error(f"❌ Erreur réseau pour {full_url} : {e}")
         except json.JSONDecodeError as e:
             self.logger.error(f"❌ JSON invalide pour {full_url} : {e}")
@@ -276,9 +262,7 @@ class RottenTomatoesEnricher:
         run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS)
         details: dict[str, Any] = {}
 
-        success, soup, script_content = await self._fetch_film_page(
-            crawler, full_url, run_config
-        )
+        success, soup, script_content = await self._fetch_film_page(crawler, full_url, run_config)
         if not success or not script_content:
             return {}
 
@@ -294,43 +278,42 @@ class RottenTomatoesEnricher:
 
         return details
 
-    async def enrich_film(
-        self, crawler: AsyncWebCrawler, film: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def _log_enrichment_success(
+        self, title: str, year: str | None, details: dict[str, Any]
+    ) -> None:
+        """Log le succès d'un enrichissement."""
+        if "tomatometer_score" in details:
+            tomatometer = details["tomatometer_score"]
+            audience = details.get("audience_score", "N/A")
+            self.logger.info(
+                f"Enrichi : {title} ({year or 'N/A'}) - "
+                f"Tomatometer: {tomatometer}% | Audience: {audience}%"
+            )
+
+    async def enrich_film(self, crawler: AsyncWebCrawler, film: dict[str, Any]) -> dict[str, Any]:
         """Enrichit un film avec les données Rotten Tomatoes."""
         title = film.get("title", "").strip()
-        if not title:
-            return None
-
         original_title = film.get("original_title", "").strip()
         year = str(film.get("year", "")).strip() if film.get("year") else None
         film_id = f"{title}_{year}" if year else title
 
-        if film_id in self.processed_films:
+        # Early exit combiné : pas de titre OU déjà traité
+        if not title or film_id in self.processed_films:
             return film
 
-        result = None
         try:
-            # Passer original_title à la recherche
             film_url = await self._search_film(crawler, title, original_title)
             if film_url:
                 details = await self._extract_film_details(crawler, film_url)
                 if details:
-                    result = {**film, **details}
                     self.processed_films.add(film_id)
                     self._save_checkpoint()
-
-                    if "tomatometer_score" in details:
-                        tomatometer = details["tomatometer_score"]
-                        audience = details.get("audience_score", "N/A")
-                        self.logger.info(
-                            f"Enrichi : {title} ({year or 'N/A'}) - "
-                            f"Tomatometer: {tomatometer}% | Audience: {audience}%"
-                        )
-        except (asyncio.TimeoutError, ConnectionError) as e:
+                    self._log_enrichment_success(title, year, details)
+                    return {**film, **details}
+        except (TimeoutError, ConnectionError) as e:
             self.logger.error(f"Erreur enrichissement {title} : {e}")
 
-        return result
+        return film
 
     async def enrich_films_async(
         self, films: list[dict[str, Any]], max_concurrent: int = 3
@@ -366,14 +349,10 @@ class RottenTomatoesEnricher:
 
         # ✅ Filtrer les None avant le comptage
         enriched_count = sum(
-            1
-            for film in enriched_films
-            if film is not None and "tomatometer_score" in film
+            1 for film in enriched_films if film is not None and "tomatometer_score" in film
         )
 
-        self.logger.info(
-            f"Enrichissement terminé : {enriched_count}/{len(films)} films enrichis"
-        )
+        self.logger.info(f"Enrichissement terminé : {enriched_count}/{len(films)} films enrichis")
 
         return enriched_films
 

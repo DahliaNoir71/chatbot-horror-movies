@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 
-from src.etl.main import (
+from src.etl.pipeline import (
     step_1_extract_tmdb,
     step_2_enrich_rt,
     step_3_aggregate,
@@ -46,7 +46,7 @@ class TestETLPipelineIntegration:
             for i, movie in enumerate(mock_tmdb_movies[:5])
         ] + mock_tmdb_movies[5:]
 
-    @patch("src.etl.main.TMDBExtractor")
+    @patch("src.etl.pipeline.TMDBExtractor")
     def test_step_1_extract_tmdb(
             self,
             mock_extractor_class: MagicMock,
@@ -66,7 +66,7 @@ class TestETLPipelineIntegration:
         )
 
     @pytest.mark.asyncio
-    @patch("src.etl.main.RottenTomatoesEnricher")
+    @patch("src.etl.pipeline.RottenTomatoesEnricher")
     async def test_step_2_enrich_rt(
             self,
             mock_enricher_class: MagicMock,
@@ -84,7 +84,7 @@ class TestETLPipelineIntegration:
         assert sum(1 for f in result if "tomatometer_score" in f) == 5
         mock_enricher.enrich_films_async.assert_called_once()
 
-    @patch("src.etl.main.DataAggregator")
+    @patch("src.etl.pipeline.DataAggregator")
     def test_step_3_aggregate(
             self,
             mock_aggregator_class: MagicMock,
@@ -106,10 +106,10 @@ class TestETLPipelineIntegration:
         assert result[0]["tmdb_id"] == 0
 
     @pytest.mark.asyncio
-    @patch("src.etl.main.step_1_extract_tmdb")
-    @patch("src.etl.main.step_2_enrich_rt")
-    @patch("src.etl.main.step_3_aggregate")
-    @patch("src.etl.main.checkpoint_manager")
+    @patch("src.etl.pipeline.step_1_extract_tmdb")
+    @patch("src.etl.pipeline.step_2_enrich_rt")
+    @patch("src.etl.pipeline.step_3_aggregate")
+    @patch("src.etl.pipeline.checkpoint_manager")
     async def test_run_full_pipeline(
             self,
             mock_checkpoint_manager: MagicMock,
@@ -137,9 +137,9 @@ class TestETLPipelineIntegration:
         assert mock_checkpoint_manager.save.call_count == 3
 
     @pytest.mark.asyncio
-    @patch("src.etl.main.step_2_enrich_rt")
-    @patch("src.etl.main.step_3_aggregate")
-    @patch("src.etl.main.checkpoint_manager")
+    @patch("src.etl.pipeline.step_2_enrich_rt")
+    @patch("src.etl.pipeline.step_3_aggregate")
+    @patch("src.etl.pipeline.checkpoint_manager")
     async def test_resume_from_step_2(
             self,
             mock_checkpoint_manager: MagicMock,
@@ -162,10 +162,10 @@ class TestETLPipelineIntegration:
         mock_step_3.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.etl.main.step_1_extract_tmdb")
-    @patch("src.etl.main.step_2_enrich_rt")
-    @patch("src.etl.main.step_3_aggregate")
-    @patch("src.etl.main.checkpoint_manager")
+    @patch("src.etl.pipeline.step_1_extract_tmdb")
+    @patch("src.etl.pipeline.step_2_enrich_rt")
+    @patch("src.etl.pipeline.step_3_aggregate")
+    @patch("src.etl.pipeline.checkpoint_manager")
     async def test_checkpoint_persistence_between_steps(
             self,
             mock_checkpoint_manager: MagicMock,
@@ -235,7 +235,7 @@ class TestETLPipelineIntegration:
         mock_checkpoint_manager.load.side_effect = mock_load
 
         # Mock the _log_pipeline_stats function to avoid the coroutine error
-        with patch('src.etl.main._log_pipeline_stats') as mock_log_stats:
+        with patch('src.etl.pipeline._log_pipeline_stats') as mock_log_stats:
             # Run the pipeline
             await run_full_pipeline(max_pages=1)
 
@@ -265,11 +265,11 @@ class TestETLPipelineIntegration:
                 f"Expected 'pipeline_final' in log args, got {log_args[2] if len(log_args) > 2
                 else 'not enough arguments'}"
 
-    @patch("src.etl.main.step_1_extract_tmdb")
-    @patch("src.etl.main.step_2_enrich_rt")
-    @patch("src.etl.main.step_3_aggregate")
-    @patch("src.etl.main.checkpoint_manager")
-    @patch("src.etl.main.datetime")
+    @patch("src.etl.pipeline.step_1_extract_tmdb")
+    @patch("src.etl.pipeline.step_2_enrich_rt")
+    @patch("src.etl.pipeline.step_3_aggregate")
+    @patch("src.etl.pipeline.checkpoint_manager")
+    @patch("src.etl.pipeline.datetime")
     async def test_pipeline_stats_logging(
             self,
             mock_datetime: MagicMock,

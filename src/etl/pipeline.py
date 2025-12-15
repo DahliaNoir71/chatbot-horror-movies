@@ -1,8 +1,8 @@
-"""Point d'entrée principal du pipeline ETL HorrorBot."""
+"""Pipeline ETL HorrorBot - Extraction, enrichissement, agrégation."""
 
+import argparse
 import asyncio
 import sys
-import argparse
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -11,8 +11,8 @@ from typing import Any
 from src.etl.aggregator import DataAggregator
 from src.etl.extractors.rotten_tomatoes_enricher import RottenTomatoesEnricher
 from src.etl.extractors.tmdb_extractor import TMDBExtractor
-from src.settings import settings
 from src.etl.utils import CheckpointManager, setup_logger
+from src.settings import settings
 
 # === Configuration ===
 
@@ -77,9 +77,7 @@ async def step_2_enrich_rt(tmdb_movies: list[dict[str, Any]]) -> list[dict[str, 
         )
 
         enriched_count = sum(1 for film in enriched if "tomatometer_score" in film)
-        logger.info(
-            f"✅ Étape 2 terminée : {enriched_count}/{len(tmdb_movies)} films enrichis"
-        )
+        logger.info(f"✅ Étape 2 terminée : {enriched_count}/{len(tmdb_movies)} films enrichis")
 
         return enriched
 
@@ -107,9 +105,7 @@ def step_3_aggregate(
 
     try:
         aggregator = DataAggregator()
-        aggregated = aggregator.extract(
-            tmdb_movies=tmdb_movies, rt_enriched=rt_enriched
-        )
+        aggregated = aggregator.extract(tmdb_movies=tmdb_movies, rt_enriched=rt_enriched)
 
         logger.info(f"✅ Étape 3 terminée : {len(aggregated)} films finaux")
         return aggregated
@@ -160,9 +156,7 @@ async def run_full_pipeline(max_pages: int | None = None) -> list[dict[str, Any]
         final_dataset = step_3_aggregate(tmdb_movies, rt_enriched)
 
         # Checkpoint final
-        final_checkpoint_name = (
-            f"pipeline_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
+        final_checkpoint_name = f"pipeline_final_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         checkpoint_path = checkpoint_manager.save(final_checkpoint_name, final_dataset)
 
         # Statistiques finales
@@ -194,9 +188,7 @@ def _log_pipeline_stats(
     logger.info(f"Checkpoint           : {checkpoint_path.name}")
     try:
         if checkpoint_path.exists():
-            logger.info(
-                f"Taille fichier       : {checkpoint_path.stat().st_size / 1024:.1f} KB"
-            )
+            logger.info(f"Taille fichier       : {checkpoint_path.stat().st_size / 1024:.1f} KB")
         else:
             logger.warning(f"Fichier checkpoint non trouvé: {checkpoint_path}")
     except Exception as e:
@@ -214,9 +206,7 @@ def _log_pipeline_stats(
 # === Fonctions de reprise ===
 
 
-async def resume_from_step(
-    step: int, max_pages: int | None = None
-) -> list[dict[str, Any]]:
+async def resume_from_step(step: int, max_pages: int | None = None) -> list[dict[str, Any]]:
     """
     Reprend le pipeline depuis une étape spécifique.
 

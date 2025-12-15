@@ -101,7 +101,7 @@ class TestRottenTomatoesEnricher:
         mock_async_crawler.arun.return_value.html = html
 
         # Désactive temporairement les retries pour ce test
-        with patch('tenacity.retry_if_not_result', return_value=lambda x: False):
+        with patch('tenacity.retry_if_not_result', return_value=lambda _: False):
             details = await enricher._extract_film_details(mock_async_crawler, "/m/test")
 
         # Vérifie que les champs de score ne sont pas présents

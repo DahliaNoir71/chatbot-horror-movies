@@ -8,7 +8,7 @@ pre-commit clean
 pre-commit install --install-hooks
 
 # Tous les hooks sur tous les fichiers
-pre-commit run --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
+pre-commit run --files @(Get-ChildItem -Recurse src,tests, scripts -Filter *.py | ForEach-Object { $_.FullName })
 
 #  PyTest Coverage
 pytest --cov=src --cov-report=term-missing --cov-report=html

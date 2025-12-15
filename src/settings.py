@@ -22,7 +22,6 @@ load_dotenv(_ENV_FILE)
 from pydantic import Field, field_validator  # noqa: E402
 from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
 
-
 # ============================================================================
 # SETTINGS ACTIFS (ETL en cours)
 # ============================================================================
@@ -34,9 +33,7 @@ class PathsSettings(BaseSettings):
     # ✅ Chemins absolus basés sur la racine projet
     _project_root: Path = _PROJECT_ROOT
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def data_dir(self) -> Path:
@@ -114,9 +111,7 @@ class TMDBSettings(BaseSettings):
     enrich_movies: bool = False
     save_checkpoints: bool = True
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @field_validator("api_key")
     @classmethod
@@ -124,8 +119,7 @@ class TMDBSettings(BaseSettings):
         """Valide que la clé API est définie."""
         if not v or v == "your_api_key_here":
             raise ValueError(
-                "TMDB_API_KEY invalide. Obtenir une clé sur "
-                "https://www.themoviedb.org/settings/api"
+                "TMDB_API_KEY invalide. Obtenir une clé sur https://www.themoviedb.org/settings/api"
             )
         return v
 
@@ -175,13 +169,9 @@ class ETLSettings(BaseSettings):
 
     max_workers: int = Field(default=4, alias="ETL_MAX_WORKERS")
     scraping_delay: float = Field(default=2.0, alias="SCRAPING_DELAY")
-    user_agent: str = Field(
-        default="HorrorBot-ETL/1.0 (Educational Project)", alias="USER_AGENT"
-    )
+    user_agent: str = Field(default="HorrorBot-ETL/1.0 (Educational Project)", alias="USER_AGENT")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 class LoggingSettings(BaseSettings):
@@ -191,9 +181,7 @@ class LoggingSettings(BaseSettings):
     log_dir: Path = Field(default=Path("logs"), alias="LOG_DIR")
     format: str = Field(default="json", alias="LOG_FORMAT")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @field_validator("level")
     @classmethod
@@ -221,34 +209,13 @@ class DatabaseSettings(BaseSettings):
     password: str = Field(default="", alias="POSTGRES_PASSWORD")
     url: str | None = Field(default=None, alias="DATABASE_URL")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def connection_url(self) -> str:
         """Génère l'URL de connexion PostgreSQL."""
         if self.url:
             return self.url
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-
-class IMDbDatabaseSettings(BaseSettings):
-    """Configuration PostgreSQL externe IMDb (⚠️ NON IMPLÉMENTÉ - E1 incomplet)."""
-
-    host: str = Field(default="localhost", alias="IMDB_POSTGRES_HOST")
-    port: int = Field(default=5433, alias="IMDB_POSTGRES_PORT")
-    database: str = Field(default="imdb_subset", alias="IMDB_POSTGRES_DB")
-    user: str = Field(default="imdb_reader", alias="IMDB_POSTGRES_USER")
-    password: str = Field(default="", alias="IMDB_POSTGRES_PASSWORD")
-
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    @property
-    def connection_url(self) -> str:
-        """Génère l'URL de connexion PostgreSQL IMDb."""
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
@@ -261,9 +228,7 @@ class APISettings(BaseSettings):
     workers: int = Field(default=4, alias="API_WORKERS")
     public_url: str = Field(default="http://localhost:8000", alias="API_PUBLIC_URL")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 class SecuritySettings(BaseSettings):
@@ -278,9 +243,7 @@ class SecuritySettings(BaseSettings):
     rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
     rate_limit_per_hour: int = Field(default=1000, alias="RATE_LIMIT_PER_HOUR")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 class CORSSettings(BaseSettings):
@@ -288,9 +251,7 @@ class CORSSettings(BaseSettings):
 
     origins_raw: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def origins(self) -> list[str]:
@@ -317,7 +278,6 @@ class Settings(BaseSettings):
 
     # ⚠️ FUTUR - E1 incomplet (5 sources hétérogènes manquantes)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    imdb_database: IMDbDatabaseSettings = Field(default_factory=IMDbDatabaseSettings)
 
     # ⚠️ FUTUR - E3 (API REST + JWT + Frontend)
     api: APISettings = Field(default_factory=APISettings)

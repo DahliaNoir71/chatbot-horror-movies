@@ -45,7 +45,7 @@ def setup_logging() -> None:
         ),
         context_class=dict,
         logger_factory=structlog.WriteLoggerFactory(
-            file=open(log_file, "a", encoding="utf-8")
+            file=open(log_file, "a", encoding="utf-8")  # noqa: SIM115
         ),
         cache_logger_on_first_use=True,
     )

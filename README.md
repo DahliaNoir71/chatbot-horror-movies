@@ -132,7 +132,7 @@ psql -h localhost -U horrorbot_user -d horrorbot -f database/schema.sql
 
 ```bash
 # Extraction des données (durée : ~45 minutes)
-python etl/main.py
+python etl/pipeline.py
 
 # Agrégation et nettoyage (durée : ~5 minutes)
 python etl/run_aggregation.py

@@ -52,11 +52,11 @@ class BaseExtractor(ABC):
         self.metrics = ExtractionMetrics(source_name=source_name)
 
     @abstractmethod
-    def extract(self, **kwargs: dict[str, Any]) -> list[dict[str, Any]]:
+    def extract(self, **_kwargs: dict[str, Any]) -> list[dict[str, Any]]:
         """Extrait les données depuis la source.
 
         Args:
-            **kwargs: Paramètres spécifiques à chaque extracteur
+            **_kwargs: Paramètres spécifiques à chaque extracteur
 
         Returns:
             Liste de dictionnaires représentant les films extraits

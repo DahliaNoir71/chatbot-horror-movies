@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 from difflib import SequenceMatcher
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -57,9 +57,7 @@ class MovieSchema(BaseModel):
     # Flags
     incomplete: bool = Field(default=False)
 
-    @field_validator(
-        "title", "original_title", "critics_consensus", "overview", "tagline"
-    )
+    @field_validator("title", "original_title", "critics_consensus", "overview", "tagline")
     @classmethod
     def sanitize_text(cls, v: str | None) -> str | None:
         """Nettoie les champs texte."""
@@ -200,9 +198,7 @@ class DataAggregator(BaseExtractor):
 
         # Normalisation des scores (0-10 pour uniformité)
         if "vote_average" in normalized:
-            normalized["vote_average"] = self._normalize_score(
-                normalized["vote_average"], 0, 10
-            )
+            normalized["vote_average"] = self._normalize_score(normalized["vote_average"], 0, 10)
 
         # Nettoyage des textes
         for field in ["title", "overview", "critics_consensus", "tagline"]:
@@ -236,9 +232,7 @@ class DataAggregator(BaseExtractor):
         try:
             return MovieSchema(**movie)
         except Exception as e:
-            self.logger.warning(
-                f"Validation échouée pour {movie.get('title', 'Unknown')}: {e}"
-            )
+            self.logger.warning(f"Validation échouée pour {movie.get('title', 'Unknown')}: {e}")
             self.stats.validation_failed += 1
             return None
 
@@ -270,16 +264,12 @@ class DataAggregator(BaseExtractor):
         for seen in self.seen_movies.values():
             # Match IMDb ID
             if imdb_id and seen.get("imdb_id") == imdb_id:
-                self.logger.warning(
-                    f"Doublon détecté (IMDb): {movie['title']} = {seen['title']}"
-                )
+                self.logger.warning(f"Doublon détecté (IMDb): {movie['title']} = {seen['title']}")
                 return True
 
             # Match titre + année
             if self._are_movies_similar(title, year, seen):
-                self.logger.warning(
-                    f"Doublon détecté (titre): {movie['title']} = {seen['title']}"
-                )
+                self.logger.warning(f"Doublon détecté (titre): {movie['title']} = {seen['title']}")
                 return True
 
         return False
@@ -366,9 +356,7 @@ class DataAggregator(BaseExtractor):
 
         return aggregated
 
-    def _build_rt_index(
-        self, rt_enriched: list[dict[str, Any]]
-    ) -> dict[int, dict[str, Any]]:
+    def _build_rt_index(self, rt_enriched: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
         """Construit un index RT (seulement films avec données RT)."""
         index: dict[int, dict[str, Any]] = {}
 

@@ -140,3 +140,5 @@ spark-warehouse/
 /src/etl/data/
 /tests/unit/etl/data/
 /data/
+/bandit-report.json
+/scripts/data/
