@@ -203,15 +203,36 @@ class TestRottenTomatoesEnricher:
             # (comportement actuel de la méthode enrich_film)
             assert result == sample_tmdb_movie
 
-    # Tests de traitement par lots
-
     @staticmethod
     async def test_enrich_films_async_batch(
             enricher: RottenTomatoesEnricher,
             sample_tmdb_movies: list[dict[str, Any]]
     ) -> None:
         """Test enrichissement batch."""
-        with patch.object(enricher, "enrich_film", return_value=sample_tmdb_movies[0]):
-            results = await enricher.enrich_films_async(sample_tmdb_movies[:3], max_concurrent=2)
+        mock_crawler = AsyncMock()
 
-            assert len(results) == 3
+        # Mock AsyncWebCrawler au niveau module pour éviter lancement navigateur
+        with patch(
+                "src.etl.extractors.rotten_tomatoes_enricher.AsyncWebCrawler"
+        ) as MockCrawler:
+            # Configure le context manager async
+            MockCrawler.return_value.__aenter__.return_value = mock_crawler
+            MockCrawler.return_value.__aexit__.return_value = None
+
+            with patch.object(
+                    enricher,
+                    "enrich_film",
+                    new_callable=AsyncMock,
+                    # Retourne le film tel quel
+                    side_effect=lambda crawler, film: film
+            ):
+                results = await enricher.enrich_films_async(
+                    sample_tmdb_movies[:3],
+                    max_concurrent=2
+                )
+
+        assert len(results) == 3
+        # Vérifie que tous les films sont retournés
+        assert results[0]["title"] == "The Shining"
+        assert results[1]["title"] == "Alien"
+        assert results[2]["title"] == "The Thing"

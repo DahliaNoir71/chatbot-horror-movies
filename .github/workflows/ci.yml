@@ -52,13 +52,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'  # Active le cache pip automatique
+          cache: 'pip'
+          cache-dependency-path: requirements-cpu.txt
 
-      # Installe les dépendances du projet et de test
+      # Installe les dépendances du projet et de test (CPU pour CI)
       - name: Install dependencies
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt
+          pip install -r requirements-cpu.txt
 
       # Exécute les tests avec pytest et génère les rapports de couverture
       - name: Run tests with coverage
@@ -99,7 +100,7 @@ jobs:
   # Détecte : injections SQL, hardcoded passwords, imports dangereux, etc.
   security-bandit:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -137,7 +138,7 @@ jobs:
   # Utilise Safety (base PyUp) et pip-audit (base OSV)
   security-dependencies:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -156,14 +157,14 @@ jobs:
         run: |
           mkdir -p security-reports
           safety check \
-            -r requirements.txt \
+            -r requirements-cpu.txt \
             --output json > security-reports/safety-report.json || true
 
       # pip-audit : vérifie les vulnérabilités (base OSV - Open Source Vulnerabilities)
       - name: Run pip-audit scan
         run: |
           pip-audit \
-            -r requirements.txt \
+            -r requirements-cpu.txt \
             -f json \
             -o security-reports/pip-audit.json || true
 

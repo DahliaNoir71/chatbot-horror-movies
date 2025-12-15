@@ -1,0 +1,12 @@
+# requirements-gpu.txt
+# ==================================================
+# Dépendances GPU (CUDA 12.6+)
+# Usage: pip install -r requirements-gpu.txt
+# ==================================================
+
+# Base dependencies
+-r requirements.txt
+
+# PyTorch with CUDA 12.6 support (compatible CUDA 13.x)
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.9.1

@@ -1,0 +1,11 @@
+# requirements-cpu.txt
+# ==================================================
+# Dépendances CPU (CI/CD GitHub Actions)
+# Usage: pip install -r requirements-cpu.txt
+# ==================================================
+
+# Base dependencies
+-r requirements.txt
+
+# PyTorch CPU only (for CI/CD)
+torch==2.9.1
