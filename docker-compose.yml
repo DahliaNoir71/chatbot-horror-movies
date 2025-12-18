@@ -1,4 +1,8 @@
 services:
+  # ============================================================================
+  # Base principale HorrorBot (Port 5432)
+  # TMDB, agrégation, embeddings pgvector
+  # ============================================================================
   postgres:
     image: pgvector/pgvector:pg16
     container_name: horrorbot_postgres
@@ -6,15 +10,14 @@ services:
       POSTGRES_DB: horrorbot
       POSTGRES_USER: horrorbot_user
       POSTGRES_PASSWORD: horrorbot_dev_password
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C --lc-messages=en_US.UTF-8"
-      LC_MESSAGES: en_US.UTF-8      # ✅ CRITIQUE
-      LC_ALL: en_US.UTF-8           # ✅ CRITIQUE
-      LANG: en_US.UTF-8             # ✅ CRITIQUE
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init_pgvector.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./scripts/sql/main:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U horrorbot_user -d horrorbot"]
       interval: 5s
@@ -22,6 +25,32 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ============================================================================
+  # Base externe IMDB (Port 5433)
+  # Source 5 : PostgreSQL externe (valide C2)
+  # Dataset: stefanoleone992/imdb-extensive-dataset
+  # ============================================================================
+  postgres_imdb:
+    image: postgres:16
+    container_name: horrorbot_postgres_imdb
+    environment:
+      POSTGRES_DB: horror_imdb
+      POSTGRES_USER: imdb_user
+      POSTGRES_PASSWORD: imdb_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_imdb_data:/var/lib/postgresql/data
+      - ./scripts/sql/imdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imdb_user -d horror_imdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+    driver: local
+  postgres_imdb_data:
     driver: local

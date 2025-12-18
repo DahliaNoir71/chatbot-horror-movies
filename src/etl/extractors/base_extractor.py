@@ -1,5 +1,6 @@
-"""Classe de base abstraite pour tous les extracteurs de données."""
+"""Abstract base class for all data extractors."""
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,7 +9,7 @@ from typing import Any
 
 @dataclass
 class ExtractionMetrics:
-    """Métriques d'extraction standardisées."""
+    """Standardized extraction metrics."""
 
     source_name: str
     total_records: int = 0
@@ -19,20 +20,21 @@ class ExtractionMetrics:
 
     @property
     def duration_seconds(self) -> float:
-        """Durée d'extraction en secondes."""
+        """Calculate extraction duration in seconds."""
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return 0.0
 
     @property
     def success_rate(self) -> float:
-        """Taux de succès en pourcentage."""
+        """Calculate success rate as percentage."""
         if self.total_records == 0:
             return 0.0
-        return ((self.total_records - self.failed_records) / self.total_records) * 100
+        successful = self.total_records - self.failed_records
+        return (successful / self.total_records) * 100
 
     def to_dict(self) -> dict[str, Any]:
-        """Convertit les métriques en dictionnaire."""
+        """Convert metrics to dictionary."""
         return {
             "source_name": self.source_name,
             "total_records": self.total_records,
@@ -42,46 +44,113 @@ class ExtractionMetrics:
             "errors_count": len(self.errors),
         }
 
+    def reset(self) -> None:
+        """Reset metrics for new extraction run."""
+        self.total_records = 0
+        self.failed_records = 0
+        self.start_time = None
+        self.end_time = None
+        self.errors.clear()
+
 
 class BaseExtractor(ABC):
-    """Classe abstraite définissant le contrat pour tous les extracteurs."""
+    """Abstract base class defining contract for all extractors.
+
+    All extractors must implement:
+        - extract(): Main extraction method
+        - validate_config(): Configuration validation
+
+    Provides:
+        - Metrics tracking (duration, success rate, errors)
+        - Logger instance
+        - Helper methods for extraction lifecycle
+    """
 
     def __init__(self, source_name: str) -> None:
-        """Initialise l'extracteur avec logging et métriques."""
-        self.source_name = source_name
-        self.metrics = ExtractionMetrics(source_name=source_name)
-
-    @abstractmethod
-    def extract(self, **_kwargs: dict[str, Any]) -> list[dict[str, Any]]:
-        """Extrait les données depuis la source.
+        """Initialize extractor with logging and metrics.
 
         Args:
-            **_kwargs: Paramètres spécifiques à chaque extracteur
+            source_name: Name of the data source.
+        """
+        self.source_name = source_name
+        self.metrics = ExtractionMetrics(source_name=source_name)
+        self.logger = logging.getLogger(f"etl.{source_name.lower()}")
+
+    @abstractmethod
+    def extract(
+        self,
+        *,
+        file_path: str | None = None,
+        limit: int | None = None,
+        file_pattern: str | None = None,
+        **kwargs: str | int | float | bool | None,
+    ) -> list[dict[str, str | int | float | bool | list[str] | None]]:
+        """Extract data from the source.
+
+        Args:
+            file_path: Optional path to the file to process
+            limit: Optional maximum number of records to extract
+            file_pattern: Optional pattern for file matching (e.g., "*.csv")
+            **kwargs: Additional extractor-specific parameters.
 
         Returns:
-            Liste de dictionnaires représentant les films extraits
+            List of dictionaries where keys are strings and values can be:
+            - str: For text data
+            - int: For integer values
+            - float: For decimal numbers
+            - bool: For boolean flags
+            - list[str]: For multiple values (e.g., genres, tags)
+            - None: For missing or null values
 
         Raises:
-            Exception: En cas d'erreur d'extraction
+            Exception: On extraction failure.
         """
 
     @abstractmethod
     def validate_config(self) -> None:
-        """Valide la configuration de l'extracteur.
+        """Validate extractor configuration.
 
         Raises:
-            ValueError: Si la configuration est invalide
+            ValueError: If configuration is invalid.
         """
 
     def _start_extraction(self) -> None:
-        """Initialise les métriques au début de l'extraction."""
+        """Initialize metrics at extraction start."""
+        self.metrics.reset()
         self.metrics.start_time = datetime.now()
+        self.logger.info(f"extraction_started: {self.source_name}")
 
     def _end_extraction(self) -> None:
-        """Finalise les métriques à la fin de l'extraction."""
+        """Finalize metrics at extraction end."""
         self.metrics.end_time = datetime.now()
+        self.logger.info(
+            f"extraction_ended: {self.source_name} "
+            f"({self.metrics.total_records} records, "
+            f"{self.metrics.duration_seconds:.2f}s)"
+        )
 
     def _record_error(self, error_msg: str) -> None:
-        """Enregistre une erreur dans les métriques."""
+        """Record an error in metrics.
+
+        Args:
+            error_msg: Error message to record.
+        """
         self.metrics.errors.append(error_msg)
         self.metrics.failed_records += 1
+        self.logger.warning(f"extraction_error: {error_msg}")
+
+    def _increment_records(self, count: int = 1) -> None:
+        """Increment total records count.
+
+        Args:
+            count: Number of records to add.
+        """
+        self.metrics.total_records += count
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get extraction statistics.
+
+        Returns:
+            Dictionary with extraction metrics.
+        """
+        return self.metrics.to_dict()
