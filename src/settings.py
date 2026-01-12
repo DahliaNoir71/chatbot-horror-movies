@@ -538,7 +538,7 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid ENVIRONMENT. Valid values: {valid_envs}")
         return v_lower
 
-    def model_post_init(self) -> None:
+    def model_post_init(self, _: Any) -> None:  # noqa: ARG002
         """Initialize directories after settings are loaded."""
         self.paths.ensure_directories()
 

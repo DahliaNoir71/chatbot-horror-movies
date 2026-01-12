@@ -15,7 +15,6 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     Numeric,
     String,
@@ -213,7 +212,6 @@ class Film(Base, TimestampMixin, ExtractedAtMixin):
     __table_args__ = (
         CheckConstraint("vote_average >= 0 AND vote_average <= 10", name="chk_vote_average"),
         CheckConstraint("runtime IS NULL OR (runtime > 0 AND runtime < 1000)", name="chk_runtime"),
-        Index("idx_films_title_trgm", "title", postgresql_using="gin"),
     )
 
     @property

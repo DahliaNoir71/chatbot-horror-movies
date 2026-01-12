@@ -83,11 +83,10 @@ class DatabaseConnection:
         """Create asynchronous SQLAlchemy engine with connection pooling.
 
         Returns:
-            SQLAlchemy AsyncEngine configured with QueuePool.
+            SQLAlchemy AsyncEngine with default async pool.
         """
         return create_async_engine(
             settings.database.async_url,
-            poolclass=QueuePool,
             pool_size=settings.database.pool_size,
             max_overflow=settings.database.pool_overflow,
             pool_timeout=settings.database.pool_timeout,

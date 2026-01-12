@@ -88,10 +88,7 @@ class Video(Base, ExtractedAtMixin):
     )
 
     # Indexes
-    __table_args__ = (
-        Index("idx_videos_published", "published_at"),
-        Index("idx_videos_title_trgm", "title", postgresql_using="gin"),
-    )
+    __table_args__ = (Index("idx_videos_published", "published_at"),)
 
     @property
     def youtube_url(self) -> str:
