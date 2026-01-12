@@ -1,31 +1,20 @@
-"""ETL pipeline package for HorrorBot.
+"""ETL data types package.
 
-Provides data extraction, transformation, and loading
-from multiple sources: TMDB, Rotten Tomatoes, YouTube, Kaggle/Spark.
+Exports all TypedDict definitions for raw and normalized
+data structures used throughout the ETL pipeline.
 
-Modules:
-    types: TypedDict definitions for raw and normalized data
-    extractors: Source-specific data extraction classes
-    transformers: Data normalization and cleaning
-    loaders: Database insertion logic
+Usage:
+    from src.etl.types import TMDBFilmData, NormalizedFilmData
 """
 
-from src.etl.types import (
-    # Pipeline
-    ETLCheckpoint,
-    ETLPipelineStats,
-    ETLProgress,
-    ETLResult,
-    ETLRunConfig,
-    ExtractionStats,
-    FilmMatchCandidate,
-    FilmMatchResult,
-    # Kaggle/Spark
+from src.etl.types.kaggle import (
     KaggleCreditsData,
     KaggleDatasetInfo,
     KaggleMovieData,
-    LoadStats,
-    # Normalized
+    SparkEnrichmentData,
+    SparkProcessingResult,
+)
+from src.etl.types.normalized import (
     NormalizedCompanyData,
     NormalizedCreditData,
     NormalizedFilmData,
@@ -35,13 +24,25 @@ from src.etl.types import (
     NormalizedRTScoreData,
     NormalizedTranscriptData,
     NormalizedVideoData,
-    # Rotten Tomatoes
+)
+from src.etl.types.pipeline import (
+    ETLCheckpoint,
+    ETLPipelineStats,
+    ETLProgress,
+    ETLResult,
+    ETLRunConfig,
+    ExtractionStats,
+    FilmMatchCandidate,
+    FilmMatchResult,
+    LoadStats,
+    TransformationStats,
+)
+from src.etl.types.rotten_tomatoes import (
     RTMoviePageData,
     RTScoreData,
     RTSearchResult,
-    SparkEnrichmentData,
-    SparkProcessingResult,
-    # TMDB
+)
+from src.etl.types.tmdb import (
     TMDBCastData,
     TMDBCreditsData,
     TMDBCrewData,
@@ -52,8 +53,8 @@ from src.etl.types import (
     TMDBKeywordsResponse,
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
-    TransformationStats,
-    # YouTube
+)
+from src.etl.types.youtube import (
     YouTubeChannelData,
     YouTubePlaylistData,
     YouTubePlaylistItemData,
