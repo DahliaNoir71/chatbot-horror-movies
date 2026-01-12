@@ -41,5 +41,5 @@ repos:
     rev: v2.14
     hooks:
       - id: vulture
-        args: ["src/", "tests/", "scripts/"]
+        args: ["src/", "tests/"]
         pass_filenames: false

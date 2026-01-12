@@ -7,13 +7,13 @@ requires-python = ">=3.12"
 
 [tool.vulture]
 min_confidence = 100
-paths = ["src", "tests", "scripts"]
+paths = ["src", "tests"]
 ignore_names = ["cls", "kwargs"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["src", "tests", "scripts"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = [
