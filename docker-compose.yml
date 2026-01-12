@@ -1,0 +1,127 @@
+# =============================================================================
+# HORRORBOT - Docker Compose Configuration
+# =============================================================================
+# PostgreSQL with pgvector extension for RAG embeddings
+#
+# Usage:
+#   docker-compose up -d          # Start services
+#   docker-compose down           # Stop services
+#   docker-compose logs -f db     # View database logs
+#   docker-compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database with pgvector
+  # ---------------------------------------------------------------------------
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: horrorbot-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-horrorbot}
+      POSTGRES_USER: ${POSTGRES_USER:-horrorbot_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-horrorbot_dev_password}
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    volumes:
+      # Persistent data storage
+      - horrorbot_pgdata:/var/lib/postgresql/data
+      # Initialization scripts (executed in alphabetical order)
+      - ./docker/init-db:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-horrorbot_user} -d ${POSTGRES_DB:-horrorbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    # Performance configuration
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "max_worker_processes=4"
+      - "-c"
+      - "max_parallel_workers_per_gather=2"
+      - "-c"
+      - "max_parallel_workers=4"
+      - "-c"
+      - "max_parallel_maintenance_workers=2"
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # pgAdmin (optional - for database management UI)
+  # ---------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: horrorbot-pgadmin
+    restart: unless-stopped
+    profiles:
+      - tools  # Only starts with: docker-compose --profile tools up -d
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@horrorbot.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+
+    volumes:
+      - horrorbot_pgadmin:/var/lib/pgadmin
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - horrorbot-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  horrorbot_pgdata:
+    name: horrorbot_pgdata
+  horrorbot_pgadmin:
+    name: horrorbot_pgadmin
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  horrorbot-network:
+    name: horrorbot-network
+    driver: bridge
