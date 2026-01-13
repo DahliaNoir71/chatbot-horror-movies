@@ -1,6 +1,8 @@
 """Database configuration settings.
 
-PostgreSQL connection and pool settings.
+PostgreSQL connection and pool settings for both databases:
+- horrorbot: Relational data (films, credits, etc.)
+- horrorbot_vectors: RAG embeddings store
 """
 
 from pydantic import Field
@@ -10,21 +12,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DatabaseSettings(BaseSettings):
     """PostgreSQL database configuration.
 
+    Manages connections to both horrorbot (relational) and
+    horrorbot_vectors (RAG embeddings) databases.
+
     Attributes:
         host: Database host.
         port: Database port.
-        database: Database name.
         user: Database user.
         password: Database password.
-        url: Full connection URL (overrides individual settings).
+        database: Main database name (relational).
+        vectors_database: Vectors database name (RAG).
     """
 
     host: str = Field(default="localhost", alias="POSTGRES_HOST")
     port: int = Field(default=5432, alias="POSTGRES_PORT")
-    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
     user: str = Field(default="horrorbot_user", alias="POSTGRES_USER")
     password: str = Field(default="", alias="POSTGRES_PASSWORD")
-    url: str | None = Field(default=None, alias="DATABASE_URL")
+
+    # Database names
+    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
+    vectors_database: str = Field(
+        default="horrorbot_vectors",
+        alias="POSTGRES_VECTORS_DB",
+    )
 
     # Pool settings
     pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
@@ -40,21 +50,41 @@ class DatabaseSettings(BaseSettings):
     @property
     def is_configured(self) -> bool:
         """Check if database credentials are configured."""
-        return bool(self.password or self.url)
+        return bool(self.password)
+
+    # -------------------------------------------------------------------------
+    # Main Database (horrorbot) URLs
+    # -------------------------------------------------------------------------
 
     @property
     def sync_url(self) -> str:
-        """Generate synchronous PostgreSQL connection URL."""
-        if self.url:
-            return self.url
+        """Synchronous PostgreSQL URL for main database."""
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
     @property
     def async_url(self) -> str:
-        """Generate asynchronous PostgreSQL connection URL."""
-        if self.url:
-            return self.url.replace("postgresql://", "postgresql+asyncpg://")
+        """Asynchronous PostgreSQL URL for main database."""
         return (
             f"postgresql+asyncpg://{self.user}:{self.password}"
             f"@{self.host}:{self.port}/{self.database}"
+        )
+
+    # -------------------------------------------------------------------------
+    # Vectors Database (horrorbot_vectors) URLs
+    # -------------------------------------------------------------------------
+
+    @property
+    def vectors_sync_url(self) -> str:
+        """Synchronous PostgreSQL URL for vectors database."""
+        return (
+            f"postgresql://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.vectors_database}"
+        )
+
+    @property
+    def vectors_async_url(self) -> str:
+        """Asynchronous PostgreSQL URL for vectors database."""
+        return (
+            f"postgresql+asyncpg://{self.user}:{self.password}"
+            f"@{self.host}:{self.port}/{self.vectors_database}"
         )

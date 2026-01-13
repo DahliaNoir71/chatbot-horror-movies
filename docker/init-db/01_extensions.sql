@@ -1,24 +1,44 @@
 -- =============================================================================
--- HORRORBOT - PostgreSQL Initialization Script
+-- HORRORBOT - Database Creation & Extensions
 -- =============================================================================
--- This script runs automatically when the container is first created.
--- It sets up required extensions for the HorrorBot application.
+-- Creates both databases and installs required extensions.
+-- Executed automatically on first container start.
 -- =============================================================================
 
--- Enable pgvector for RAG embeddings (1536 dimensions for OpenAI)
+-- -----------------------------------------------------------------------------
+-- 1. Extensions on horrorbot (current database from POSTGRES_DB)
+-- -----------------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS vector;
-
--- Enable trigram similarity for film-video title matching
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Log successful initialization
+-- -----------------------------------------------------------------------------
+-- 2. Create vectors database for RAG embeddings
+-- -----------------------------------------------------------------------------
+CREATE DATABASE horrorbot_vectors
+    OWNER horrorbot_user
+    ENCODING 'UTF8'
+    LC_COLLATE 'en_US.UTF-8'
+    LC_CTYPE 'en_US.UTF-8'
+    TEMPLATE template0;
+
+-- -----------------------------------------------------------------------------
+-- 3. Extensions on horrorbot_vectors (requires reconnection)
+-- -----------------------------------------------------------------------------
+\connect horrorbot_vectors
+
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- -----------------------------------------------------------------------------
+-- 4. Return to main database for subsequent scripts
+-- -----------------------------------------------------------------------------
+\connect horrorbot
+
+-- Log success
 DO $$
 BEGIN
-    RAISE NOTICE '✅ HorrorBot database extensions initialized successfully';
-    RAISE NOTICE '   - vector (pgvector for embeddings)';
-    RAISE NOTICE '   - pg_trgm (trigram similarity)';
-    RAISE NOTICE '   - uuid-ossp (UUID generation)';
+    RAISE NOTICE '✅ Databases created successfully';
+    RAISE NOTICE '   - horrorbot: relational data (films, credits, etc.)';
+    RAISE NOTICE '   - horrorbot_vectors: RAG embeddings store';
 END $$;
