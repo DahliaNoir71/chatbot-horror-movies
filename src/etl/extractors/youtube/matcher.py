@@ -125,6 +125,11 @@ class YouTubeMatcher:
         self._min_score = min_score
         self._trusted_channels = set(trusted_channels or [])
 
+        self._logger.info(
+            f"Matcher initialized (min_score={min_score:.2f}, "
+            f"trusted_channels={len(self._trusted_channels)})"
+        )
+
     # -------------------------------------------------------------------------
     # Main Matching
     # -------------------------------------------------------------------------
@@ -145,6 +150,8 @@ class YouTubeMatcher:
         Returns:
             MatchResult with best match or failure.
         """
+        self._logger.debug(f"Matching: '{video_title[:60]}...'")
+
         if not candidates:
             return self._no_match("No candidates provided")
 
@@ -153,6 +160,12 @@ class YouTubeMatcher:
             return self._no_match("Could not parse film title")
 
         best = self._find_best_match(parsed, candidates, channel_handle)
+
+        if best.success:
+            self._logger.debug(
+                f"Match found: '{best.film_title}' (score={best.score:.2f}, method={best.method})"
+            )
+
         return best
 
     def match_videos_batch(
@@ -169,7 +182,12 @@ class YouTubeMatcher:
         Returns:
             List of successful match results.
         """
+        self._logger.info(
+            f"Batch matching: {len(videos)} videos against {len(candidates)} candidates"
+        )
+
         results: list[FilmMatchResult] = []
+        match_count = 0
 
         for video in videos:
             match = self.match_video(
@@ -179,6 +197,7 @@ class YouTubeMatcher:
             )
 
             if match.success and match.film_id is not None:
+                match_count += 1
                 results.append(
                     FilmMatchResult(
                         film_id=match.film_id,
@@ -188,6 +207,11 @@ class YouTubeMatcher:
                         matched_title=match.film_title or "",
                     )
                 )
+
+        success_rate = (match_count / len(videos) * 100) if videos else 0
+        self._logger.info(
+            f"Batch complete: {match_count}/{len(videos)} matched ({success_rate:.1f}%)"
+        )
 
         return results
 
@@ -213,6 +237,11 @@ class YouTubeMatcher:
         film_title = self._final_clean(film_title)
 
         confidence = self._calculate_parse_confidence(title, film_title, year)
+
+        self._logger.debug(
+            f"Parsed: '{title[:40]}...' -> '{film_title}' "
+            f"(year={year}, confidence={confidence:.2f})"
+        )
 
         return ParsedVideoTitle(
             film_title=film_title,
@@ -351,6 +380,8 @@ class YouTubeMatcher:
         # Prepare candidate titles for matching
         title_map = self._build_title_map(candidates)
 
+        self._logger.debug(f"Fuzzy matching '{parsed.film_title}' against {len(title_map)} titles")
+
         # Find best fuzzy match
         best_match = self._fuzzy_match(parsed.film_title, list(title_map.keys()))
 
@@ -359,6 +390,10 @@ class YouTubeMatcher:
 
         matched_title, base_score = best_match
         candidate = title_map[matched_title]
+
+        self._logger.debug(
+            f"Best fuzzy match: '{candidate['title']}' (base_score={base_score:.2f})"
+        )
 
         # Calculate final score with bonuses
         final_score = self._calculate_final_score(
@@ -473,16 +508,26 @@ class YouTubeMatcher:
             Final score capped at 1.0.
         """
         score = base_score
+        bonuses: list[str] = []
 
         # Year match bonus
         if self._years_match(parsed_year, candidate_year):
             score += self._YEAR_MATCH_BONUS
+            bonuses.append(f"year(+{self._YEAR_MATCH_BONUS})")
 
         # Trusted channel bonus
         if self._is_trusted_channel(channel_handle):
             score += self._TRUSTED_CHANNEL_BONUS
+            bonuses.append(f"trusted(+{self._TRUSTED_CHANNEL_BONUS})")
 
-        return min(score, 1.0)
+        final = min(score, 1.0)
+
+        if bonuses:
+            self._logger.debug(
+                f"Score calculation: {base_score:.2f} + {', '.join(bonuses)} = {final:.2f}"
+            )
+
+        return final
 
     @staticmethod
     def _years_match(year1: int | None, year2: int | None) -> bool:
@@ -578,6 +623,8 @@ class YouTubeMatcher:
         Returns:
             List of FilmMatchCandidate.
         """
+        self._logger.info(f"Building candidates from {len(films)} films")
+
         candidates: list[FilmMatchCandidate] = []
 
         for film in films:
@@ -591,6 +638,9 @@ class YouTubeMatcher:
                     score=0.0,
                 )
             )
+
+        with_year = sum(1 for c in candidates if c["year"] is not None)
+        self._logger.debug(f"Candidates built: {len(candidates)} total, {with_year} with year")
 
         return candidates
 
@@ -624,7 +674,11 @@ class YouTubeMatcher:
         Args:
             handle: Channel handle.
         """
-        self._trusted_channels.add(handle.lstrip("@"))
+        clean_handle = handle.lstrip("@")
+        self._trusted_channels.add(clean_handle)
+        self._logger.info(
+            f"Added trusted channel: {clean_handle} (total: {len(self._trusted_channels)})"
+        )
 
     def remove_trusted_channel(self, handle: str) -> None:
         """Remove channel from trusted list.
@@ -632,7 +686,11 @@ class YouTubeMatcher:
         Args:
             handle: Channel handle.
         """
-        self._trusted_channels.discard(handle.lstrip("@"))
+        clean_handle = handle.lstrip("@")
+        self._trusted_channels.discard(clean_handle)
+        self._logger.info(
+            f"Removed trusted channel: {clean_handle} (total: {len(self._trusted_channels)})"
+        )
 
     def set_min_score(self, score: float) -> None:
         """Update minimum match score.
@@ -640,4 +698,6 @@ class YouTubeMatcher:
         Args:
             score: New minimum score (0-1).
         """
+        old_score = self._min_score
         self._min_score = max(0.0, min(1.0, score))
+        self._logger.info(f"Min score updated: {old_score:.2f} -> {self._min_score:.2f}")

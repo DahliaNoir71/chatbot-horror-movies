@@ -72,6 +72,7 @@ class YouTubeClient:
 
     def __enter__(self) -> "YouTubeClient":
         """Enter context and create HTTP client."""
+        self._logger.info("Initializing YouTube API client")
         self._client = httpx.Client(
             base_url=settings.youtube.base_url,
             timeout=30.0,
@@ -88,7 +89,10 @@ class YouTubeClient:
         if self._client:
             self._client.close()
             self._client = None
-        self._logger.debug(f"Session closed. Quota used: {self._quota_used}")
+
+        self._logger.info(
+            f"Session closed. Quota used: {self._quota_used}/{settings.youtube.daily_quota_limit}"
+        )
 
     # -------------------------------------------------------------------------
     # Channel Methods
@@ -107,12 +111,19 @@ class YouTubeClient:
             YouTubeNotFoundError: If channel not found.
         """
         clean_handle = self._normalize_handle(handle)
+        self._logger.info(f"Fetching channel by handle: {handle}")
+
         params = {
             "part": self._PART_SNIPPET_CONTENT_DETAILS,
             "forHandle": clean_handle,
         }
         response = self._request(self._ENDPOINT_CHANNELS, params)
-        return self._extract_single_item(response, f"Channel {handle}")
+        channel = self._extract_single_item(response, f"Channel {handle}")
+
+        channel_title = channel.get("snippet", {}).get("title", "Unknown")
+        self._logger.info(f"Channel found: {channel_title}")
+
+        return channel
 
     def get_channel_by_id(self, channel_id: str) -> dict[str, Any]:
         """Get channel info by ID.
@@ -126,6 +137,8 @@ class YouTubeClient:
         Raises:
             YouTubeNotFoundError: If channel not found.
         """
+        self._logger.debug(f"Fetching channel by ID: {channel_id}")
+
         params = {
             "part": self._PART_CHANNEL_DETAILS,
             "id": channel_id,
@@ -206,16 +219,28 @@ class YouTubeClient:
         videos: list[dict[str, Any]] = []
         page_token: str | None = None
         limit = max_videos or settings.youtube.max_videos
+        page_count = 0
+
+        self._logger.info(f"Fetching playlist {playlist_id} (max: {limit} videos)")
 
         while len(videos) < limit:
             response = self.get_playlist_items(playlist_id, 50, page_token)
             items = response.get("items", [])
+            page_count += 1
 
             videos.extend(items[: limit - len(videos)])
             page_token = response.get("nextPageToken")
 
+            self._logger.debug(
+                f"Page {page_count}: fetched {len(items)} items, total: {len(videos)}/{limit}"
+            )
+
             if not page_token or not items:
                 break
+
+        self._logger.info(
+            f"Playlist {playlist_id}: fetched {len(videos)} videos in {page_count} pages"
+        )
 
         return videos
 
@@ -235,6 +260,8 @@ class YouTubeClient:
         Raises:
             YouTubeNotFoundError: If video not found.
         """
+        self._logger.debug(f"Fetching video details: {video_id}")
+
         params = {
             "part": self._PART_VIDEO_DETAILS,
             "id": video_id,
@@ -256,12 +283,18 @@ class YouTubeClient:
 
         # API limit: 50 IDs per request
         batch_ids = video_ids[:50]
+        self._logger.debug(f"Batch fetching {len(batch_ids)} videos")
+
         params = {
             "part": self._PART_VIDEO_DETAILS,
             "id": ",".join(batch_ids),
         }
         response = self._request(self._ENDPOINT_VIDEOS, params)
-        return response.get("items", [])
+        items = response.get("items", [])
+
+        self._logger.debug(f"Batch result: {len(items)}/{len(batch_ids)} videos found")
+
+        return items
 
     # -------------------------------------------------------------------------
     # Search Methods (High quota cost - use sparingly)
@@ -283,6 +316,8 @@ class YouTubeClient:
         Returns:
             List of search result items.
         """
+        self._logger.info(f"Search request: '{query}' (quota cost: {self._QUOTA_COST_SEARCH})")
+
         params: dict[str, Any] = {
             "part": "snippet",
             "q": query,
@@ -297,7 +332,11 @@ class YouTubeClient:
             params,
             quota_cost=self._QUOTA_COST_SEARCH,
         )
-        return response.get("items", [])
+        items = response.get("items", [])
+
+        self._logger.info(f"Search returned {len(items)} results")
+
+        return items
 
     # -------------------------------------------------------------------------
     # Request Handling
@@ -326,10 +365,16 @@ class YouTubeClient:
         self._check_quota(quota_cost)
         self._apply_rate_limit()
 
+        self._logger.debug(f"Request: {endpoint} (quota cost: {quota_cost})")
+
         params["key"] = settings.youtube.api_key
         response = self._execute_request(endpoint, params)
 
         self._quota_used += quota_cost
+        self._logger.debug(
+            f"Request OK. Quota: {self._quota_used}/{settings.youtube.daily_quota_limit}"
+        )
+
         return response
 
     def _check_quota(self, cost: int) -> None:
@@ -342,6 +387,10 @@ class YouTubeClient:
             YouTubeQuotaExceededError: If quota exceeded.
         """
         if self._quota_used + cost > settings.youtube.daily_quota_limit:
+            self._logger.error(
+                f"Quota exceeded: {self._quota_used} + {cost} > "
+                f"{settings.youtube.daily_quota_limit}"
+            )
             raise YouTubeQuotaExceededError(
                 f"Daily quota exceeded: {self._quota_used}/{settings.youtube.daily_quota_limit}"
             )
@@ -352,7 +401,9 @@ class YouTubeClient:
         delay = settings.youtube.request_delay
 
         if elapsed < delay:
-            time.sleep(delay - elapsed)
+            wait_time = delay - elapsed
+            self._logger.debug(f"Rate limit: waiting {wait_time:.2f}s")
+            time.sleep(wait_time)
 
         self._last_request_time = time.time()
 
@@ -380,6 +431,7 @@ class YouTubeClient:
             response = self._client.get(endpoint, params=params)
             return self._handle_response(response)
         except httpx.HTTPError as e:
+            self._logger.error(f"HTTP error on {endpoint}: {e}")
             raise YouTubeAPIError(f"HTTP error: {e}") from e
 
     def _handle_response(self, response: httpx.Response) -> dict[str, Any]:
@@ -397,12 +449,14 @@ class YouTubeClient:
             YouTubeAPIError: On other errors.
         """
         if response.status_code == 404:
+            self._logger.warning("Resource not found (404)")
             raise YouTubeNotFoundError("Resource not found")
 
         if response.status_code == 403:
             self._handle_forbidden_error(response)
 
         if response.status_code >= 400:
+            self._logger.warning(f"API error {response.status_code}: {response.text[:200]}")
             raise YouTubeAPIError(f"API error {response.status_code}: {response.text}")
 
         return response.json()
@@ -422,10 +476,13 @@ class YouTubeClient:
             reason = self._extract_error_reason(error_data)
 
             if "quota" in reason.lower():
+                self._logger.error(f"Quota exceeded: {reason}")
                 raise YouTubeQuotaExceededError(f"Quota exceeded: {reason}")
 
+            self._logger.warning(f"Forbidden (403): {reason}")
             raise YouTubeAPIError(f"Forbidden: {reason}")
         except ValueError:
+            self._logger.warning(f"Forbidden (403): {response.text[:200]}")
             raise YouTubeAPIError(f"Forbidden: {response.text}") from None
 
     @staticmethod

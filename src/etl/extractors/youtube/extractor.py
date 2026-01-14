@@ -6,7 +6,7 @@ and playlists with transcript support.
 
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from src.etl.extractors.base import BaseExtractor
 from src.etl.extractors.youtube.client import (
@@ -84,6 +84,11 @@ class YouTubeExtractor(BaseExtractor):
         )
         max_videos = int(kwargs.get("max_videos", settings.youtube.max_videos))
 
+        self.logger.info(
+            f"Starting YouTube extraction (transcripts={extract_transcripts}, "
+            f"max_videos={max_videos})"
+        )
+
         if not settings.youtube.has_sources:
             self._log_error(self._ERR_NO_SOURCES)
             return self._end_extraction()
@@ -110,6 +115,11 @@ class YouTubeExtractor(BaseExtractor):
             extract_transcripts: Whether to fetch transcripts.
             max_videos: Maximum videos per source.
         """
+        channel_count = len(settings.youtube.channel_handles)
+        playlist_count = len(settings.youtube.playlist_ids)
+
+        self.logger.info(f"Processing {channel_count} channels and {playlist_count} playlists")
+
         self._extract_from_channels(extract_transcripts, max_videos)
         self._extract_from_playlists(extract_transcripts, max_videos)
 
@@ -128,7 +138,15 @@ class YouTubeExtractor(BaseExtractor):
             extract_transcripts: Whether to fetch transcripts.
             max_videos: Maximum videos per channel.
         """
-        for handle in settings.youtube.channel_handles:
+        handles = settings.youtube.channel_handles
+        if not handles:
+            self.logger.debug("No channels configured, skipping")
+            return
+
+        self.logger.info(f"Extracting from {len(handles)} channels")
+
+        for idx, handle in enumerate(handles, 1):
+            self.logger.debug(f"Channel {idx}/{len(handles)}: {handle}")
             self._extract_channel(handle, extract_transcripts, max_videos)
 
     def _extract_channel(
@@ -156,6 +174,8 @@ class YouTubeExtractor(BaseExtractor):
                 self._log_error(f"No uploads playlist for {handle}")
                 return
 
+            self.logger.debug(f"Channel {handle} -> playlist {playlist_id}")
+
             self._extract_playlist_videos(
                 playlist_id=playlist_id,
                 source_type="channel",
@@ -163,6 +183,9 @@ class YouTubeExtractor(BaseExtractor):
                 extract_transcripts=extract_transcripts,
                 max_videos=max_videos,
             )
+
+            self.logger.info(f"Channel {handle} extraction complete")
+
         except YouTubeNotFoundError:
             self._log_error(f"Channel not found: {handle}")
         except YouTubeAPIError as e:
@@ -183,7 +206,15 @@ class YouTubeExtractor(BaseExtractor):
             extract_transcripts: Whether to fetch transcripts.
             max_videos: Maximum videos per playlist.
         """
-        for playlist_id in settings.youtube.playlist_ids:
+        playlist_ids = settings.youtube.playlist_ids
+        if not playlist_ids:
+            self.logger.debug("No playlists configured, skipping")
+            return
+
+        self.logger.info(f"Extracting from {len(playlist_ids)} playlists")
+
+        for idx, playlist_id in enumerate(playlist_ids, 1):
+            self.logger.debug(f"Playlist {idx}/{len(playlist_ids)}: {playlist_id}")
             self._extract_playlist(playlist_id, extract_transcripts, max_videos)
 
     def _extract_playlist(
@@ -209,6 +240,9 @@ class YouTubeExtractor(BaseExtractor):
                 extract_transcripts=extract_transcripts,
                 max_videos=max_videos,
             )
+
+            self.logger.info(f"Playlist {playlist_id} extraction complete")
+
         except YouTubeAPIError as e:
             self._log_error(f"Playlist extraction failed {playlist_id}: {e}")
 
@@ -234,12 +268,20 @@ class YouTubeExtractor(BaseExtractor):
         items = self._client.iter_playlist_videos(playlist_id, max_videos)
         video_ids = self._extract_video_ids(items)
 
-        self.logger.debug(f"Found {len(video_ids)} videos in {source_type} {source_id}")
+        self.logger.info(f"Found {len(video_ids)} videos in {source_type} {source_id}")
 
+        batch_count = 0
         for batch in self._batch_ids(video_ids, 50):
+            batch_count += 1
+            self.logger.debug(f"Processing batch {batch_count} ({len(batch)} videos)")
             self._process_video_batch(batch, extract_transcripts)
 
-    def _extract_video_ids(self, items: list[dict[str, str | dict[str, str]]]) -> list[str]:
+        self.logger.debug(f"Processed {len(video_ids)} videos in {batch_count} batches")
+
+    def _extract_video_ids(
+        self,
+        items: list[dict[str, str | dict[str, str]]],
+    ) -> list[str]:
         """Extract video IDs from playlist items.
 
         Args:
@@ -293,14 +335,18 @@ class YouTubeExtractor(BaseExtractor):
         """
         assert self._client is not None, self._ERR_CLIENT_NOT_INITIALIZED
 
+        self.logger.debug(f"Fetching batch of {len(video_ids)} videos")
+
         videos = self._client.get_videos_batch(video_ids)
+
+        self.logger.debug(f"Processing {len(videos)} videos from batch")
 
         for video_data in videos:
             self._process_single_video(video_data, extract_transcripts)
 
     def _process_single_video(
         self,
-        video_data: dict[str, str],
+        video_data: dict[str, Any],
         extract_transcripts: bool,
     ) -> None:
         """Process a single video.
@@ -314,7 +360,13 @@ class YouTubeExtractor(BaseExtractor):
             self._extracted_count += 1
 
             if extract_transcripts:
-                self._transcript_extractor.extract(video_id)
+                result = self._transcript_extractor.extract(video_id)
+                if result.success:
+                    self.logger.debug(
+                        f"Transcript extracted: {video_id} ({result.word_count} words)"
+                    )
+                else:
+                    self.logger.debug(f"Transcript unavailable: {video_id} - {result.error}")
 
             self._log_periodic_progress()
 
@@ -325,7 +377,7 @@ class YouTubeExtractor(BaseExtractor):
     def _log_periodic_progress(self) -> None:
         """Log progress at regular intervals."""
         if self._extracted_count % 50 == 0:
-            self.logger.info(f"Extracted {self._extracted_count} videos")
+            self.logger.info(f"Progress: {self._extracted_count} videos extracted")
 
     # -------------------------------------------------------------------------
     # Batch Extraction with Callback
@@ -356,6 +408,11 @@ class YouTubeExtractor(BaseExtractor):
         )
         max_vids = max_videos if max_videos is not None else settings.youtube.max_videos
 
+        self.logger.info(
+            f"Starting callback extraction (transcripts={transcripts_enabled}, "
+            f"max_videos={max_vids}, batch_size={batch_size})"
+        )
+
         if not settings.youtube.has_sources:
             self._log_error(self._ERR_NO_SOURCES)
             return self._end_extraction()
@@ -373,6 +430,8 @@ class YouTubeExtractor(BaseExtractor):
                 )
         except YouTubeQuotaExceededError as e:
             self._log_error(f"Quota exceeded: {e}")
+
+        self.logger.info(f"Callback extraction complete: {self._extracted_count} videos")
 
         return self._end_extraction()
 
@@ -392,17 +451,26 @@ class YouTubeExtractor(BaseExtractor):
             batch_size: Callback batch size.
         """
         batch: list[VideoBundle] = []
+        callback_count = 0
 
         for bundle in self._iter_all_videos(extract_transcripts, max_videos):
             batch.append(bundle)
             self._extracted_count += 1
 
             if len(batch) >= batch_size:
+                callback_count += 1
+                self.logger.debug(f"Invoking callback #{callback_count} with {len(batch)} bundles")
                 callback(batch)
                 batch = []
 
         if batch:
+            callback_count += 1
+            self.logger.debug(
+                f"Invoking final callback #{callback_count} with {len(batch)} bundles"
+            )
             callback(batch)
+
+        self.logger.debug(f"Total callbacks invoked: {callback_count}")
 
     def _iter_all_videos(
         self,
@@ -436,6 +504,7 @@ class YouTubeExtractor(BaseExtractor):
             Video bundles.
         """
         for handle in settings.youtube.channel_handles:
+            self.logger.debug(f"Iterating channel: {handle}")
             yield from self._iter_source_videos(
                 source_type="channel",
                 source_id=handle,
@@ -458,6 +527,7 @@ class YouTubeExtractor(BaseExtractor):
             Video bundles.
         """
         for playlist_id in settings.youtube.playlist_ids:
+            self.logger.debug(f"Iterating playlist: {playlist_id}")
             yield from self._iter_source_videos(
                 source_type="playlist",
                 source_id=playlist_id,
@@ -494,13 +564,20 @@ class YouTubeExtractor(BaseExtractor):
         items = self._client.iter_playlist_videos(playlist_id, max_videos)
         video_ids = self._extract_video_ids(items)
 
+        self.logger.debug(f"Found {len(video_ids)} video IDs to process")
+
+        bundle_count = 0
         for batch in self._batch_ids(video_ids, 50):
-            yield from self._build_video_bundles(
+            for bundle in self._build_video_bundles(
                 batch,
                 source_type,
                 source_id,
                 extract_transcripts,
-            )
+            ):
+                bundle_count += 1
+                yield bundle
+
+        self.logger.debug(f"Yielded {bundle_count} bundles from {source_type} {source_id}")
 
     def _resolve_playlist_id(
         self,
@@ -523,7 +600,13 @@ class YouTubeExtractor(BaseExtractor):
 
         try:
             channel_data = self._client.get_channel_by_handle(source_id)
-            return self._client.get_uploads_playlist_id(channel_data)
+            playlist_id = self._client.get_uploads_playlist_id(channel_data)
+
+            if playlist_id:
+                self.logger.debug(f"Resolved {source_id} -> {playlist_id}")
+
+            return playlist_id
+
         except YouTubeNotFoundError:
             self._log_error(f"Channel not found: {source_id}")
             return None
@@ -548,8 +631,11 @@ class YouTubeExtractor(BaseExtractor):
         """
         assert self._client is not None, self._ERR_CLIENT_NOT_INITIALIZED
 
+        self.logger.debug(f"Building bundles for {len(video_ids)} videos")
+
         videos = self._client.get_videos_batch(video_ids)
 
+        success_count = 0
         for video_data in videos:
             bundle = self._build_single_bundle(
                 video_data,
@@ -558,11 +644,14 @@ class YouTubeExtractor(BaseExtractor):
                 extract_transcripts,
             )
             if bundle:
+                success_count += 1
                 yield bundle
+
+        self.logger.debug(f"Built {success_count}/{len(videos)} bundles successfully")
 
     def _build_single_bundle(
         self,
-        video_data: dict[str, str],
+        video_data: dict[str, Any],
         source_type: str,
         source_id: str,
         extract_transcripts: bool,
@@ -580,7 +669,12 @@ class YouTubeExtractor(BaseExtractor):
         """
         try:
             normalized = self._normalizer.normalize_video(video_data)
-            transcript = self._get_transcript(normalized["youtube_id"], extract_transcripts)
+            video_id = normalized["youtube_id"]
+            video_title = normalized.get("title", "Unknown")
+
+            transcript = self._get_transcript(video_id, extract_transcripts)
+
+            self.logger.debug(f"Bundle created: {video_id} - {video_title[:50]}")
 
             return VideoBundle(
                 video=normalized,
@@ -588,6 +682,7 @@ class YouTubeExtractor(BaseExtractor):
                 source_type=source_type,
                 source_id=source_id,
             )
+
         except Exception as e:
             video_id = video_data.get("id", "unknown")
             self._log_error(f"Bundle build failed {video_id}: {e}")
@@ -610,7 +705,16 @@ class YouTubeExtractor(BaseExtractor):
         if not extract:
             return None
 
-        return self._transcript_extractor.extract(video_id)
+        result = self._transcript_extractor.extract(video_id)
+
+        if result.success:
+            self.logger.debug(
+                f"Transcript OK: {video_id} ({result.language}, {result.word_count} words)"
+            )
+        else:
+            self.logger.debug(f"Transcript failed: {video_id} - {result.error}")
+
+        return result
 
     # -------------------------------------------------------------------------
     # Single Video Extraction
@@ -630,17 +734,27 @@ class YouTubeExtractor(BaseExtractor):
         Returns:
             Video bundle or None.
         """
+        self.logger.info(f"Extracting single video: {video_id} (transcript={extract_transcript})")
+
         with YouTubeClient() as client:
             self._client = client
 
             try:
                 video_data = client.get_video_details(video_id)
-                return self._build_single_bundle(
+                bundle = self._build_single_bundle(
                     video_data,
                     source_type="direct",
                     source_id=video_id,
                     extract_transcripts=extract_transcript,
                 )
+
+                if bundle:
+                    self.logger.info(f"Video extracted successfully: {video_id}")
+                else:
+                    self.logger.warning(f"Failed to build bundle: {video_id}")
+
+                return bundle
+
             except YouTubeNotFoundError:
                 self.logger.warning(f"Video not found: {video_id}")
                 return None
@@ -658,7 +772,17 @@ class YouTubeExtractor(BaseExtractor):
 
     def _load_checkpoint(self) -> dict[str, str | int | list[int]] | None:
         """Load extraction checkpoint."""
-        return self.load_checkpoint(self._get_checkpoint_path())
+        checkpoint = self.load_checkpoint(self._get_checkpoint_path())
+
+        if checkpoint:
+            self.logger.info(
+                f"Checkpoint loaded: source={checkpoint.get('source_type')}/"
+                f"{checkpoint.get('source_id')}"
+            )
+        else:
+            self.logger.debug("No checkpoint found")
+
+        return checkpoint
 
     def _save_checkpoint(
         self,
@@ -678,9 +802,12 @@ class YouTubeExtractor(BaseExtractor):
         checkpoint["source_id"] = source_id
         self.save_checkpoint(checkpoint, self._get_checkpoint_path())
 
+        self.logger.debug(f"Checkpoint saved: {source_type}/{source_id} -> {last_video_id}")
+
     def _clear_checkpoint(self) -> None:
         """Clear checkpoint file."""
         self.delete_checkpoint(self._get_checkpoint_path())
+        self.logger.info("Checkpoint cleared")
 
     # -------------------------------------------------------------------------
     # Quota Info
@@ -693,8 +820,13 @@ class YouTubeExtractor(BaseExtractor):
             Dict with used and remaining quota.
         """
         if self._client:
-            return {
+            status = {
                 "used": self._client.quota_used,
                 "remaining": self._client.quota_remaining,
             }
-        return {"used": 0, "remaining": settings.youtube.daily_quota_limit}
+        else:
+            status = {"used": 0, "remaining": settings.youtube.daily_quota_limit}
+
+        self.logger.debug(f"Quota status: {status['used']} used, {status['remaining']} remaining")
+
+        return status

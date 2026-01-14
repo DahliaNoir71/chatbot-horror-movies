@@ -69,6 +69,7 @@ class TranscriptExtractor:
         """
         self._logger = setup_logger("etl.youtube.transcript")
         self._languages = preferred_languages or self._DEFAULT_LANGUAGES
+        self._logger.info(f"TranscriptExtractor initialized with languages: {self._languages}")
 
     # -------------------------------------------------------------------------
     # Main Extraction
@@ -85,17 +86,35 @@ class TranscriptExtractor:
         Returns:
             TranscriptResult with transcript or error.
         """
+        self._logger.info(f"Extracting transcript for video: {video_id}")
+
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            return self._extract_best_transcript(transcript_list)
+            self._logger.debug(f"Transcript list retrieved for {video_id}")
+            result = self._extract_best_transcript(video_id, transcript_list)
+
+            if result.success:
+                self._logger.info(
+                    f"Transcript extracted successfully: {video_id} "
+                    f"({result.language}, {result.word_count} words, "
+                    f"{'generated' if result.is_generated else 'manual'})"
+                )
+            else:
+                self._logger.warning(f"Transcript extraction failed for {video_id}: {result.error}")
+
+            return result
+
         except self._NO_TRANSCRIPT_ERRORS as e:
-            return self._create_error_result(f"No transcript: {type(e).__name__}")
+            error_msg = f"No transcript available: {type(e).__name__}"
+            self._logger.warning(f"{error_msg} for video {video_id}")
+            return self._create_error_result(error_msg)
         except Exception as e:
             self._logger.error(f"Transcript extraction failed for {video_id}: {e}")
             return self._create_error_result(str(e))
 
     def _extract_best_transcript(
         self,
+        video_id: str,
         transcript_list: object,
     ) -> TranscriptResult:
         """Extract best available transcript.
@@ -109,25 +128,34 @@ class TranscriptExtractor:
         Returns:
             TranscriptResult with best transcript.
         """
+        self._logger.debug(f"Finding best transcript for {video_id}")
+
         # Try manual transcript first
-        manual = self._try_manual_transcript(transcript_list)
+        self._logger.debug("Attempting to find manual transcript...")
+        manual = self._try_manual_transcript(video_id, transcript_list)
         if manual:
+            self._logger.debug(f"Manual transcript found for {video_id}")
             return manual
 
         # Fall back to auto-generated
-        generated = self._try_generated_transcript(transcript_list)
+        self._logger.debug("Manual transcript not found, trying auto-generated...")
+        generated = self._try_generated_transcript(video_id, transcript_list)
         if generated:
+            self._logger.debug(f"Auto-generated transcript found for {video_id}")
             return generated
 
+        self._logger.warning(f"No suitable transcript found for {video_id}")
         return self._create_error_result("No suitable transcript found")
 
     def _try_manual_transcript(
         self,
+        video_id: str,
         transcript_list: object,
     ) -> TranscriptResult | None:
         """Try to get manual transcript in preferred languages.
 
         Args:
+            video_id: YouTube video ID.
             transcript_list: TranscriptList from API.
 
         Returns:
@@ -135,17 +163,23 @@ class TranscriptExtractor:
         """
         try:
             transcript = transcript_list.find_manually_created_transcript(self._languages)
-            return self._fetch_and_build_result(transcript, is_generated=False)
+            self._logger.debug(
+                f"Found manual transcript for {video_id} in language: {transcript.language_code}"
+            )
+            return self._fetch_and_build_result(video_id, transcript, is_generated=False)
         except NoTranscriptFound:
+            self._logger.debug(f"No manual transcript found for {video_id}")
             return None
 
     def _try_generated_transcript(
         self,
+        video_id: str,
         transcript_list: object,
     ) -> TranscriptResult | None:
         """Try to get auto-generated transcript.
 
         Args:
+            video_id: YouTube video ID.
             transcript_list: TranscriptList from API.
 
         Returns:
@@ -153,34 +187,49 @@ class TranscriptExtractor:
         """
         try:
             transcript = transcript_list.find_generated_transcript(self._languages)
-            return self._fetch_and_build_result(transcript, is_generated=True)
+            self._logger.debug(
+                f"Found auto-generated transcript for {video_id} in language: {transcript.language_code}"
+            )
+            return self._fetch_and_build_result(video_id, transcript, is_generated=True)
         except NoTranscriptFound:
+            self._logger.debug(f"No auto-generated transcript found for {video_id}")
             return None
 
     def _fetch_and_build_result(
         self,
+        video_id: str,
         transcript: object,
         is_generated: bool,
     ) -> TranscriptResult:
         """Fetch transcript data and build result.
 
         Args:
+            video_id: YouTube video ID.
             transcript: Transcript object from API.
             is_generated: Whether auto-generated.
 
         Returns:
             TranscriptResult with full text.
         """
+        self._logger.debug(f"Fetching transcript segments for {video_id}")
         segments = transcript.fetch()
+
+        self._logger.debug(f"Processing {len(segments)} transcript segments for {video_id}")
         full_text = self._join_segments(segments)
         language = getattr(transcript, "language_code", "en")
+        word_count = self._count_words(full_text)
+
+        self._logger.debug(
+            f"Transcript processed: {video_id} -> {word_count} words, "
+            f"language: {language}, generated: {is_generated}"
+        )
 
         return TranscriptResult(
             success=True,
             transcript=full_text,
             language=language,
             is_generated=is_generated,
-            word_count=self._count_words(full_text),
+            word_count=word_count,
         )
 
     # -------------------------------------------------------------------------
@@ -197,7 +246,12 @@ class TranscriptExtractor:
             Joined transcript text.
         """
         texts = [self._clean_segment_text(s.get("text", "")) for s in segments]
-        return " ".join(filter(None, texts))
+        joined_text = " ".join(filter(None, texts))
+
+        if not joined_text:
+            self._logger.warning("All transcript segments were empty after cleaning")
+
+        return joined_text
 
     def _clean_segment_text(self, text: str) -> str:
         """Clean individual segment text.
@@ -210,9 +264,17 @@ class TranscriptExtractor:
         Returns:
             Cleaned text.
         """
+        if not text:
+            return ""
+
+        original = text
         cleaned = text.strip()
         cleaned = self._remove_music_indicators(cleaned)
         cleaned = self._normalize_whitespace(cleaned)
+
+        if original != cleaned:
+            self._logger.debug(f"Segment cleaned: '{original[:50]}...' -> '{cleaned[:50]}...'")
+
         return cleaned
 
     @staticmethod
@@ -253,14 +315,13 @@ class TranscriptExtractor:
         Returns:
             Word count.
         """
-        return len(text.split())
+        return len(text.split()) if text else 0
 
     # -------------------------------------------------------------------------
     # Result Helpers
     # -------------------------------------------------------------------------
 
-    @staticmethod
-    def _create_error_result(error: str) -> TranscriptResult:
+    def _create_error_result(self, error: str) -> TranscriptResult:
         """Create error result.
 
         Args:
@@ -269,6 +330,7 @@ class TranscriptExtractor:
         Returns:
             TranscriptResult indicating failure.
         """
+        self._logger.debug(f"Creating error result: {error}")
         return TranscriptResult(
             success=False,
             transcript="",
@@ -294,11 +356,28 @@ class TranscriptExtractor:
         Returns:
             Dict mapping video_id to TranscriptResult.
         """
+        if not video_ids:
+            self._logger.warning("Empty video IDs list provided for batch extraction")
+            return {}
+
+        self._logger.info(f"Starting batch transcript extraction for {len(video_ids)} videos")
         results: dict[str, TranscriptResult] = {}
 
-        for video_id in video_ids:
+        for idx, video_id in enumerate(video_ids, 1):
+            if idx % 10 == 0:
+                self._logger.debug(f"Batch progress: {idx}/{len(video_ids)}")
+
             results[video_id] = self.extract(video_id)
             self._log_extraction_result(video_id, results[video_id])
+
+        # Calculate statistics
+        success_count = sum(1 for r in results.values() if r.success)
+        success_rate = (success_count / len(video_ids) * 100) if video_ids else 0
+
+        self._logger.info(
+            f"Batch extraction complete: {success_count}/{len(video_ids)} succeeded "
+            f"({success_rate:.1f}%)"
+        )
 
         return results
 
@@ -315,7 +394,8 @@ class TranscriptExtractor:
         """
         if result.success:
             self._logger.debug(
-                f"Transcript extracted: {video_id} ({result.language}, {result.word_count} words)"
+                f"Transcript extracted: {video_id} ({result.language}, "
+                f"{result.word_count} words, {'generated' if result.is_generated else 'manual'})"
             )
         else:
             self._logger.debug(f"Transcript failed: {video_id} - {result.error}")
@@ -348,3 +428,44 @@ class TranscriptExtractor:
             is_generated=result.is_generated,
             word_count=result.word_count,
         )
+
+    # -------------------------------------------------------------------------
+    # Language Management
+    # -------------------------------------------------------------------------
+
+    def get_languages(self) -> list[str]:
+        """Get current preferred languages list.
+
+        Returns:
+            List of language codes in priority order.
+        """
+        return self._languages.copy()
+
+    def set_languages(self, languages: list[str]) -> None:
+        """Update preferred languages.
+
+        Args:
+            languages: New language priority list.
+        """
+        old_languages = self._languages
+        self._languages = languages.copy()
+
+        self._logger.info(f"Updated languages: {old_languages} -> {self._languages}")
+
+    def add_language(self, language: str, priority: int | None = None) -> None:
+        """Add a language to preferred list.
+
+        Args:
+            language: Language code to add.
+            priority: Position in list (None for end).
+        """
+        if language in self._languages:
+            self._logger.debug(f"Language already in list: {language}")
+            return
+
+        if priority is None or priority >= len(self._languages):
+            self._languages.append(language)
+        else:
+            self._languages.insert(priority, language)
+
+        self._logger.info(f"Added language: {language} at position {priority or 'end'}")

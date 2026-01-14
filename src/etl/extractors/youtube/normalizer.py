@@ -31,6 +31,7 @@ class YouTubeNormalizer:
     def __init__(self) -> None:
         """Initialize normalizer with logger."""
         self._logger = setup_logger("etl.youtube.normalizer")
+        self._logger.debug("YouTubeNormalizer initialized")
 
     # -------------------------------------------------------------------------
     # Video Normalization
@@ -49,8 +50,11 @@ class YouTubeNormalizer:
         statistics = raw_data.get("statistics", {})
         content_details = raw_data.get("contentDetails", {})
 
-        return NormalizedVideoData(
-            youtube_id=self._extract_video_id(raw_data),
+        video_id = self._extract_video_id(raw_data)
+        self._logger.debug(f"Normalizing video: {video_id}")
+
+        result = NormalizedVideoData(
+            youtube_id=video_id,
             title=self._clean_text(snippet.get("title", "")),
             description=self._truncate_description(snippet.get("description")),
             channel_id=snippet.get("channelId"),
@@ -63,6 +67,9 @@ class YouTubeNormalizer:
             thumbnail_url=self._extract_thumbnail(snippet.get("thumbnails")),
             video_type=self._detect_video_type(snippet),
         )
+
+        self._logger.debug(f"Video normalized: {video_id} - '{result['title'][:50]}...'")
+        return result
 
     def normalize_video_from_playlist_item(
         self,
@@ -81,8 +88,11 @@ class YouTubeNormalizer:
         snippet = item.get("snippet", {})
         content_details = item.get("contentDetails", {})
 
-        return YouTubeVideoData(
-            youtube_id=content_details.get("videoId", ""),
+        video_id = content_details.get("videoId", "")
+        self._logger.debug(f"Normalizing playlist item: {video_id}")
+
+        result = YouTubeVideoData(
+            youtube_id=video_id,
             title=self._clean_text(snippet.get("title", "")),
             description=snippet.get("description"),
             channel_id=snippet.get("channelId"),
@@ -90,6 +100,9 @@ class YouTubeNormalizer:
             published_at=snippet.get("publishedAt"),
             thumbnail_url=self._extract_thumbnail(snippet.get("thumbnails")),
         )
+
+        self._logger.debug(f"Playlist item normalized: {video_id}")
+        return result
 
     def _extract_video_id(self, raw_data: dict[str, Any]) -> str:
         """Extract video ID from various response formats.
@@ -147,15 +160,25 @@ class YouTubeNormalizer:
         Returns:
             Normalized transcript data ready for database insertion.
         """
-        cleaned_text = self._clean_transcript(transcript_text)
+        self._logger.debug(f"Normalizing transcript for video ID: {video_db_id}")
 
-        return NormalizedTranscriptData(
+        cleaned_text = self._clean_transcript(transcript_text)
+        word_count = self._count_words(cleaned_text)
+
+        result = NormalizedTranscriptData(
             video_id=video_db_id,
             transcript=cleaned_text,
             language=language,
             is_generated=is_generated,
-            word_count=self._count_words(cleaned_text),
+            word_count=word_count,
         )
+
+        self._logger.debug(
+            f"Transcript normalized: {word_count} words, language={language}, "
+            f"generated={is_generated}"
+        )
+
+        return result
 
     def _clean_transcript(self, text: str) -> str:
         """Clean transcript text by normalizing whitespace and punctuation.
@@ -167,10 +190,17 @@ class YouTubeNormalizer:
             Cleaned text with normalized spacing and punctuation.
         """
         if not text:
+            self._logger.debug("Empty transcript text provided")
             return ""
 
+        initial_length = len(text)
         cleaned = self._normalize_whitespace(text)
         cleaned = self._remove_repeated_punctuation(cleaned)
+        final_length = len(cleaned)
+
+        if initial_length != final_length:
+            self._logger.debug(f"Transcript cleaned: {initial_length} -> {final_length} characters")
+
         return cleaned.strip()
 
     # -------------------------------------------------------------------------
@@ -238,7 +268,8 @@ class YouTubeNormalizer:
         if len(cleaned) <= max_length:
             return cleaned
 
-        return cleaned[: max_length - 3] + "..."
+        truncated = cleaned[: max_length - 3] + "..."
+        return truncated
 
     @staticmethod
     def _count_words(text: str) -> int:
@@ -255,7 +286,7 @@ class YouTubeNormalizer:
         return len(text.split())
 
     # -------------------------------------------------------------------------
-    # Parsing Helpers (Static Methods)
+    # Parsing Helpers
     # -------------------------------------------------------------------------
 
     @staticmethod
@@ -303,14 +334,17 @@ class YouTubeNormalizer:
             Parsed datetime or None if parsing fails.
         """
         if not value:
+            self._logger.debug("Empty datetime string provided")
             return None
 
         try:
             # Handle YouTube's ISO format with Z suffix
             cleaned = value.replace("Z", "+00:00")
-            return datetime.fromisoformat(cleaned)
-        except (ValueError, TypeError):
-            self._logger.warning(f"Failed to parse datetime: {value}")
+            result = datetime.fromisoformat(cleaned)
+            self._logger.debug(f"Datetime parsed successfully: {result}")
+            return result
+        except (ValueError, TypeError) as e:
+            self._logger.warning(f"Failed to parse datetime '{value}': {e}")
             return None
 
     @staticmethod
@@ -351,7 +385,14 @@ class YouTubeNormalizer:
         description = snippet.get("description", "").lower()
         combined = f"{title} {description}"
 
-        return self._classify_video_content(combined)
+        video_type = self._classify_video_content(combined)
+
+        if video_type:
+            self._logger.debug(f"Video type detected: {video_type}")
+        else:
+            self._logger.debug("No specific video type detected")
+
+        return video_type
 
     @staticmethod
     def _classify_video_content(text: str) -> str | None:
@@ -388,10 +429,22 @@ class YouTubeNormalizer:
         Returns:
             List of normalized video data, skipping failed items.
         """
-        normalized: list[NormalizedVideoData] = []
+        self._logger.info(f"Starting batch normalization of {len(raw_videos)} videos")
 
-        for raw in raw_videos:
-            self._try_normalize_video(raw, normalized)
+        normalized: list[NormalizedVideoData] = []
+        failed_count = 0
+
+        for idx, raw in enumerate(raw_videos, 1):
+            if idx % 50 == 0:
+                self._logger.debug(f"Batch normalization progress: {idx}/{len(raw_videos)}")
+
+            if not self._try_normalize_video(raw, normalized):
+                failed_count += 1
+
+        success_count = len(normalized)
+        self._logger.info(
+            f"Batch normalization complete: {success_count} succeeded, {failed_count} failed"
+        )
 
         return normalized
 
@@ -399,15 +452,22 @@ class YouTubeNormalizer:
         self,
         raw: dict[str, Any],
         results: list[NormalizedVideoData],
-    ) -> None:
+    ) -> bool:
         """Try to normalize a single video and append to results.
 
         Args:
             raw: Raw video data from API.
             results: List to append normalized data to.
+
+        Returns:
+            True if normalization succeeded, False otherwise.
         """
         try:
-            results.append(self.normalize_video(raw))
+            video_id = self._extract_video_id(raw)
+            normalized = self.normalize_video(raw)
+            results.append(normalized)
+            return True
         except Exception as e:
             video_id = self._extract_video_id(raw)
             self._logger.warning(f"Failed to normalize video {video_id}: {e}")
+            return False
