@@ -1,193 +1,129 @@
 """YouTube data normalizer.
 
-Transforms raw YouTube API data into normalized
-format for database insertion.
+Transforms raw YouTube API responses into normalized
+data structures ready for database insertion.
 """
 
 import re
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, ClassVar
 
+from src.etl.types import NormalizedTranscriptData, NormalizedVideoData, YouTubeVideoData
 from src.etl.utils.logger import setup_logger
-
-logger = setup_logger("etl.yt.normalizer")
-
-
-# =============================================================================
-# TYPE DEFINITIONS
-# =============================================================================
-
-
-class ThumbnailInfo(TypedDict, total=False):
-    """YouTube thumbnail information."""
-
-    url: str
-    width: int
-    height: int
-
-
-class VideoSnippet(TypedDict, total=False):
-    """YouTube video snippet data."""
-
-    title: str
-    description: str
-    channelId: str
-    channelTitle: str
-    publishedAt: str
-    thumbnails: dict[str, ThumbnailInfo]
-    tags: list[str]
-
-
-class VideoStatistics(TypedDict, total=False):
-    """YouTube video statistics."""
-
-    viewCount: str
-    likeCount: str
-    commentCount: str
-
-
-class VideoContentDetails(TypedDict, total=False):
-    """YouTube video content details."""
-
-    duration: str
-    videoId: str
-
-
-class VideoData(TypedDict, total=False):
-    """YouTube video API response."""
-
-    id: str
-    snippet: VideoSnippet
-    statistics: VideoStatistics
-    contentDetails: VideoContentDetails
-
-
-class PlaylistItemData(TypedDict, total=False):
-    """YouTube playlist item API response."""
-
-    contentDetails: VideoContentDetails
-
-
-class TranscriptData(TypedDict, total=False):
-    """Transcript extraction result."""
-
-    text: str
-    language: str
-    is_generated: bool
-
-
-class NormalizedVideo(TypedDict, total=False):
-    """Normalized video for database."""
-
-    id: str
-    title: str
-    description: str
-    channel_id: str
-    channel_title: str
-    published_at: str | None
-    duration: str
-    duration_seconds: int
-    view_count: int
-    like_count: int
-    comment_count: int
-    thumbnail_url: str
-    tags: list[str]
-    source_type: str
-    source_id: str | None
-
-
-class NormalizedTranscript(TypedDict):
-    """Normalized transcript for database."""
-
-    video_id: str
-    text: str
-    language: str
-    is_generated: bool
-    word_count: int
-
-
-# =============================================================================
-# NORMALIZER
-# =============================================================================
 
 
 class YouTubeNormalizer:
-    """Normalizes YouTube API data.
+    """Normalizes YouTube API data for database insertion.
 
-    Transforms raw API responses into database-ready
-    normalized format.
+    Transforms raw API responses into typed dictionaries
+    matching the database schema.
     """
+
+    _TYPE_KEYWORDS: ClassVar[dict[str, list[str]]] = {
+        "review": ["review", "critique", "avis", "analysis"],
+        "trailer": ["trailer", "bande-annonce", "teaser"],
+        "interview": ["interview", "entretien", "q&a"],
+        "recap": ["recap", "résumé", "explained", "ending explained"],
+        "ranking": ["ranking", "top 10", "top 5", "best of", "worst"],
+        "reaction": ["reaction", "réaction", "first time watching"],
+    }
+
+    def __init__(self) -> None:
+        """Initialize normalizer with logger."""
+        self._logger = setup_logger("etl.youtube.normalizer")
 
     # -------------------------------------------------------------------------
     # Video Normalization
     # -------------------------------------------------------------------------
 
-    def normalize_video(
-        self,
-        video_data: VideoData,
-        source_type: str = "playlist",
-        source_id: str | None = None,
-    ) -> NormalizedVideo | None:
-        """Normalize video data from API.
+    def normalize_video(self, raw_data: dict[str, Any]) -> NormalizedVideoData:
+        """Normalize video data from API response.
 
         Args:
-            video_data: Raw video data from API.
-            source_type: Source type (channel, playlist, search).
-            source_id: Source identifier.
+            raw_data: Raw video item from YouTube API.
 
         Returns:
-            Normalized video dict or None if invalid.
+            Normalized video data ready for database insertion.
         """
-        video_id = video_data.get("id")
-        if not video_id:
-            return None
+        snippet = raw_data.get("snippet", {})
+        statistics = raw_data.get("statistics", {})
+        content_details = raw_data.get("contentDetails", {})
 
-        snippet = video_data.get("snippet", {})
-        stats = video_data.get("statistics", {})
-        content = video_data.get("contentDetails", {})
-
-        return NormalizedVideo(
-            id=video_id,
-            title=snippet.get("title", ""),
-            description=snippet.get("description", ""),
-            channel_id=snippet.get("channelId", ""),
-            channel_title=snippet.get("channelTitle", ""),
+        return NormalizedVideoData(
+            youtube_id=self._extract_video_id(raw_data),
+            title=self._clean_text(snippet.get("title", "")),
+            description=self._truncate_description(snippet.get("description")),
+            channel_id=snippet.get("channelId"),
+            channel_title=snippet.get("channelTitle"),
+            view_count=self._parse_int(statistics.get("viewCount"), 0),
+            like_count=self._parse_int(statistics.get("likeCount"), 0),
+            comment_count=self._parse_int(statistics.get("commentCount"), 0),
+            duration=content_details.get("duration"),
             published_at=self._parse_datetime(snippet.get("publishedAt")),
-            duration=self._parse_duration(content.get("duration", "")),
-            duration_seconds=self._duration_to_seconds(content.get("duration", "")),
-            view_count=self._safe_int(stats.get("viewCount")),
-            like_count=self._safe_int(stats.get("likeCount")),
-            comment_count=self._safe_int(stats.get("commentCount")),
-            thumbnail_url=self._get_best_thumbnail(snippet.get("thumbnails", {})),
-            tags=snippet.get("tags", []),
-            source_type=source_type,
-            source_id=source_id,
+            thumbnail_url=self._extract_thumbnail(snippet.get("thumbnails")),
+            video_type=self._detect_video_type(snippet),
         )
 
-    def normalize_videos(
+    def normalize_video_from_playlist_item(
         self,
-        videos_data: list[VideoData],
-        source_type: str = "playlist",
-        source_id: str | None = None,
-    ) -> list[NormalizedVideo]:
-        """Normalize multiple videos.
+        item: dict[str, Any],
+    ) -> YouTubeVideoData:
+        """Normalize video data from playlist item.
+
+        Playlist items have different structure than video details.
 
         Args:
-            videos_data: List of raw video data.
-            source_type: Source type for all videos.
-            source_id: Source identifier for all videos.
+            item: Playlist item from API.
 
         Returns:
-            List of normalized video dicts (invalid ones filtered).
+            Partial video data (requires details enrichment).
         """
-        normalized: list[NormalizedVideo] = []
+        snippet = item.get("snippet", {})
+        content_details = item.get("contentDetails", {})
 
-        for video in videos_data:
-            norm = self.normalize_video(video, source_type, source_id)
-            if norm:
-                normalized.append(norm)
+        return YouTubeVideoData(
+            youtube_id=content_details.get("videoId", ""),
+            title=self._clean_text(snippet.get("title", "")),
+            description=snippet.get("description"),
+            channel_id=snippet.get("channelId"),
+            channel_title=snippet.get("channelTitle"),
+            published_at=snippet.get("publishedAt"),
+            thumbnail_url=self._extract_thumbnail(snippet.get("thumbnails")),
+        )
 
-        return normalized
+    def _extract_video_id(self, raw_data: dict[str, Any]) -> str:
+        """Extract video ID from various response formats.
+
+        Args:
+            raw_data: Raw API response item.
+
+        Returns:
+            YouTube video ID or empty string if not found.
+        """
+        # Try direct ID or search result format first
+        video_id = self._try_extract_direct_id(raw_data)
+        if video_id:
+            return video_id
+
+        # Fallback to content details format (playlist items)
+        return raw_data.get("contentDetails", {}).get("videoId", "")
+
+    @staticmethod
+    def _try_extract_direct_id(raw_data: dict[str, Any]) -> str | None:
+        """Try to extract ID from direct or search result format.
+
+        Args:
+            raw_data: Raw API response item.
+
+        Returns:
+            Video ID if found, None otherwise.
+        """
+        raw_id = raw_data.get("id")
+        if isinstance(raw_id, str):
+            return raw_id
+        if isinstance(raw_id, dict):
+            return raw_id.get("videoId")
+        return None
 
     # -------------------------------------------------------------------------
     # Transcript Normalization
@@ -195,178 +131,114 @@ class YouTubeNormalizer:
 
     def normalize_transcript(
         self,
-        video_id: str,
-        transcript_data: TranscriptData | None,
-    ) -> NormalizedTranscript | None:
+        video_db_id: int,
+        transcript_text: str,
+        language: str = "en",
+        is_generated: bool = False,
+    ) -> NormalizedTranscriptData:
         """Normalize transcript data.
 
         Args:
-            video_id: Associated video ID.
-            transcript_data: Raw transcript data or None.
+            video_db_id: Database ID of the video.
+            transcript_text: Full transcript text.
+            language: Transcript language code.
+            is_generated: Whether auto-generated.
 
         Returns:
-            Normalized transcript dict or None.
+            Normalized transcript data ready for database insertion.
         """
-        if not transcript_data:
-            return None
+        cleaned_text = self._clean_transcript(transcript_text)
 
-        return NormalizedTranscript(
-            video_id=video_id,
-            text=transcript_data.get("text", ""),
-            language=transcript_data.get("language", ""),
-            is_generated=transcript_data.get("is_generated", False),
-            word_count=self._count_words(transcript_data.get("text", "")),
+        return NormalizedTranscriptData(
+            video_id=video_db_id,
+            transcript=cleaned_text,
+            language=language,
+            is_generated=is_generated,
+            word_count=self._count_words(cleaned_text),
         )
 
+    def _clean_transcript(self, text: str) -> str:
+        """Clean transcript text by normalizing whitespace and punctuation.
+
+        Args:
+            text: Raw transcript text.
+
+        Returns:
+            Cleaned text with normalized spacing and punctuation.
+        """
+        if not text:
+            return ""
+
+        cleaned = self._normalize_whitespace(text)
+        cleaned = self._remove_repeated_punctuation(cleaned)
+        return cleaned.strip()
+
     # -------------------------------------------------------------------------
-    # Playlist Item Normalization
+    # Text Helpers (Static Methods)
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def extract_video_id_from_playlist_item(
-        item: PlaylistItemData,
+    def _clean_text(text: str | None) -> str:
+        """Clean and normalize text.
+
+        Args:
+            text: Raw text string.
+
+        Returns:
+            Cleaned text with normalized whitespace.
+        """
+        if not text:
+            return ""
+
+        cleaned = text.strip()
+        return re.sub(r"\s+", " ", cleaned)
+
+    @staticmethod
+    def _normalize_whitespace(text: str) -> str:
+        """Normalize whitespace in text.
+
+        Args:
+            text: Text with irregular whitespace.
+
+        Returns:
+            Text with single spaces between words.
+        """
+        return re.sub(r"\s+", " ", text)
+
+    @staticmethod
+    def _remove_repeated_punctuation(text: str) -> str:
+        """Remove repeated punctuation marks.
+
+        Args:
+            text: Text with possible repeated punctuation.
+
+        Returns:
+            Cleaned text with single punctuation marks.
+        """
+        return re.sub(r"([.!?])\1+", r"\1", text)
+
+    @staticmethod
+    def _truncate_description(
+        description: str | None,
+        max_length: int = 5000,
     ) -> str | None:
-        """Extract video ID from playlist item.
+        """Truncate description to max length.
 
         Args:
-            item: Playlist item data from API.
+            description: Raw description text.
+            max_length: Maximum character length.
 
         Returns:
-            Video ID or None.
+            Truncated description or None if input is empty.
         """
-        content = item.get("contentDetails", {})
-        return content.get("videoId")
-
-    def extract_video_ids_from_playlist(
-        self,
-        items: list[PlaylistItemData],
-    ) -> list[str]:
-        """Extract all video IDs from playlist items.
-
-        Args:
-            items: List of playlist item data.
-
-        Returns:
-            List of video IDs (None values filtered).
-        """
-        ids: list[str] = []
-
-        for item in items:
-            video_id = self.extract_video_id_from_playlist_item(item)
-            if video_id:
-                ids.append(video_id)
-
-        return ids
-
-    # -------------------------------------------------------------------------
-    # Helper Methods
-    # -------------------------------------------------------------------------
-
-    @staticmethod
-    def _parse_datetime(iso_string: str | None) -> str | None:
-        """Parse ISO datetime string.
-
-        Args:
-            iso_string: ISO 8601 datetime string.
-
-        Returns:
-            Normalized datetime string or None.
-        """
-        if not iso_string:
+        if not description:
             return None
 
-        try:
-            dt = datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
-            return dt.isoformat()
-        except (ValueError, AttributeError):
-            return iso_string
+        cleaned = YouTubeNormalizer._clean_text(description)
+        if len(cleaned) <= max_length:
+            return cleaned
 
-    @staticmethod
-    def _parse_duration(iso_duration: str) -> str:
-        """Parse ISO 8601 duration to human-readable format.
-
-        Args:
-            iso_duration: ISO 8601 duration (e.g., "PT1H30M45S").
-
-        Returns:
-            Human-readable duration (e.g., "1:30:45").
-        """
-        if not iso_duration:
-            return "0:00"
-
-        match = re.match(
-            r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?",
-            iso_duration,
-        )
-
-        if not match:
-            return "0:00"
-
-        hours, minutes, seconds = (
-            int(match.group(1) or 0),
-            int(match.group(2) or 0),
-            int(match.group(3) or 0),
-        )
-
-        # Single return with conditional expression
-        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes}:{seconds:02d}"
-
-    @staticmethod
-    def _duration_to_seconds(iso_duration: str) -> int:
-        """Convert ISO 8601 duration to seconds.
-
-        Args:
-            iso_duration: ISO 8601 duration (e.g., "PT1H30M45S").
-
-        Returns:
-            Duration in seconds.
-        """
-        if not iso_duration:
-            return 0
-
-        match = re.match(
-            r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?",
-            iso_duration,
-        )
-
-        if not match:
-            return 0
-
-        hours = int(match.group(1) or 0)
-        minutes = int(match.group(2) or 0)
-        seconds = int(match.group(3) or 0)
-
-        return hours * 3600 + minutes * 60 + seconds
-
-    @staticmethod
-    def _get_best_thumbnail(thumbnails: dict[str, ThumbnailInfo]) -> str:
-        """Get highest quality thumbnail URL.
-
-        Args:
-            thumbnails: Thumbnails dict from API.
-
-        Returns:
-            Best available thumbnail URL or empty string.
-        """
-        for quality in ["maxres", "high", "medium", "default"]:
-            if quality in thumbnails:
-                return thumbnails[quality].get("url", "")
-        return ""
-
-    @staticmethod
-    def _safe_int(value: str | None) -> int:
-        """Safely convert value to int.
-
-        Args:
-            value: Value to convert.
-
-        Returns:
-            Integer value or 0 if conversion fails.
-        """
-        try:
-            return int(value) if value else 0
-        except (ValueError, TypeError):
-            return 0
+        return cleaned[: max_length - 3] + "..."
 
     @staticmethod
     def _count_words(text: str) -> int:
@@ -376,8 +248,166 @@ class YouTubeNormalizer:
             text: Text to count words in.
 
         Returns:
-            Word count.
+            Number of words in text.
         """
         if not text:
             return 0
         return len(text.split())
+
+    # -------------------------------------------------------------------------
+    # Parsing Helpers (Static Methods)
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_int(value: str | int | None, default: int = 0) -> int:
+        """Parse integer from string or return default.
+
+        Args:
+            value: Value to parse (string, int, or None).
+            default: Default value if parsing fails.
+
+        Returns:
+            Parsed integer or default value.
+        """
+        if value is None:
+            return default
+
+        if isinstance(value, int):
+            return value
+
+        return YouTubeNormalizer._safe_int_cast(value, default)
+
+    @staticmethod
+    def _safe_int_cast(value: str, default: int) -> int:
+        """Safely cast string to int.
+
+        Args:
+            value: String value to cast.
+            default: Default if casting fails.
+
+        Returns:
+            Parsed integer or default.
+        """
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+
+    def _parse_datetime(self, value: str | None) -> datetime | None:
+        """Parse ISO datetime string.
+
+        Args:
+            value: ISO format datetime string.
+
+        Returns:
+            Parsed datetime or None if parsing fails.
+        """
+        if not value:
+            return None
+
+        try:
+            # Handle YouTube's ISO format with Z suffix
+            cleaned = value.replace("Z", "+00:00")
+            return datetime.fromisoformat(cleaned)
+        except (ValueError, TypeError):
+            self._logger.warning(f"Failed to parse datetime: {value}")
+            return None
+
+    @staticmethod
+    def _extract_thumbnail(thumbnails: dict[str, Any] | None) -> str | None:
+        """Extract best thumbnail URL.
+
+        Priority order: maxres > high > medium > default.
+
+        Args:
+            thumbnails: Thumbnails dict from API response.
+
+        Returns:
+            Best available thumbnail URL or None.
+        """
+        if not thumbnails:
+            return None
+
+        for quality in ["maxres", "high", "medium", "default"]:
+            if quality in thumbnails:
+                return thumbnails[quality].get("url")
+
+        return None
+
+    # -------------------------------------------------------------------------
+    # Video Type Detection
+    # -------------------------------------------------------------------------
+
+    def _detect_video_type(self, snippet: dict[str, Any]) -> str | None:
+        """Detect video type from title and description.
+
+        Args:
+            snippet: Video snippet data from API.
+
+        Returns:
+            Detected video type or None if unclassified.
+        """
+        title = snippet.get("title", "").lower()
+        description = snippet.get("description", "").lower()
+        combined = f"{title} {description}"
+
+        return self._classify_video_content(combined)
+
+    @staticmethod
+    def _classify_video_content(text: str) -> str | None:
+        """Classify video based on text content.
+
+        Matches text against predefined keyword patterns
+        to determine video category.
+
+        Args:
+            text: Combined title and description in lowercase.
+
+        Returns:
+            Video type classification or None if no match.
+        """
+        for video_type, keywords in YouTubeNormalizer._TYPE_KEYWORDS.items():
+            if any(kw in text for kw in keywords):
+                return video_type
+
+        return None
+
+    # -------------------------------------------------------------------------
+    # Batch Normalization
+    # -------------------------------------------------------------------------
+
+    def normalize_videos_batch(
+        self,
+        raw_videos: list[dict[str, Any]],
+    ) -> list[NormalizedVideoData]:
+        """Normalize multiple videos in batch.
+
+        Args:
+            raw_videos: List of raw video items from API.
+
+        Returns:
+            List of normalized video data, skipping failed items.
+        """
+        normalized: list[NormalizedVideoData] = []
+
+        for raw in raw_videos:
+            self._try_normalize_video(raw, normalized)
+
+        return normalized
+
+    def _try_normalize_video(
+        self,
+        raw: dict[str, Any],
+        results: list[NormalizedVideoData],
+    ) -> None:
+        """Try to normalize a single video and append to results.
+
+        Args:
+            raw: Raw video data from API.
+            results: List to append normalized data to.
+        """
+        try:
+            results.append(self.normalize_video(raw))
+        except Exception as e:
+            video_id = self._extract_video_id(raw)
+            self._logger.warning(f"Failed to normalize video {video_id}: {e}")

@@ -1,51 +1,47 @@
-"""YouTube extractor package.
+"""YouTube extraction package.
 
-Provides extraction from YouTube channels and playlists
-using YouTube Data API v3 and youtube_transcript_api.
-
-Classes:
-    YouTubeExtractor: Main extractor orchestrating the process.
-    YouTubeClient: API client with quota management.
-    YouTubeNormalizer: Data transformation to normalized format.
-    TranscriptExtractor: Video transcript extraction.
-
-Exceptions:
-    YouTubeClientError: Base API error.
-    YouTubeQuotaError: API quota exceeded.
-    YouTubeNotFoundError: Resource not found.
+Provides video extraction from YouTube channels and playlists
+with transcript support and film matching capabilities.
 
 Example:
-    >>> from src.etl.extractors.youtube import YouTubeExtractor
+    >>> from src.etl.extractors.youtube import YouTubeExtractor, YouTubeMatcher
     >>>
     >>> extractor = YouTubeExtractor()
+    >>> result = extractor.extract(extract_transcripts=True)
     >>>
-    >>> # Full extraction from configured sources
-    >>> videos = extractor.extract(include_transcripts=True)
-    >>>
-    >>> # Single video
-    >>> video, transcript = extractor.extract_video("dQw4w9WgXcQ")
+    >>> matcher = YouTubeMatcher(min_score=0.70)
+    >>> match = matcher.match_video(title, candidates)
 """
 
-from .client import (
+from src.etl.extractors.youtube.client import (
+    YouTubeAPIError,
     YouTubeClient,
-    YouTubeClientError,
     YouTubeNotFoundError,
-    YouTubeQuotaError,
+    YouTubeQuotaExceededError,
 )
-from .normalizer import YouTubeNormalizer
-from .transcript import TranscriptExtractor
-from .youtube import YouTubeExtractor, YouTubeStats
+from src.etl.extractors.youtube.extractor import VideoBundle, YouTubeExtractor
+from src.etl.extractors.youtube.matcher import (
+    MatchResult,
+    ParsedVideoTitle,
+    YouTubeMatcher,
+)
+from src.etl.extractors.youtube.normalizer import YouTubeNormalizer
+from src.etl.extractors.youtube.transcript import TranscriptExtractor, TranscriptResult
 
 __all__ = [
-    # Main extractor
+    # Main classes
     "YouTubeExtractor",
-    "YouTubeStats",
-    # Client
     "YouTubeClient",
-    "YouTubeClientError",
-    "YouTubeQuotaError",
-    "YouTubeNotFoundError",
-    # Components
+    "YouTubeMatcher",
     "YouTubeNormalizer",
     "TranscriptExtractor",
+    # Data classes
+    "VideoBundle",
+    "MatchResult",
+    "ParsedVideoTitle",
+    "TranscriptResult",
+    # Exceptions
+    "YouTubeAPIError",
+    "YouTubeNotFoundError",
+    "YouTubeQuotaExceededError",
 ]

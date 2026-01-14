@@ -32,6 +32,8 @@ class ETLCheckpoint(TypedDict):
     last_id: NotRequired[int | str]
     processed_ids: NotRequired[list[int]]
     timestamp: str
+    source_type: NotRequired[str]
+    source_id: NotRequired[str]
 
 
 class ETLRunConfig(TypedDict):

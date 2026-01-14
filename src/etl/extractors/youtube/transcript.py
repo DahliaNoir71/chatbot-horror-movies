@@ -1,45 +1,62 @@
-"""YouTube transcript extractor.
+"""YouTube transcript extraction.
 
-Extracts video transcripts/subtitles using
-youtube_transcript_api library.
+Extracts video transcripts using youtube-transcript-api
+with language fallback and normalization.
 """
 
-from typing import TypedDict
+from dataclasses import dataclass
 
 from youtube_transcript_api import (
     NoTranscriptFound,
-    Transcript,
-    TranscriptList,
     TranscriptsDisabled,
     YouTubeTranscriptApi,
 )
+from youtube_transcript_api._errors import NoTranscriptAvailable
 
+from src.etl.types import YouTubeTranscriptData
 from src.etl.utils.logger import setup_logger
 
-logger = setup_logger("etl.yt.transcript")
 
-# Preferred languages for transcripts (priority order)
-PREFERRED_LANGUAGES = ["en", "en-US", "en-GB", "fr", "es", "de"]
+@dataclass(frozen=True)
+class TranscriptResult:
+    """Result of transcript extraction.
 
+    Attributes:
+        success: Whether extraction succeeded.
+        transcript: Full transcript text (empty if failed).
+        language: Detected language code.
+        is_generated: Whether auto-generated.
+        word_count: Total word count.
+        error: Error message if failed.
+    """
 
-class TranscriptResult(TypedDict):
-    """Structured transcript extraction result."""
-
-    text: str
+    success: bool
+    transcript: str
     language: str
     is_generated: bool
-    segments: list[dict[str, str | float]]
+    word_count: int
+    error: str | None = None
 
 
 class TranscriptExtractor:
     """Extracts transcripts from YouTube videos.
 
-    Uses youtube_transcript_api to fetch available
-    transcripts in preferred languages.
+    Supports multiple language fallbacks and handles
+    auto-generated vs manual transcripts.
 
     Attributes:
-        preferred_languages: Language codes in priority order.
+        preferred_languages: Ordered list of preferred languages.
     """
+
+    # Default language priority
+    _DEFAULT_LANGUAGES = ["en", "en-US", "en-GB", "fr", "es", "de"]
+
+    # Errors that indicate no transcript available
+    _NO_TRANSCRIPT_ERRORS = (
+        NoTranscriptFound,
+        NoTranscriptAvailable,
+        TranscriptsDisabled,
+    )
 
     def __init__(
         self,
@@ -48,193 +65,286 @@ class TranscriptExtractor:
         """Initialize transcript extractor.
 
         Args:
-            preferred_languages: Language codes in priority order.
+            preferred_languages: Ordered language preferences.
         """
-        self._preferred_languages = preferred_languages or PREFERRED_LANGUAGES
+        self._logger = setup_logger("etl.youtube.transcript")
+        self._languages = preferred_languages or self._DEFAULT_LANGUAGES
 
     # -------------------------------------------------------------------------
     # Main Extraction
     # -------------------------------------------------------------------------
 
-    def extract(self, video_id: str) -> TranscriptResult | None:
+    def extract(self, video_id: str) -> TranscriptResult:
         """Extract transcript for a video.
 
-        Args:
-            video_id: YouTube video ID.
-
-        Returns:
-            Dict with text, language, is_generated or None.
-        """
-        transcript_list = self._get_transcript_list(video_id)
-        if transcript_list is None:
-            return None
-        return self._get_best_transcript(transcript_list)
-
-    @staticmethod
-    def _get_transcript_list(video_id: str) -> TranscriptList | None:
-        """Fetch transcript list for video.
+        Attempts manual transcripts first, then auto-generated.
 
         Args:
             video_id: YouTube video ID.
 
         Returns:
-            TranscriptList or None if unavailable.
+            TranscriptResult with transcript or error.
         """
         try:
-            return YouTubeTranscriptApi.list_transcripts(video_id)
-        except TranscriptsDisabled:
-            logger.debug(f"Transcripts disabled: {video_id}")
-        except NoTranscriptFound:
-            logger.debug(f"No transcript found: {video_id}")
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            return self._extract_best_transcript(transcript_list)
+        except self._NO_TRANSCRIPT_ERRORS as e:
+            return self._create_error_result(f"No transcript: {type(e).__name__}")
         except Exception as e:
-            logger.warning(f"Transcript error for {video_id}: {e}")
-        return None
+            self._logger.error(f"Transcript extraction failed for {video_id}: {e}")
+            return self._create_error_result(str(e))
 
-    def extract_batch(
+    def _extract_best_transcript(
         self,
-        video_ids: list[str],
-    ) -> dict[str, TranscriptResult | None]:
-        """Extract transcripts for multiple videos.
+        transcript_list: object,
+    ) -> TranscriptResult:
+        """Extract best available transcript.
+
+        Priority: manual in preferred language > auto-generated.
 
         Args:
-            video_ids: List of video IDs.
+            video_id: YouTube video ID.
+            transcript_list: TranscriptList from API.
 
         Returns:
-            Dict mapping video_id to transcript data or None.
+            TranscriptResult with best transcript.
         """
-        results: dict[str, TranscriptResult | None] = {}
-        for video_id in video_ids:
-            results[video_id] = self.extract(video_id)
-        return results
+        # Try manual transcript first
+        manual = self._try_manual_transcript(transcript_list)
+        if manual:
+            return manual
 
-    # -------------------------------------------------------------------------
-    # Transcript Selection
-    # -------------------------------------------------------------------------
+        # Fall back to auto-generated
+        generated = self._try_generated_transcript(transcript_list)
+        if generated:
+            return generated
 
-    def _get_best_transcript(
-        self,
-        transcript_list: TranscriptList,
-    ) -> TranscriptResult | None:
-        """Get best available transcript from list.
-
-        Tries manual transcripts first, then auto-generated.
-
-        Args:
-            transcript_list: YouTubeTranscriptApi transcript list.
-
-        Returns:
-            Transcript dict or None.
-        """
-        transcript = self._try_manual_transcript(transcript_list)
-        if transcript:
-            return transcript
-        return self._try_generated_transcript(transcript_list)
+        return self._create_error_result("No suitable transcript found")
 
     def _try_manual_transcript(
         self,
-        transcript_list: TranscriptList,
+        transcript_list: object,
     ) -> TranscriptResult | None:
-        """Try to get manual transcript in preferred language.
+        """Try to get manual transcript in preferred languages.
 
         Args:
-            transcript_list: YouTubeTranscriptApi transcript list.
+            transcript_list: TranscriptList from API.
 
         Returns:
-            Transcript dict or None.
+            TranscriptResult or None if not available.
         """
         try:
-            transcript = transcript_list.find_manually_created_transcript(self._preferred_languages)
-            return self._format_transcript(transcript, is_generated=False)
+            transcript = transcript_list.find_manually_created_transcript(self._languages)
+            return self._fetch_and_build_result(transcript, is_generated=False)
         except NoTranscriptFound:
             return None
 
     def _try_generated_transcript(
         self,
-        transcript_list: TranscriptList,
+        transcript_list: object,
     ) -> TranscriptResult | None:
         """Try to get auto-generated transcript.
 
         Args:
-            transcript_list: YouTubeTranscriptApi transcript list.
+            transcript_list: TranscriptList from API.
 
         Returns:
-            Transcript dict or None.
+            TranscriptResult or None if not available.
         """
         try:
-            transcript = transcript_list.find_generated_transcript(self._preferred_languages)
-            return self._format_transcript(transcript, is_generated=True)
+            transcript = transcript_list.find_generated_transcript(self._languages)
+            return self._fetch_and_build_result(transcript, is_generated=True)
         except NoTranscriptFound:
             return None
 
-    def _format_transcript(
+    def _fetch_and_build_result(
         self,
-        transcript: Transcript,
+        transcript: object,
         is_generated: bool,
     ) -> TranscriptResult:
-        """Format transcript data to standard structure.
+        """Fetch transcript data and build result.
 
         Args:
-            transcript: YouTubeTranscriptApi transcript object.
-            is_generated: Whether transcript is auto-generated.
+            transcript: Transcript object from API.
+            is_generated: Whether auto-generated.
 
         Returns:
-            Formatted transcript dict.
+            TranscriptResult with full text.
         """
         segments = transcript.fetch()
-        full_text = self._segments_to_text(segments)
+        full_text = self._join_segments(segments)
+        language = getattr(transcript, "language_code", "en")
 
         return TranscriptResult(
-            text=full_text,
-            language=transcript.language_code,
+            success=True,
+            transcript=full_text,
+            language=language,
             is_generated=is_generated,
-            segments=segments,
+            word_count=self._count_words(full_text),
         )
 
-    @staticmethod
-    def _segments_to_text(segments: list[dict[str, str | float]]) -> str:
-        """Convert transcript segments to full text.
+    # -------------------------------------------------------------------------
+    # Text Processing
+    # -------------------------------------------------------------------------
+
+    def _join_segments(self, segments: list[dict[str, str | float]]) -> str:
+        """Join transcript segments into full text.
 
         Args:
-            segments: List of transcript segments.
+            segments: List of segment dicts with 'text' key.
 
         Returns:
-            Full transcript text.
+            Joined transcript text.
         """
-        texts = [str(seg.get("text", "")) for seg in segments]
-        return " ".join(texts).strip()
+        texts = [self._clean_segment_text(s.get("text", "")) for s in segments]
+        return " ".join(filter(None, texts))
+
+    def _clean_segment_text(self, text: str) -> str:
+        """Clean individual segment text.
+
+        Removes music indicators, normalizes whitespace.
+
+        Args:
+            text: Raw segment text.
+
+        Returns:
+            Cleaned text.
+        """
+        cleaned = text.strip()
+        cleaned = self._remove_music_indicators(cleaned)
+        cleaned = self._normalize_whitespace(cleaned)
+        return cleaned
+
+    @staticmethod
+    def _remove_music_indicators(text: str) -> str:
+        """Remove [Music], [Applause], etc. markers.
+
+        Args:
+            text: Text with possible markers.
+
+        Returns:
+            Text without markers.
+        """
+        import re
+
+        return re.sub(r"\[[^]]*]", "", text)
+
+    @staticmethod
+    def _normalize_whitespace(text: str) -> str:
+        """Normalize whitespace in text.
+
+        Args:
+            text: Text with irregular whitespace.
+
+        Returns:
+            Text with single spaces.
+        """
+        import re
+
+        return re.sub(r"\s+", " ", text).strip()
+
+    @staticmethod
+    def _count_words(text: str) -> int:
+        """Count words in text.
+
+        Args:
+            text: Full transcript text.
+
+        Returns:
+            Word count.
+        """
+        return len(text.split())
 
     # -------------------------------------------------------------------------
-    # Utility Methods
+    # Result Helpers
     # -------------------------------------------------------------------------
 
     @staticmethod
-    def get_available_languages(video_id: str) -> list[str]:
-        """Get list of available transcript languages.
+    def _create_error_result(error: str) -> TranscriptResult:
+        """Create error result.
+
+        Args:
+            error: Error message.
+
+        Returns:
+            TranscriptResult indicating failure.
+        """
+        return TranscriptResult(
+            success=False,
+            transcript="",
+            language="",
+            is_generated=False,
+            word_count=0,
+            error=error,
+        )
+
+    # -------------------------------------------------------------------------
+    # Batch Extraction
+    # -------------------------------------------------------------------------
+
+    def extract_batch(
+        self,
+        video_ids: list[str],
+    ) -> dict[str, TranscriptResult]:
+        """Extract transcripts for multiple videos.
+
+        Args:
+            video_ids: List of YouTube video IDs.
+
+        Returns:
+            Dict mapping video_id to TranscriptResult.
+        """
+        results: dict[str, TranscriptResult] = {}
+
+        for video_id in video_ids:
+            results[video_id] = self.extract(video_id)
+            self._log_extraction_result(video_id, results[video_id])
+
+        return results
+
+    def _log_extraction_result(
+        self,
+        video_id: str,
+        result: TranscriptResult,
+    ) -> None:
+        """Log extraction result.
 
         Args:
             video_id: YouTube video ID.
-
-        Returns:
-            List of language codes.
+            result: Extraction result.
         """
-        try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            return [t.language_code for t in transcript_list]
-        except (TranscriptsDisabled, NoTranscriptFound):
-            return []
+        if result.success:
+            self._logger.debug(
+                f"Transcript extracted: {video_id} ({result.language}, {result.word_count} words)"
+            )
+        else:
+            self._logger.debug(f"Transcript failed: {video_id} - {result.error}")
+
+    # -------------------------------------------------------------------------
+    # Normalization
+    # -------------------------------------------------------------------------
 
     @staticmethod
-    def has_transcript(video_id: str) -> bool:
-        """Check if video has any transcript available.
+    def to_normalized_data(
+        video_id: str,
+        result: TranscriptResult,
+    ) -> YouTubeTranscriptData | None:
+        """Convert result to normalized data format.
 
         Args:
             video_id: YouTube video ID.
+            result: Transcript extraction result.
 
         Returns:
-            True if transcript available.
+            Normalized data or None if extraction failed.
         """
-        try:
-            YouTubeTranscriptApi.list_transcripts(video_id)
-            return True
-        except (TranscriptsDisabled, NoTranscriptFound):
-            return False
+        if not result.success:
+            return None
+
+        return YouTubeTranscriptData(
+            youtube_id=video_id,
+            transcript=result.transcript,
+            language=result.language,
+            is_generated=result.is_generated,
+            word_count=result.word_count,
+        )
