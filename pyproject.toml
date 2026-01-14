@@ -39,8 +39,30 @@ known-first-party = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+pythonpath = "."
+
+# Configuration de la couverture sur tout le dossier src
+addopts = """
+    -v
+    --strict-markers
+    --cov=src
+    --cov-report=html
+    --cov-report=term-missing
+    --cov-fail-under=50
+    -p no:warnings
+    --tb=short
+"""
+
+asyncio_mode = "auto"
+env_files = [".env.test"]
+
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests requiring network"
+]
 
 [tool.coverage.run]
 source = ["src"]
