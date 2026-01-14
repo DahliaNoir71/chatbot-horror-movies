@@ -25,7 +25,7 @@ CREATE TABLE keywords (
 CREATE TABLE production_companies (
     id SERIAL PRIMARY KEY,
     tmdb_company_id INTEGER UNIQUE,
-    name VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
     origin_country VARCHAR(10)
 );
 

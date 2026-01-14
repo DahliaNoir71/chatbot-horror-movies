@@ -4,7 +4,6 @@ Extracts video transcripts/subtitles using
 youtube_transcript_api library.
 """
 
-import logging
 from typing import TypedDict
 
 from youtube_transcript_api import (
@@ -15,7 +14,9 @@ from youtube_transcript_api import (
     YouTubeTranscriptApi,
 )
 
-logger = logging.getLogger(__name__)
+from src.etl.utils.logger import setup_logger
+
+logger = setup_logger("etl.yt.transcript")
 
 # Preferred languages for transcripts (priority order)
 PREFERRED_LANGUAGES = ["en", "en-US", "en-GB", "fr", "es", "de"]

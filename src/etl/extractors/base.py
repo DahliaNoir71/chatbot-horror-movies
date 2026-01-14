@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from src.etl.types import ETLCheckpoint, ETLResult
+from src.etl.utils.logger import setup_logger
 
 
 class BaseExtractor(ABC):
@@ -27,7 +28,7 @@ class BaseExtractor(ABC):
 
     def __init__(self) -> None:
         """Initialize base extractor."""
-        self._logger = logging.getLogger(f"etl.{self.name}")
+        self._logger = setup_logger(f"etl.{self.name}")
         self._start_time: datetime | None = None
         self._extracted_count: int = 0
         self._errors: list[str] = []

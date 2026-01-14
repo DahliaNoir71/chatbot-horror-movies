@@ -26,6 +26,7 @@ from src.etl.types.normalized import (
     NormalizedVideoData,
 )
 from src.etl.types.pipeline import (
+    CreditLoadInput,
     ETLCheckpoint,
     ETLPipelineStats,
     ETLProgress,
@@ -34,6 +35,7 @@ from src.etl.types.pipeline import (
     ExtractionStats,
     FilmMatchCandidate,
     FilmMatchResult,
+    FilmToEnrich,
     LoadStats,
     TransformationStats,
 )
@@ -115,4 +117,6 @@ __all__ = [
     "LoadStats",
     "FilmMatchResult",
     "FilmMatchCandidate",
+    "CreditLoadInput",
+    "FilmToEnrich",
 ]

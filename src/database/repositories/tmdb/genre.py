@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.database.models.film import Genre
+from src.database.models.tmdb import Genre
 from src.database.repositories.base import BaseRepository
 
 

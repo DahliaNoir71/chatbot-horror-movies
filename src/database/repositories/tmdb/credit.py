@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.database.models.film import Credit
+from src.database.models.tmdb import Credit
 from src.database.repositories.base import BaseRepository
 
 
@@ -180,7 +180,6 @@ class CreditRepository(BaseRepository[Credit]):
         if not credits_data:
             return 0
 
-        # Add film_id to all records
         for credit in credits_data:
             credit["film_id"] = film_id
 

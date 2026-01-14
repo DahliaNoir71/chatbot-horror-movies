@@ -4,18 +4,18 @@ Orchestrates extraction from YouTube channels and
 playlists, including video metadata and transcripts.
 """
 
-import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from src.etl.extractors.base import BaseExtractor
+from src.etl.utils.logger import setup_logger
 from src.settings import settings
 
 from .client import YouTubeClient, YouTubeQuotaError
 from .normalizer import YouTubeNormalizer
 from .transcript import TranscriptExtractor
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("etl.yt.yt")
 
 
 # =============================================================================

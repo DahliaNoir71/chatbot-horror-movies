@@ -13,18 +13,34 @@ Usage:
         films = film_repo.search_by_title("Halloween")
 """
 
+# Audit repositories
+from src.database.repositories.audit import (
+    DataRetentionLogRepository,
+    ETLErrorData,
+    ETLRunRepository,
+    ETLStatsData,
+    RetentionDetailsData,
+)
 from src.database.repositories.base import BaseRepository
-from src.database.repositories.credit import CreditRepository
-from src.database.repositories.etl import DataRetentionLogRepository, ETLRunRepository
-from src.database.repositories.film import FilmRepository
-from src.database.repositories.genre import GenreRepository
-from src.database.repositories.keyword import KeywordRepository
-from src.database.repositories.production import (
+
+# Rotten Tomatoes repositories
+from src.database.repositories.rotten_tomatoes import RTScoreRepository
+
+# TMDB repositories
+from src.database.repositories.tmdb import (
+    CreditData,
+    CreditRepository,
+    FilmRepository,
+    GenreRepository,
+    KeywordRepository,
+    ProductionCompanyData,
     ProductionCompanyRepository,
+    SpokenLanguageData,
     SpokenLanguageRepository,
 )
-from src.database.repositories.rt_score import RTScoreRepository
-from src.database.repositories.video import (
+
+# YouTube repositories
+from src.database.repositories.youtube import (
     FilmVideoRepository,
     VideoRepository,
     VideoTranscriptRepository,
@@ -33,20 +49,26 @@ from src.database.repositories.video import (
 __all__ = [
     # Base
     "BaseRepository",
-    # Film-related
+    # TMDB
     "FilmRepository",
     "GenreRepository",
     "KeywordRepository",
     "CreditRepository",
-    # External sources
+    "CreditData",
+    "ProductionCompanyRepository",
+    "ProductionCompanyData",
+    "SpokenLanguageRepository",
+    "SpokenLanguageData",
+    # Rotten Tomatoes
     "RTScoreRepository",
+    # YouTube
     "VideoRepository",
     "VideoTranscriptRepository",
     "FilmVideoRepository",
-    # Production
-    "ProductionCompanyRepository",
-    "SpokenLanguageRepository",
-    # ETL & Audit
+    # Audit
     "ETLRunRepository",
+    "ETLErrorData",
+    "ETLStatsData",
     "DataRetentionLogRepository",
+    "RetentionDetailsData",
 ]

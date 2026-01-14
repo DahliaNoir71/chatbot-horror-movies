@@ -4,11 +4,11 @@ Provides CRUD and lookup operations for film keywords
 used in RAG semantic search.
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from src.database.models.film import Keyword
+from src.database.models.tmdb import FilmKeyword, Keyword
 from src.database.repositories.base import BaseRepository
 
 
@@ -66,18 +66,15 @@ class KeywordRepository(BaseRepository[Keyword]):
         Returns:
             Keyword instance (existing or newly created).
         """
-        # First try by TMDB ID if provided
         if tmdb_keyword_id:
             existing = self.get_by_tmdb_id(tmdb_keyword_id)
             if existing:
                 return existing
 
-        # Then try by name
         existing = self.get_by_name(name)
         if existing:
             return existing
 
-        # Create new
         keyword = Keyword(name=name, tmdb_keyword_id=tmdb_keyword_id)
         return self.create(keyword)
 
@@ -148,10 +145,6 @@ class KeywordRepository(BaseRepository[Keyword]):
         Returns:
             List of (Keyword, count) tuples.
         """
-        from sqlalchemy import func
-
-        from src.database.models.film import FilmKeyword
-
         stmt = (
             select(Keyword, func.count(FilmKeyword.film_id).label("count"))
             .join(FilmKeyword)

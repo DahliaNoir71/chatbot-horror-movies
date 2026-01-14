@@ -4,7 +4,6 @@ Handles HTTP communication with The Movie Database API
 including authentication, rate limiting, and retries.
 """
 
-import logging
 import time
 from types import TracebackType
 from typing import Any
@@ -17,9 +16,10 @@ from tenacity import (
     wait_exponential,
 )
 
+from src.etl.utils import setup_logger
 from src.settings import settings
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("etl.tmdb.client")
 
 
 class TMDBClientError(Exception):

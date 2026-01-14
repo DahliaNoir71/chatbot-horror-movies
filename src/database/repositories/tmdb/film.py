@@ -11,7 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, joinedload
 
-from src.database.models.film import Film, FilmGenre, FilmKeyword
+from src.database.models.tmdb import Film, FilmGenre, FilmKeyword
 from src.database.repositories.base import BaseRepository
 
 
@@ -245,7 +245,7 @@ class FilmRepository(BaseRepository[Film]):
 
         Args:
             film_id: Film primary key.
-            embedding: Vector embedding (1536 dimensions).
+            embedding: Vector embedding.
         """
         stmt = update(Film).where(Film.id == film_id).values(embedding=embedding)
         self._session.execute(stmt)

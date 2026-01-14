@@ -1,11 +1,9 @@
-"""Rotten Tomatoes SQLAlchemy models.
+"""RTScore model for Rotten Tomatoes data.
 
-Contains RTScore model for storing critic and audience
-scores scraped from Rotten Tomatoes website.
+Stores critic and audience scores scraped from RT website.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -17,20 +15,13 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.models.base import Base
-
-if TYPE_CHECKING:
-    from src.database.models.film import Film
 
 
 class RTScore(Base):
     """Rotten Tomatoes scores for a film.
-
-    Stores both critic (Tomatometer) and audience scores,
-    along with the critics consensus text which is valuable
-    for RAG semantic search.
 
     Attributes:
         id: Primary key.
@@ -83,10 +74,6 @@ class RTScore(Base):
         nullable=False,
     )
 
-    # Relationships
-    film: Mapped["Film"] = relationship("Film", back_populates="rt_score")
-
-    # Indexes
     __table_args__ = (Index("idx_rt_scores_tomatometer", "tomatometer_score"),)
 
     @property

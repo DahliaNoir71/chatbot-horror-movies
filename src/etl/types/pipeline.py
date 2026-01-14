@@ -6,6 +6,8 @@ checkpoints, and results.
 
 from typing import NotRequired, TypedDict
 
+from src.etl.types.normalized import NormalizedCreditData
+
 
 class ETLResult(TypedDict):
     """Result of an ETL extraction step."""
@@ -115,3 +117,34 @@ class ETLPipelineStats(TypedDict):
     transformation: NotRequired[TransformationStats]
     load: NotRequired[LoadStats]
     total_duration_seconds: NotRequired[float]
+
+
+class CreditLoadInput(TypedDict):
+    """Input data structure for CreditLoader.load().
+
+    Bundles credits list and film_id into a single parameter
+    to match BaseLoader.load(data: object) signature.
+
+    Attributes:
+        credits: List of normalized credit data.
+        film_id: Internal database film ID.
+    """
+
+    credits: list[NormalizedCreditData]
+    film_id: int
+
+
+class FilmToEnrich(TypedDict):
+    """Film data for enrichment pipelines (RT, YouTube).
+
+    Attributes:
+        id: Internal database film ID.
+        title: Film title.
+        original_title: Alternative title (for search fallback).
+        year: Release year (for search validation).
+    """
+
+    id: int
+    title: str
+    original_title: str | None
+    year: int | None

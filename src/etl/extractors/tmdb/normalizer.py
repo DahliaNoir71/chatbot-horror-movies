@@ -4,7 +4,6 @@ Transforms raw TMDB API responses into normalized
 data structures ready for database insertion.
 """
 
-import logging
 from datetime import date
 
 from src.etl.types import (
@@ -22,8 +21,9 @@ from src.etl.types import (
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
 )
+from src.etl.utils import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger("etl.tmdb.normalizer")
 
 
 class TMDBNormalizer:

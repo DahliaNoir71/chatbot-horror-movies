@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from src.etl.types import NormalizedRTScoreData
+from src.etl.utils.logger import setup_logger
 
 
 class RTNormalizer:
@@ -23,7 +24,7 @@ class RTNormalizer:
         Args:
             logger: Optional logger instance.
         """
-        self._logger = logger or logging.getLogger(__name__)
+        self._logger = setup_logger("etl.rt.normalizer")
 
     def normalize(
         self,

@@ -47,7 +47,7 @@ class TMDBSettings(BaseSettings):
     min_request_delay: float = Field(default=0.25, alias="TMDB_MIN_REQUEST_DELAY")
 
     # Extraction
-    default_max_pages: int = Field(default=500, alias="TMDB_MAX_PAGES")
+    max_pages: int = Field(default=500, alias="TMDB_MAX_PAGES")
     checkpoint_save_interval: int = Field(
         default=10,
         alias="TMDB_CHECKPOINT_SAVE_INTERVAL",

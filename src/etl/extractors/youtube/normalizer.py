@@ -4,12 +4,13 @@ Transforms raw YouTube API data into normalized
 format for database insertion.
 """
 
-import logging
 import re
 from datetime import datetime
 from typing import TypedDict
 
-logger = logging.getLogger(__name__)
+from src.etl.utils.logger import setup_logger
+
+logger = setup_logger("etl.yt.normalizer")
 
 
 # =============================================================================

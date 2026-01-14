@@ -20,6 +20,7 @@ from crawl4ai import (
 )
 
 from src.etl.extractors.rotten_tomatoes.url_builder import RTUrlBuilder
+from src.etl.utils.logger import setup_logger
 
 # Year tolerance for matching RT vs source year
 YEAR_TOLERANCE = 1
@@ -41,7 +42,7 @@ class RTScraper:
         Args:
             logger: Optional logger instance.
         """
-        self._logger = logger or logging.getLogger(__name__)
+        self._logger = setup_logger("etl.rt.scraper")
         self._browser_config = self._create_browser_config()
 
     # -------------------------------------------------------------------------
