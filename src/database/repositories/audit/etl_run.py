@@ -1,7 +1,7 @@
 """ETL run repository for pipeline tracking.
 
 Provides CRUD and query operations for ETL pipeline
-execution tracking and audit logging.
+execution tracking.
 """
 
 from datetime import datetime
@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.database.models.audit import DataRetentionLog, ETLRun
+from src.database.models.audit import ETLRun
 from src.database.repositories.base import BaseRepository
 
 
@@ -31,14 +31,6 @@ class ETLStatsData(TypedDict):
     successful: int
     failed: int
     total_films_processed: int
-
-
-class RetentionDetailsData(TypedDict, total=False):
-    """Typed dictionary for retention operation details."""
-
-    criteria: str
-    retention_days: int
-    dry_run: bool
 
 
 class ETLRunRepository(BaseRepository[ETLRun]):
@@ -200,7 +192,7 @@ class ETLRunRepository(BaseRepository[ETLRun]):
             youtube_count: Optional YouTube count update.
             spark_count: Optional Spark count update.
         """
-        values = {}
+        values: dict[str, int] = {}
         if tmdb_count is not None:
             values["tmdb_count"] = tmdb_count
         if rt_count is not None:
@@ -236,79 +228,3 @@ class ETLRunRepository(BaseRepository[ETLRun]):
             "failed": failed or 0,
             "total_films_processed": total_films or 0,
         }
-
-
-class DataRetentionLogRepository(BaseRepository[DataRetentionLog]):
-    """Repository for DataRetentionLog entity operations.
-
-    Tracks data retention operations for RGPD compliance.
-    """
-
-    model = DataRetentionLog
-
-    def __init__(self, session: Session) -> None:
-        """Initialize data retention log repository.
-
-        Args:
-            session: SQLAlchemy session instance.
-        """
-        super().__init__(session)
-
-    def log_operation(
-        self,
-        table_name: str,
-        operation: str,
-        records_affected: int,
-        executed_by: str = "system",
-        details: RetentionDetailsData | None = None,
-    ) -> DataRetentionLog:
-        """Log a data retention operation.
-
-        Args:
-            table_name: Target table name.
-            operation: Operation type (purge, anonymize, archive).
-            records_affected: Number of records processed.
-            executed_by: User or system that ran the operation.
-            details: Optional additional details.
-
-        Returns:
-            Created log entry.
-        """
-        log = DataRetentionLog(
-            table_name=table_name,
-            operation=operation,
-            records_affected=records_affected,
-            executed_by=executed_by,
-            details=details,
-        )
-        return self.create(log)
-
-    def get_by_table(self, table_name: str, limit: int = 50) -> list[DataRetentionLog]:
-        """Get retention logs for a specific table.
-
-        Args:
-            table_name: Table name to filter.
-            limit: Maximum results.
-
-        Returns:
-            List of log entries.
-        """
-        stmt = (
-            select(DataRetentionLog)
-            .where(DataRetentionLog.table_name == table_name)
-            .order_by(DataRetentionLog.executed_at.desc())
-            .limit(limit)
-        )
-        return list(self._session.scalars(stmt).all())
-
-    def get_recent(self, limit: int = 50) -> list[DataRetentionLog]:
-        """Get recent retention logs.
-
-        Args:
-            limit: Maximum results.
-
-        Returns:
-            List of recent log entries.
-        """
-        stmt = select(DataRetentionLog).order_by(DataRetentionLog.executed_at.desc()).limit(limit)
-        return list(self._session.scalars(stmt).all())
