@@ -122,7 +122,6 @@ class ETLRunRepository(BaseRepository[ETLRun]):
         run_id: int,
         tmdb_count: int = 0,
         rt_count: int = 0,
-        youtube_count: int = 0,
         spark_count: int = 0,
         errors: ETLErrorData | None = None,
     ) -> None:
@@ -132,11 +131,10 @@ class ETLRunRepository(BaseRepository[ETLRun]):
             run_id: ETL run primary key.
             tmdb_count: Films extracted from TMDB.
             rt_count: Films scraped from RT.
-            youtube_count: Videos extracted from YouTube.
             spark_count: Films enriched via Spark.
             errors: Optional error details.
         """
-        total = tmdb_count + rt_count + youtube_count + spark_count
+        total = tmdb_count + rt_count + spark_count
         status = "completed" if not errors else "partial"
 
         stmt = (
@@ -147,7 +145,6 @@ class ETLRunRepository(BaseRepository[ETLRun]):
                 completed_at=datetime.now(),
                 tmdb_count=tmdb_count,
                 rt_count=rt_count,
-                youtube_count=youtube_count,
                 spark_count=spark_count,
                 total_films=total,
                 errors=errors,
@@ -180,7 +177,6 @@ class ETLRunRepository(BaseRepository[ETLRun]):
         run_id: int,
         tmdb_count: int | None = None,
         rt_count: int | None = None,
-        youtube_count: int | None = None,
         spark_count: int | None = None,
     ) -> None:
         """Update extraction counts during run.
@@ -189,7 +185,6 @@ class ETLRunRepository(BaseRepository[ETLRun]):
             run_id: ETL run primary key.
             tmdb_count: Optional TMDB count update.
             rt_count: Optional RT count update.
-            youtube_count: Optional YouTube count update.
             spark_count: Optional Spark count update.
         """
         values: dict[str, int] = {}
@@ -197,8 +192,6 @@ class ETLRunRepository(BaseRepository[ETLRun]):
             values["tmdb_count"] = tmdb_count
         if rt_count is not None:
             values["rt_count"] = rt_count
-        if youtube_count is not None:
-            values["youtube_count"] = youtube_count
         if spark_count is not None:
             values["spark_count"] = spark_count
 

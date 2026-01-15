@@ -1,7 +1,7 @@
 """ETL pipeline package for HorrorBot.
 
 Provides data extraction, transformation, and loading
-from multiple sources: TMDB, Rotten Tomatoes, YouTube, Kaggle/Spark.
+from multiple sources: TMDB, Rotten Tomatoes, Kaggle/Spark, PostgreSQL.
 
 Modules:
     types: TypedDict definitions for raw and normalized data
@@ -33,8 +33,6 @@ from src.etl.types import (
     NormalizedKeywordData,
     NormalizedLanguageData,
     NormalizedRTScoreData,
-    NormalizedTranscriptData,
-    NormalizedVideoData,
     # Rotten Tomatoes
     RTMoviePageData,
     RTScoreData,
@@ -53,14 +51,6 @@ from src.etl.types import (
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
     TransformationStats,
-    # YouTube
-    YouTubeChannelData,
-    YouTubePlaylistData,
-    YouTubePlaylistItemData,
-    YouTubeSearchResultData,
-    YouTubeTranscriptData,
-    YouTubeTranscriptSegment,
-    YouTubeVideoData,
 )
 
 __all__ = [
@@ -79,14 +69,6 @@ __all__ = [
     "RTScoreData",
     "RTSearchResult",
     "RTMoviePageData",
-    # YouTube
-    "YouTubeVideoData",
-    "YouTubeTranscriptData",
-    "YouTubeTranscriptSegment",
-    "YouTubeChannelData",
-    "YouTubePlaylistData",
-    "YouTubePlaylistItemData",
-    "YouTubeSearchResultData",
     # Kaggle/Spark
     "KaggleMovieData",
     "KaggleCreditsData",
@@ -98,8 +80,6 @@ __all__ = [
     "NormalizedCreditData",
     "NormalizedGenreData",
     "NormalizedKeywordData",
-    "NormalizedVideoData",
-    "NormalizedTranscriptData",
     "NormalizedRTScoreData",
     "NormalizedCompanyData",
     "NormalizedLanguageData",

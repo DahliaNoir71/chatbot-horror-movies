@@ -9,7 +9,6 @@ Usage:
     # Access sub-settings
     settings.tmdb.api_key
     settings.database.sync_url
-    settings.youtube.channel_handles
 """
 
 from typing import Any
@@ -25,7 +24,6 @@ from src.settings.sources import (
     RTSettings,
     SparkSettings,
     TMDBSettings,
-    YouTubeSettings,
 )
 
 __all__ = [
@@ -45,7 +43,6 @@ __all__ = [
     # Sources
     "TMDBSettings",
     "RTSettings",
-    "YouTubeSettings",
     "KaggleSettings",
     "SparkSettings",
     # Utilities
@@ -77,7 +74,6 @@ class Settings(BaseSettings):
     # E1 Sources
     tmdb: TMDBSettings = Field(default_factory=TMDBSettings)
     rt: RTSettings = Field(default_factory=RTSettings)
-    youtube: YouTubeSettings = Field(default_factory=YouTubeSettings)
     kaggle: KaggleSettings = Field(default_factory=KaggleSettings)
     spark: SparkSettings = Field(default_factory=SparkSettings)
 
@@ -135,7 +131,6 @@ def get_masked_settings() -> dict[str, Any]:
     # Paths to mask (section, key)
     secrets = [
         ("tmdb", "api_key"),
-        ("youtube", "api_key"),
         ("kaggle", "key"),
         ("database", "password"),
         ("database", "url"),
@@ -153,7 +148,6 @@ def print_sources_status() -> None:
     """Print configuration status for all E1 sources."""
     sources = [
         ("TMDB API", settings.tmdb.is_configured),
-        ("YouTube API", settings.youtube.is_configured),
         ("Kaggle", settings.kaggle.is_configured),
         ("PostgreSQL", settings.database.is_configured),
     ]

@@ -93,16 +93,6 @@ INSERT INTO rgpd_processing_registry (
     'legitimate_interests'
 ),
 (
-    'YouTube Video Extraction',
-    'Extract video metadata and transcripts from horror film review channels.',
-    ARRAY['Video titles', 'Channel names', 'Transcripts', 'View counts'],
-    ARRAY['Content creators (YouTube channels)'],
-    ARRAY['Internal application only'],
-    '3 years or until channel removal request',
-    'Database encryption at rest, API-based extraction only',
-    'legitimate_interests'
-),
-(
     'RAG Chatbot Queries',
     'Process user queries to provide film recommendations via RAG architecture.',
     ARRAY['Query text', 'Session identifiers (anonymized)'],

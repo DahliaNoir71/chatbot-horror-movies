@@ -115,23 +115,6 @@ def create_indexes(db: DatabaseConnection) -> None:
         CREATE INDEX IF NOT EXISTS idx_films_title_gin
             ON films USING gin (title gin_trgm_ops)
         """,
-        # GIN index for trigram search on video titles
-        """
-        CREATE INDEX IF NOT EXISTS idx_videos_title_gin
-            ON videos USING gin (title gin_trgm_ops)
-        """,
-        # HNSW index for film embeddings (faster ANN search)
-        """
-        CREATE INDEX IF NOT EXISTS idx_films_embedding_hnsw
-            ON films USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64)
-        """,
-        # HNSW index for transcript embeddings
-        """
-        CREATE INDEX IF NOT EXISTS idx_transcripts_embedding_hnsw
-            ON video_transcripts USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64)
-        """,
     ]
 
     with db.session() as session:
@@ -254,16 +237,6 @@ def seed_rgpd_registry(db: DatabaseConnection) -> None:
             "retention_period": INDEFINITE_RETENTION,
             "legal_basis": "legitimate_interests",
             "security_measures": "Rate limiting, respectful scraping practices",
-        },
-        {
-            "processing_name": "YouTube Video Collection",
-            "processing_purpose": "Collect horror movie review videos and transcripts",
-            "data_categories": ["video_titles", "transcripts", "view_counts"],
-            "data_subjects": ["public_video_data"],
-            "recipients": ["horrorbot_application"],
-            "retention_period": INDEFINITE_RETENTION,
-            "legal_basis": "legitimate_interests",
-            "security_measures": "API key protection, quota management",
         },
     ]
 

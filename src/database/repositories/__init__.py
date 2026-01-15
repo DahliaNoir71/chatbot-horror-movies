@@ -39,13 +39,6 @@ from src.database.repositories.tmdb import (
     SpokenLanguageRepository,
 )
 
-# YouTube repositories
-from src.database.repositories.youtube import (
-    FilmVideoRepository,
-    VideoRepository,
-    VideoTranscriptRepository,
-)
-
 __all__ = [
     # Base
     "BaseRepository",
@@ -61,10 +54,6 @@ __all__ = [
     "SpokenLanguageData",
     # Rotten Tomatoes
     "RTScoreRepository",
-    # YouTube
-    "VideoRepository",
-    "VideoTranscriptRepository",
-    "FilmVideoRepository",
     # Audit
     "ETLRunRepository",
     "ETLErrorData",

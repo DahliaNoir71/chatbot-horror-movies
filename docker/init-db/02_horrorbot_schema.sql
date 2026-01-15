@@ -1,7 +1,7 @@
 -- =============================================================================
 -- HORRORBOT - Relational Schema (horrorbot database)
 -- =============================================================================
--- Tables for extracted data from TMDB, Rotten Tomatoes, YouTube, Kaggle/Spark.
+-- Tables for extracted data from TMDB, Rotten Tomatoes, Kaggle/Spark.
 -- Executed on 'horrorbot' database after 01_create_databases.sql
 -- =============================================================================
 
@@ -180,60 +180,9 @@ CREATE TABLE rt_scores (
 CREATE INDEX idx_rt_scores_film_id ON rt_scores(film_id);
 CREATE INDEX idx_rt_scores_tomatometer ON rt_scores(tomatometer_score);
 
--- -----------------------------------------------------------------------------
--- YOUTUBE VIDEOS
--- -----------------------------------------------------------------------------
 
-CREATE TABLE videos (
-    id SERIAL PRIMARY KEY,
-    youtube_id VARCHAR(20) NOT NULL UNIQUE,
 
-    -- Content
-    title VARCHAR(500) NOT NULL,
-    description TEXT,
 
-    -- Channel info
-    channel_id VARCHAR(50),
-    channel_title VARCHAR(255),
-
-    -- Metrics
-    view_count BIGINT DEFAULT 0,
-    like_count INTEGER DEFAULT 0,
-    comment_count INTEGER DEFAULT 0,
-
-    -- Metadata
-    duration VARCHAR(50),
-    published_at TIMESTAMPTZ,
-    thumbnail_url VARCHAR(500),
-    video_type VARCHAR(50),
-
-    -- ETL tracking
-    extracted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_videos_youtube_id ON videos(youtube_id);
-CREATE INDEX idx_videos_channel_id ON videos(channel_id);
-CREATE INDEX idx_videos_published ON videos(published_at);
-
--- -----------------------------------------------------------------------------
--- VIDEO TRANSCRIPTS
--- -----------------------------------------------------------------------------
-
-CREATE TABLE video_transcripts (
-    id SERIAL PRIMARY KEY,
-    video_id INTEGER NOT NULL UNIQUE REFERENCES videos(id) ON DELETE CASCADE,
-
-    -- Content
-    transcript TEXT NOT NULL,
-    language VARCHAR(10) DEFAULT 'en',
-    is_generated BOOLEAN DEFAULT FALSE,
-    word_count INTEGER,
-
-    -- ETL tracking
-    extracted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_video_transcripts_video_id ON video_transcripts(video_id);
 
 -- -----------------------------------------------------------------------------
 -- FILM-VIDEO MATCHING
@@ -311,7 +260,6 @@ CREATE TABLE etl_runs (
     -- Counts per source
     tmdb_count INTEGER DEFAULT 0,
     rt_count INTEGER DEFAULT 0,
-    youtube_count INTEGER DEFAULT 0,
     spark_count INTEGER DEFAULT 0,
     total_films INTEGER DEFAULT 0,
 

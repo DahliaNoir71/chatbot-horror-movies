@@ -4,7 +4,7 @@ TypedDict definitions for data structures that have been
 transformed and are ready for database insertion.
 """
 
-from datetime import date, datetime
+from datetime import date
 from typing import NotRequired, TypedDict
 
 
@@ -59,33 +59,6 @@ class NormalizedKeywordData(TypedDict):
 
     tmdb_keyword_id: int | None
     name: str
-
-
-class NormalizedVideoData(TypedDict):
-    """Normalized video data ready for database insertion."""
-
-    youtube_id: str
-    title: str
-    description: str | None
-    channel_id: str | None
-    channel_title: str | None
-    view_count: int
-    like_count: int
-    comment_count: int
-    duration: str | None
-    published_at: datetime | None
-    thumbnail_url: str | None
-    video_type: str | None
-
-
-class NormalizedTranscriptData(TypedDict):
-    """Normalized transcript data ready for database insertion."""
-
-    video_id: int
-    transcript: str
-    language: str
-    is_generated: bool
-    word_count: int
 
 
 class NormalizedRTScoreData(TypedDict):

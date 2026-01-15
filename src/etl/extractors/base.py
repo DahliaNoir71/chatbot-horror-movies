@@ -20,7 +20,7 @@ class BaseExtractor(ABC):
     logging, and result tracking.
 
     Attributes:
-        name: Extractor identifier (e.g., 'tmdb', 'youtube').
+        name: Extractor identifier (e.g., 'tmdb').
         logger: Logger instance for this extractor.
     """
 

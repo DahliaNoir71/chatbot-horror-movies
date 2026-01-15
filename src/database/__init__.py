@@ -29,15 +29,12 @@ from src.database.models import (
     FilmGenre,
     FilmKeyword,
     FilmLanguage,
-    FilmVideo,
     Genre,
     Keyword,
     ProductionCompany,
     RGPDProcessingRegistry,
     RTScore,
     SpokenLanguage,
-    Video,
-    VideoTranscript,
 )
 from src.database.repositories import (
     BaseRepository,
@@ -45,14 +42,11 @@ from src.database.repositories import (
     DataRetentionLogRepository,
     ETLRunRepository,
     FilmRepository,
-    FilmVideoRepository,
     GenreRepository,
     KeywordRepository,
     ProductionCompanyRepository,
     RTScoreRepository,
     SpokenLanguageRepository,
-    VideoRepository,
-    VideoTranscriptRepository,
 )
 
 __all__ = [
@@ -74,10 +68,6 @@ __all__ = [
     "FilmKeyword",
     # Rotten Tomatoes
     "RTScore",
-    # YouTube
-    "Video",
-    "VideoTranscript",
-    "FilmVideo",
     # Production
     "ProductionCompany",
     "SpokenLanguage",
@@ -94,9 +84,6 @@ __all__ = [
     "KeywordRepository",
     "CreditRepository",
     "RTScoreRepository",
-    "VideoRepository",
-    "VideoTranscriptRepository",
-    "FilmVideoRepository",
     "ProductionCompanyRepository",
     "SpokenLanguageRepository",
     "ETLRunRepository",

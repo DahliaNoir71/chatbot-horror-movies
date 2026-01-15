@@ -3,7 +3,6 @@
 Re-exports all models organized by source:
 - tmdb: TMDB API models (films, genres, credits, etc.)
 - rotten_tomatoes: RT scraped data (scores, consensus)
-- youtube: YouTube API data (videos, transcripts)
 - audit: RGPD compliance and ETL tracking
 """
 
@@ -32,13 +31,6 @@ from src.database.models.tmdb import (
     SpokenLanguage,
 )
 
-# YouTube models
-from src.database.models.youtube import (
-    FilmVideo,
-    Video,
-    VideoTranscript,
-)
-
 __all__ = [
     # Base
     "Base",
@@ -56,10 +48,6 @@ __all__ = [
     "FilmLanguage",
     # Rotten Tomatoes
     "RTScore",
-    # YouTube
-    "Video",
-    "VideoTranscript",
-    "FilmVideo",
     # Audit
     "RGPDProcessingRegistry",
     "DataRetentionLog",

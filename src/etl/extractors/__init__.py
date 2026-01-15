@@ -3,7 +3,6 @@
 Provides data extraction from multiple sources:
 - TMDB: Horror film metadata
 - Rotten Tomatoes: Critics scores (to be implemented)
-- YouTube: Video content (to be implemented)
 - Kaggle/Spark: Dataset processing (to be implemented)
 
 Classes:

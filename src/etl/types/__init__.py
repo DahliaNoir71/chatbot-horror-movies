@@ -22,8 +22,6 @@ from src.etl.types.normalized import (
     NormalizedKeywordData,
     NormalizedLanguageData,
     NormalizedRTScoreData,
-    NormalizedTranscriptData,
-    NormalizedVideoData,
 )
 from src.etl.types.pipeline import (
     CreditLoadInput,
@@ -56,15 +54,6 @@ from src.etl.types.tmdb import (
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
 )
-from src.etl.types.youtube import (
-    YouTubeChannelData,
-    YouTubePlaylistData,
-    YouTubePlaylistItemData,
-    YouTubeSearchResultData,
-    YouTubeTranscriptData,
-    YouTubeTranscriptSegment,
-    YouTubeVideoData,
-)
 
 __all__ = [
     # TMDB
@@ -82,14 +71,6 @@ __all__ = [
     "RTScoreData",
     "RTSearchResult",
     "RTMoviePageData",
-    # YouTube
-    "YouTubeVideoData",
-    "YouTubeTranscriptData",
-    "YouTubeTranscriptSegment",
-    "YouTubeChannelData",
-    "YouTubePlaylistData",
-    "YouTubePlaylistItemData",
-    "YouTubeSearchResultData",
     # Kaggle/Spark
     "KaggleMovieData",
     "KaggleCreditsData",
@@ -101,8 +82,6 @@ __all__ = [
     "NormalizedCreditData",
     "NormalizedGenreData",
     "NormalizedKeywordData",
-    "NormalizedVideoData",
-    "NormalizedTranscriptData",
     "NormalizedRTScoreData",
     "NormalizedCompanyData",
     "NormalizedLanguageData",

@@ -249,66 +249,6 @@ class RTSettings(BaseSettings):
 
 
 # =============================================================================
-# SOURCE 3: YOUTUBE (REST API)
-# =============================================================================
-
-
-class YouTubeSettings(BaseSettings):
-    """YouTube Data API v3 configuration.
-
-    Attributes:
-        api_key: YouTube API key.
-        channel_handles: List of channel handles to extract from.
-        playlist_ids: List of playlist IDs to extract from.
-        max_videos: Maximum videos to extract.
-    """
-
-    api_key: str = Field(default="", alias="YOUTUBE_API_KEY")
-    base_url: str = Field(
-        default="https://www.googleapis.com/youtube/v3",
-        alias="YOUTUBE_BASE_URL",
-    )
-
-    # Channels (comma-separated handles like @ChannelName)
-    channel_handles_raw: str = Field(default="", alias="YOUTUBE_CHANNEL_HANDLES")
-
-    # Playlists (comma-separated playlist IDs)
-    playlist_ids_raw: str = Field(default="", alias="YOUTUBE_PLAYLIST_IDS")
-
-    # Extraction parameters
-    max_videos: int = Field(default=500, alias="YOUTUBE_MAX_VIDEOS")
-    extract_transcripts: bool = Field(default=True, alias="YOUTUBE_EXTRACT_TRANSCRIPTS")
-
-    # Rate limiting
-    request_delay: float = Field(default=1.0, alias="YOUTUBE_REQUEST_DELAY")
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    @property
-    def is_configured(self) -> bool:
-        """Check if YouTube API key is configured."""
-        return bool(self.api_key)
-
-    @property
-    def channel_handles(self) -> list[str]:
-        """Parse channel handles from comma-separated string."""
-        if not self.channel_handles_raw:
-            return []
-        return [ch.strip() for ch in self.channel_handles_raw.split(",") if ch.strip()]
-
-    @property
-    def playlist_ids(self) -> list[str]:
-        """Parse playlist IDs from comma-separated string."""
-        if not self.playlist_ids_raw:
-            return []
-        return [pl.strip() for pl in self.playlist_ids_raw.split(",") if pl.strip()]
-
-
-# =============================================================================
 # SOURCE 4: KAGGLE / SPARK (BIG DATA)
 # =============================================================================
 
@@ -509,7 +449,6 @@ class Settings(BaseSettings):
     # E1 Sources
     tmdb: TMDBSettings = Field(default_factory=TMDBSettings)
     rt: RTSettings = Field(default_factory=RTSettings)
-    youtube: YouTubeSettings = Field(default_factory=YouTubeSettings)
     kaggle: KaggleSettings = Field(default_factory=KaggleSettings)
     spark: SparkSettings = Field(default_factory=SparkSettings)
 
@@ -567,7 +506,6 @@ def get_masked_settings() -> dict[str, Any]:
     # Paths to mask
     secrets = [
         ("tmdb", "api_key"),
-        ("youtube", "api_key"),
         ("kaggle", "key"),
         ("database", "password"),
         ("database", "url"),
@@ -585,7 +523,6 @@ def print_sources_status() -> None:
     """Print configuration status for all E1 sources."""
     sources = [
         ("TMDB API", settings.tmdb.is_configured),
-        ("YouTube API", settings.youtube.is_configured),
         ("Kaggle", settings.kaggle.is_configured),
         ("PostgreSQL", settings.database.is_configured),
     ]

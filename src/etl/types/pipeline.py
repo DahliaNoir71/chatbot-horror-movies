@@ -137,7 +137,7 @@ class CreditLoadInput(TypedDict):
 
 
 class FilmToEnrich(TypedDict):
-    """Film data for enrichment pipelines (RT, YouTube).
+    """Film data for enrichment pipelines (RT).
 
     Attributes:
         id: Internal database film ID.
