@@ -1,88 +1,128 @@
-"""Kaggle and Spark data types.
+"""Kaggle horror movies data types.
 
 TypedDict definitions for data structures from Kaggle
-TMDB dataset processed via Apache Spark.
+evangower/horror-movies dataset (TidyTuesday TMDB subset).
 """
 
 from typing import NotRequired, TypedDict
 
-from src.etl.types.tmdb import (
-    TMDBKeywordData,
-    TMDBProductionCompanyData,
-    TMDBSpokenLanguageData,
-)
 
+class KaggleHorrorMovieRaw(TypedDict):
+    """Raw movie data from Kaggle horror_movies.csv.
 
-class KaggleMovieData(TypedDict):
-    """Movie data from Kaggle TMDB dataset (processed via Spark).
+    Dataset: evangower/horror-movies (TidyTuesday)
+    Source: TMDB filtered for Horror genre.
 
-    The Kaggle dataset contains denormalized JSON strings
-    for nested fields like genres, keywords, etc.
+    Attributes:
+        id: TMDB movie ID.
+        title: Movie title.
+        original_title: Original title.
+        original_language: ISO 639-1 language code.
+        overview: Movie synopsis.
+        tagline: Marketing tagline.
+        release_date: Release date (YYYY-MM-DD).
+        poster_path: TMDB poster path.
+        backdrop_path: TMDB backdrop path.
+        popularity: TMDB popularity score.
+        vote_average: Average rating (0-10).
+        vote_count: Number of votes.
+        budget: Production budget (USD).
+        revenue: Box office revenue (USD).
+        runtime: Duration in minutes.
+        status: Release status (Released, etc.).
+        adult: Adult content flag.
+        genre_names: Comma-separated genre names.
+        collection_name: Franchise/saga name.
     """
 
-    # Identifiers
     id: int
-    imdb_id: NotRequired[str | None]
-
-    # Financial data (main enrichment purpose)
-    budget: int
-    revenue: int
-
-    # Additional metadata
-    original_language: NotRequired[str | None]
+    title: NotRequired[str | None]
     original_title: NotRequired[str | None]
+    original_language: NotRequired[str | None]
+    overview: NotRequired[str | None]
+    tagline: NotRequired[str | None]
+    release_date: NotRequired[str | None]
+    poster_path: NotRequired[str | None]
+    backdrop_path: NotRequired[str | None]
+    popularity: NotRequired[float | None]
+    vote_average: NotRequired[float | None]
+    vote_count: NotRequired[int | None]
+    budget: NotRequired[int | None]
+    revenue: NotRequired[int | None]
     runtime: NotRequired[int | None]
     status: NotRequired[str | None]
-    release_date: NotRequired[str | None]
-
-    # Nested JSON fields (as strings in CSV)
-    genres: NotRequired[str | None]
-    keywords: NotRequired[str | None]
-    production_companies: NotRequired[str | None]
-    spoken_languages: NotRequired[str | None]
-    production_countries: NotRequired[str | None]
+    adult: NotRequired[bool | None]
+    genre_names: NotRequired[str | None]
+    collection_name: NotRequired[str | None]
 
 
-class KaggleCreditsData(TypedDict):
-    """Credits data from Kaggle credits.csv file."""
+class KaggleHorrorMovieNormalized(TypedDict):
+    """Normalized Kaggle movie data for database insertion.
 
-    # Movie identifier
-    id: int
+    Transformed from KaggleHorrorMovieRaw with validated
+    and cleaned fields ready for upsert into films table.
 
-    # JSON strings
-    cast: str
-    crew: str
-
-
-class SparkEnrichmentData(TypedDict):
-    """Enrichment data output from Spark processing.
-
-    Parsed and normalized data ready for database enrichment.
+    Attributes:
+        tmdb_id: TMDB movie ID (mapped from 'id').
+        title: Movie title (required).
+        original_title: Original title.
+        original_language: ISO 639-1 code.
+        overview: Synopsis text.
+        tagline: Marketing tagline.
+        release_date: Parsed date object.
+        poster_path: TMDB poster path.
+        backdrop_path: TMDB backdrop path.
+        popularity: Popularity score.
+        vote_average: Average rating.
+        vote_count: Vote count.
+        budget: Budget in USD.
+        revenue: Revenue in USD.
+        runtime: Duration in minutes.
+        status: Release status.
+        adult: Adult content flag.
+        source: Data source identifier.
     """
 
     tmdb_id: int
-    budget: NotRequired[int]
-    revenue: NotRequired[int]
-    production_companies: NotRequired[list[TMDBProductionCompanyData]]
-    spoken_languages: NotRequired[list[TMDBSpokenLanguageData]]
-    keywords: NotRequired[list[TMDBKeywordData]]
+    title: str
+    original_title: str | None
+    original_language: str | None
+    overview: str | None
+    tagline: str | None
+    release_date: NotRequired[str | None]
+    poster_path: str | None
+    backdrop_path: str | None
+    popularity: float
+    vote_average: float
+    vote_count: int
+    budget: int
+    revenue: int
+    runtime: int | None
+    status: str
+    adult: bool
+    source: str
 
 
-class SparkProcessingResult(TypedDict):
-    """Result of Spark batch processing."""
+class KaggleExtractionResult(TypedDict):
+    """Result of Kaggle CSV extraction."""
 
-    total_processed: int
-    enriched_count: int
-    skipped_count: int
+    total_rows: int
+    valid_rows: int
+    skipped_rows: int
     error_count: int
     duration_seconds: float
 
 
-class KaggleDatasetInfo(TypedDict):
-    """Kaggle dataset metadata."""
+class KaggleEnrichmentStats(TypedDict):
+    """Statistics for Kaggle enrichment operation.
 
-    dataset_name: str
-    file_path: str
-    row_count: int
-    columns: list[str]
-    size_mb: float
+    Tracks how many existing films were enriched
+    vs new films inserted from Kaggle data.
+    """
+
+    films_enriched: int
+    films_inserted: int
+    budget_updates: int
+    revenue_updates: int
+    skipped: int
+    errors: int

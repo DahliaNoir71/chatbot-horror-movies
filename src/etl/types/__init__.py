@@ -8,11 +8,10 @@ Usage:
 """
 
 from src.etl.types.kaggle import (
-    KaggleCreditsData,
-    KaggleDatasetInfo,
-    KaggleMovieData,
-    SparkEnrichmentData,
-    SparkProcessingResult,
+    KaggleEnrichmentStats,
+    KaggleExtractionResult,
+    KaggleHorrorMovieNormalized,
+    KaggleHorrorMovieRaw,
 )
 from src.etl.types.normalized import (
     NormalizedCompanyData,
@@ -71,12 +70,11 @@ __all__ = [
     "RTScoreData",
     "RTSearchResult",
     "RTMoviePageData",
-    # Kaggle/Spark
-    "KaggleMovieData",
-    "KaggleCreditsData",
-    "KaggleDatasetInfo",
-    "SparkEnrichmentData",
-    "SparkProcessingResult",
+    # Kaggle
+    "KaggleHorrorMovieRaw",
+    "KaggleHorrorMovieNormalized",
+    "KaggleExtractionResult",
+    "KaggleEnrichmentStats",
     # Normalized
     "NormalizedFilmData",
     "NormalizedCreditData",

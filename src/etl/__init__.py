@@ -20,10 +20,11 @@ from src.etl.types import (
     ExtractionStats,
     FilmMatchCandidate,
     FilmMatchResult,
-    # Kaggle/Spark
-    KaggleCreditsData,
-    KaggleDatasetInfo,
-    KaggleMovieData,
+    # Kaggle
+    KaggleEnrichmentStats,
+    KaggleExtractionResult,
+    KaggleHorrorMovieNormalized,
+    KaggleHorrorMovieRaw,
     LoadStats,
     # Normalized
     NormalizedCompanyData,
@@ -37,8 +38,6 @@ from src.etl.types import (
     RTMoviePageData,
     RTScoreData,
     RTSearchResult,
-    SparkEnrichmentData,
-    SparkProcessingResult,
     # TMDB
     TMDBCastData,
     TMDBCreditsData,
@@ -69,12 +68,11 @@ __all__ = [
     "RTScoreData",
     "RTSearchResult",
     "RTMoviePageData",
-    # Kaggle/Spark
-    "KaggleMovieData",
-    "KaggleCreditsData",
-    "KaggleDatasetInfo",
-    "SparkEnrichmentData",
-    "SparkProcessingResult",
+    # Kaggle
+    "KaggleHorrorMovieRaw",
+    "KaggleHorrorMovieNormalized",
+    "KaggleExtractionResult",
+    "KaggleEnrichmentStats",
     # Normalized
     "NormalizedFilmData",
     "NormalizedCreditData",

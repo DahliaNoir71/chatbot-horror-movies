@@ -5,7 +5,6 @@ Primary table containing film metadata from TMDB API.
 
 from datetime import date
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -76,9 +75,6 @@ class Film(Base, TimestampMixin, ExtractedAtMixin):
 
     # ETL metadata
     source: Mapped[str] = mapped_column(String(50), default="tmdb")
-
-    # Vector embedding for RAG (1536 dimensions for OpenAI)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
 
     __table_args__ = (
         CheckConstraint(
