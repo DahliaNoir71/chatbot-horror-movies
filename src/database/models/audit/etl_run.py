@@ -1,6 +1,6 @@
-"""ETLRun model for pipeline execution tracking.
+"""ETLRun model for pipelines execution tracking.
 
-Logs ETL pipeline runs with metrics and status.
+Logs ETL pipelines runs with metrics and status.
 """
 
 from datetime import datetime
@@ -19,13 +19,13 @@ from src.database.models.base import Base
 
 
 class ETLRun(Base):
-    """ETL pipeline execution record.
+    """ETL pipelines execution record.
 
-    Tracks pipeline runs for monitoring and debugging.
+    Tracks pipelines runs for monitoring and debugging.
 
     Attributes:
         id: Primary key.
-        pipeline_name: Name of the pipeline executed.
+        pipeline_name: Name of the pipelines executed.
         source_name: Data source processed.
         status: Execution status (running, success, failed).
         records_extracted: Number of records extracted.
@@ -76,17 +76,17 @@ class ETLRun(Base):
 
     @property
     def is_running(self) -> bool:
-        """Check if pipeline is still running."""
+        """Check if pipelines is still running."""
         return self.status == "running"
 
     @property
     def is_success(self) -> bool:
-        """Check if pipeline completed successfully."""
+        """Check if pipelines completed successfully."""
         return self.status == "success"
 
     def __repr__(self) -> str:
         """Return string representation."""
         return (
-            f"<ETLRun(id={self.id}, pipeline='{self.pipeline_name}', "
+            f"<ETLRun(id={self.id}, pipelines='{self.pipeline_name}', "
             f"source='{self.source_name}', status='{self.status}')>"
         )

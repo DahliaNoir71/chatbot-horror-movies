@@ -9,7 +9,7 @@ from src.etl.utils.logger import setup_logger
 
 
 class CheckpointManager:
-    """Manage ETL pipeline checkpoints for resumable operations.
+    """Manage ETL pipelines checkpoints for resumable operations.
 
     Saves extraction state to JSON files for recovery after interruption.
     """

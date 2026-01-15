@@ -1,6 +1,6 @@
-"""ETL pipeline data types.
+"""ETL pipelines data types.
 
-TypedDict definitions for pipeline control structures,
+TypedDict definitions for pipelines control structures,
 checkpoints, and results.
 """
 
@@ -109,7 +109,7 @@ class LoadStats(TypedDict):
 
 
 class ETLPipelineStats(TypedDict):
-    """Complete statistics for ETL pipeline run."""
+    """Complete statistics for ETL pipelines run."""
 
     run_id: str
     started_at: str

@@ -1,4 +1,4 @@
-"""Spark Big Data extraction pipeline.
+"""Spark Big Data extraction pipelines.
 
 Orchestrates PySpark extraction, SparkSQL analytics, and data export.
 Validates C1 (Big Data extraction) and C2 (SparkSQL queries).
@@ -24,7 +24,7 @@ from src.etl.types import ETLResult  # noqa: E402
 from src.etl.utils import setup_logger  # noqa: E402
 from src.settings.sources.spark import SparkSettings  # noqa: E402
 
-logger = setup_logger("etl.pipeline.spark")
+logger = setup_logger("etl.pipelines.spark")
 
 
 @dataclass
@@ -46,7 +46,7 @@ class SparkAnalyticsResult:
 
 @dataclass
 class PipelineResult:
-    """Result of Spark pipeline execution.
+    """Result of Spark pipelines execution.
 
     Attributes:
         total_rows: Total rows in CSV.
@@ -54,7 +54,7 @@ class PipelineResult:
         normalized: Successfully normalized records.
         exported: Records exported to Parquet.
         errors: Number of errors.
-        duration_seconds: Total pipeline duration.
+        duration_seconds: Total pipelines duration.
         started_at: Pipeline start timestamp.
         finished_at: Pipeline end timestamp.
         analytics: SparkSQL analytics results.
@@ -95,18 +95,18 @@ class SparkPipeline:
     """
 
     def __init__(self, settings: SparkSettings | None = None) -> None:
-        """Initialize pipeline components.
+        """Initialize pipelines components.
 
         Args:
             settings: Spark settings (uses defaults from .env if None).
         """
-        self._logger = setup_logger("etl.pipeline.spark")
+        self._logger = setup_logger("etl.pipelines.spark")
         self._settings = settings or SparkSettings()
         self._extractor: SparkExtractor | None = None
         self._errors: list[str] = []
 
     def run(self, export: bool = True, analytics: bool = True) -> PipelineResult:
-        """Execute full Spark extraction and analytics pipeline.
+        """Execute full Spark extraction and analytics pipelines.
 
         Args:
             export: Whether to export data to Parquet.
@@ -130,7 +130,7 @@ class SparkPipeline:
         return result
 
     def _execute_pipeline(self, export: bool, analytics: bool) -> PipelineResult:
-        """Execute pipeline stages.
+        """Execute pipelines stages.
 
         Args:
             export: Whether to export data.
@@ -167,7 +167,7 @@ class SparkPipeline:
         analytics: bool,
         result: PipelineResult,
     ) -> PipelineResult:
-        """Run all pipeline stages.
+        """Run all pipelines stages.
 
         Args:
             extractor: Active SparkExtractor.
@@ -308,7 +308,7 @@ class SparkPipeline:
     # -------------------------------------------------------------------------
 
     def _log_start(self) -> None:
-        """Log pipeline start with settings info."""
+        """Log pipelines start with settings info."""
         self._logger.info("=" * 60)
         self._logger.info("Spark Pipeline Starting (C1/C2 Validation)")
         self._logger.info("=" * 60)
@@ -320,7 +320,7 @@ class SparkPipeline:
         self._logger.info("=" * 60)
 
     def _log_result(self, result: PipelineResult) -> None:
-        """Log final pipeline results."""
+        """Log final pipelines results."""
         self._logger.info("=" * 60)
         self._logger.info("Spark Pipeline Complete")
         self._logger.info("=" * 60)
@@ -355,7 +355,7 @@ def run_spark_pipeline(
     export: bool = True,
     analytics: bool = True,
 ) -> PipelineResult:
-    """Convenience function to run Spark pipeline.
+    """Convenience function to run Spark pipelines.
 
     Args:
         export: Whether to export to Parquet.
@@ -369,7 +369,7 @@ def run_spark_pipeline(
 
 
 def main() -> int:
-    """CLI entry point for Spark pipeline.
+    """CLI entry point for Spark pipelines.
 
     Returns:
         Exit code (0 success, 1 failure).

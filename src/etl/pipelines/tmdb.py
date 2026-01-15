@@ -1,4 +1,4 @@
-"""TMDB extraction and loading pipeline.
+"""TMDB extraction and loading pipelines.
 
 Orchestrates full TMDB data extraction and insertion into PostgreSQL.
 All parameters are read from settings (.env file).
@@ -18,18 +18,18 @@ from src.etl.types import ETLResult
 from src.etl.utils import setup_logger
 from src.settings import settings
 
-logger = setup_logger("etl.pipeline.tmdb")
+logger = setup_logger("etl.pipelines.tmdb")
 
 
 @dataclass
 class PipelineResult:
-    """Result of pipeline execution.
+    """Result of pipelines execution.
 
     Attributes:
         extracted: Number of films extracted from TMDB.
         loaded: Number of films successfully loaded to DB.
         errors: Number of loading errors.
-        duration_seconds: Total pipeline duration.
+        duration_seconds: Total pipelines duration.
         started_at: Pipeline start timestamp.
         finished_at: Pipeline end timestamp.
     """
@@ -59,15 +59,15 @@ class TMDBPipeline:
     """
 
     def __init__(self) -> None:
-        """Initialize pipeline components."""
-        self._logger = setup_logger("etl.pipeline.tmdb")
+        """Initialize pipelines components."""
+        self._logger = setup_logger("etl.pipelines.tmdb")
         self._db = get_database()
         self._extractor = TMDBExtractor()
         self._loaded_count = 0
         self._error_count = 0
 
     def run(self) -> PipelineResult:
-        """Execute full TMDB extraction and loading pipeline.
+        """Execute full TMDB extraction and loading pipelines.
 
         Returns:
             PipelineResult with execution statistics.
@@ -84,7 +84,7 @@ class TMDBPipeline:
         return self._build_result(etl_result, started_at, finished_at)
 
     def _log_start(self) -> None:
-        """Log pipeline start with settings info."""
+        """Log pipelines start with settings info."""
         self._logger.info("=" * 60)
         self._logger.info("TMDB Pipeline Starting")
         self._logger.info("=" * 60)
@@ -153,7 +153,7 @@ class TMDBPipeline:
         started_at: datetime,
         finished_at: datetime,
     ) -> PipelineResult:
-        """Build final pipeline result.
+        """Build final pipelines result.
 
         Args:
             etl_result: Result from extractor.
@@ -178,7 +178,7 @@ class TMDBPipeline:
         return result
 
     def _log_result(self, result: PipelineResult) -> None:
-        """Log final pipeline results."""
+        """Log final pipelines results."""
         self._logger.info("=" * 60)
         self._logger.info("TMDB Pipeline Complete")
         self._logger.info("=" * 60)
@@ -191,7 +191,7 @@ class TMDBPipeline:
 
 
 def run_tmdb_pipeline() -> PipelineResult:
-    """Convenience function to run TMDB pipeline.
+    """Convenience function to run TMDB pipelines.
 
     Returns:
         PipelineResult with execution statistics.
@@ -201,7 +201,7 @@ def run_tmdb_pipeline() -> PipelineResult:
 
 
 def main() -> int:
-    """CLI entry point for TMDB pipeline.
+    """CLI entry point for TMDB pipelines.
 
     Returns:
         Exit code (0 success, 1 failure).

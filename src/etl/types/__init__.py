@@ -1,7 +1,7 @@
 """ETL data types package.
 
 Exports all TypedDict definitions for raw and normalized
-data structures used throughout the ETL pipeline.
+data structures used throughout the ETL pipelines.
 
 Usage:
     from src.etl.types import TMDBFilmData, NormalizedFilmData

@@ -133,6 +133,7 @@ class RTScoreLoader(BaseLoader):
         query = (
             select(Film.id, Film.title, Film.original_title, Film.release_date)
             .where(Film.id.notin_(subquery))
+            .where(Film.source == "tmdb_api")
             .order_by(Film.popularity.desc())
         )
 

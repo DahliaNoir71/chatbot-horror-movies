@@ -1,4 +1,4 @@
-"""Kaggle CSV pipeline.
+"""Kaggle CSV pipelines.
 
 Orchestrates extraction, normalization, and loading
 of horror movies from Kaggle dataset.
@@ -20,7 +20,7 @@ from src.etl.utils.logger import setup_logger
 
 @dataclass
 class KagglePipelineResult:
-    """Results from Kaggle pipeline execution.
+    """Results from Kaggle pipelines execution.
 
     Attributes:
         rows_extracted: Total CSV rows read.
@@ -50,7 +50,7 @@ class KagglePipelineResult:
 
 
 class KagglePipeline:
-    """Orchestrates Kaggle CSV ETL pipeline.
+    """Orchestrates Kaggle CSV ETL pipelines.
 
     Extracts horror movies from Kaggle dataset,
     normalizes data, and loads into PostgreSQL.
@@ -64,7 +64,7 @@ class KagglePipeline:
         csv_path: Path | None = None,
         session: Session | None = None,
     ) -> None:
-        """Initialize Kaggle pipeline.
+        """Initialize Kaggle pipelines.
 
         Args:
             csv_path: Optional path to CSV file.
@@ -72,7 +72,7 @@ class KagglePipeline:
         """
         self._csv_path = csv_path
         self._session = session
-        self._logger = setup_logger("etl.pipeline.kaggle")
+        self._logger = setup_logger("etl.pipelines.kaggle")
         self._result = KagglePipelineResult()
 
     # -------------------------------------------------------------------------
@@ -80,7 +80,7 @@ class KagglePipeline:
     # -------------------------------------------------------------------------
 
     def run(self, batch_size: int = 1000) -> KagglePipelineResult:
-        """Execute Kaggle ETL pipeline.
+        """Execute Kaggle ETL pipelines.
 
         Args:
             batch_size: Records per batch for processing.
@@ -102,7 +102,7 @@ class KagglePipeline:
         return self._result
 
     def _execute_pipeline(self, batch_size: int) -> None:
-        """Execute pipeline steps.
+        """Execute pipelines steps.
 
         Args:
             batch_size: Records per batch.
@@ -223,13 +223,13 @@ class KagglePipeline:
     # -------------------------------------------------------------------------
 
     def _log_start(self) -> None:
-        """Log pipeline start."""
+        """Log pipelines start."""
         self._logger.info("=" * 60)
-        self._logger.info("Starting Kaggle CSV pipeline")
+        self._logger.info("Starting Kaggle CSV pipelines")
         self._logger.info("=" * 60)
 
     def _log_final_results(self) -> None:
-        """Log pipeline results summary."""
+        """Log pipelines results summary."""
         self._logger.info("=" * 60)
         self._logger.info("Kaggle Pipeline Complete")
         self._logger.info("=" * 60)
@@ -242,7 +242,7 @@ class KagglePipeline:
         self._logger.info(f"Duration: {self._result.duration_seconds:.1f}s")
 
     def _handle_pipeline_error(self, error: Exception) -> None:
-        """Handle pipeline-level error.
+        """Handle pipelines-level error.
 
         Args:
             error: Exception that occurred.
@@ -270,7 +270,7 @@ class KagglePipeline:
 
 
 def main() -> None:
-    """Entry point for Kaggle pipeline."""
+    """Entry point for Kaggle pipelines."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Kaggle CSV Pipeline")
@@ -297,7 +297,7 @@ def main() -> None:
 
 
 def _print_results(result: KagglePipelineResult) -> None:
-    """Print pipeline results to stdout.
+    """Print pipelines results to stdout.
 
     Args:
         result: Pipeline execution result.

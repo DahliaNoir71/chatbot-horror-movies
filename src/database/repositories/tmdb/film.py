@@ -19,7 +19,7 @@ class FilmRepository(BaseRepository[Film]):
     """Repository for Film entity operations.
 
     Provides methods for querying films by various criteria
-    and bulk operations for ETL pipeline.
+    and bulk operations for ETL pipelines.
     """
 
     model = Film

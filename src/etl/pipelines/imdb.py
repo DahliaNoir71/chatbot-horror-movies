@@ -1,4 +1,4 @@
-"""IMDB SQLite pipeline.
+"""IMDB SQLite pipelines.
 
 Orchestrates extraction from IMDB SQLite database,
 normalization, and enrichment of existing films.
@@ -22,7 +22,7 @@ from src.etl.utils.logger import setup_logger
 
 @dataclass
 class IMDBPipelineResult:
-    """Results from IMDB pipeline execution.
+    """Results from IMDB pipelines execution.
 
     Attributes:
         movies_extracted: Horror movies found in IMDB.
@@ -54,7 +54,7 @@ class IMDBPipelineResult:
 
 
 class IMDBPipeline:
-    """Orchestrates IMDB SQLite ETL pipeline.
+    """Orchestrates IMDB SQLite ETL pipelines.
 
     Extracts horror movies from IMDB database using
     native SQL queries (C2 validation), normalizes data,
@@ -70,7 +70,7 @@ class IMDBPipeline:
         session: Session | None = None,
         min_votes: int = 1000,
     ) -> None:
-        """Initialize IMDB pipeline.
+        """Initialize IMDB pipelines.
 
         Args:
             db_path: Optional path to IMDB SQLite database.
@@ -80,7 +80,7 @@ class IMDBPipeline:
         self._db_path = db_path
         self._session = session
         self._min_votes = min_votes
-        self._logger = setup_logger("etl.pipeline.imdb")
+        self._logger = setup_logger("etl.pipelines.imdb")
         self._result = IMDBPipelineResult()
 
     # -------------------------------------------------------------------------
@@ -88,7 +88,7 @@ class IMDBPipeline:
     # -------------------------------------------------------------------------
 
     def run(self, batch_size: int = 1000) -> IMDBPipelineResult:
-        """Execute IMDB ETL pipeline.
+        """Execute IMDB ETL pipelines.
 
         Args:
             batch_size: Records per batch for processing.
@@ -110,7 +110,7 @@ class IMDBPipeline:
         return self._result
 
     def _execute_pipeline(self, batch_size: int) -> None:
-        """Execute pipeline steps.
+        """Execute pipelines steps.
 
         Args:
             batch_size: Records per batch.
@@ -268,14 +268,14 @@ class IMDBPipeline:
     # -------------------------------------------------------------------------
 
     def _log_start(self) -> None:
-        """Log pipeline start."""
+        """Log pipelines start."""
         self._logger.info("=" * 60)
-        self._logger.info("Starting IMDB SQLite pipeline")
+        self._logger.info("Starting IMDB SQLite pipelines")
         self._logger.info(f"Min votes filter: {self._min_votes}")
         self._logger.info("=" * 60)
 
     def _log_final_results(self) -> None:
-        """Log pipeline results summary."""
+        """Log pipelines results summary."""
         self._logger.info("=" * 60)
         self._logger.info("IMDB Pipeline Complete")
         self._logger.info("=" * 60)
@@ -289,7 +289,7 @@ class IMDBPipeline:
         self._logger.info(f"Duration: {self._result.duration_seconds:.1f}s")
 
     def _handle_pipeline_error(self, error: Exception) -> None:
-        """Handle pipeline-level error.
+        """Handle pipelines-level error.
 
         Args:
             error: Exception that occurred.
@@ -317,7 +317,7 @@ class IMDBPipeline:
 
 
 def main() -> None:
-    """Entry point for IMDB pipeline."""
+    """Entry point for IMDB pipelines."""
     import argparse
 
     parser = argparse.ArgumentParser(description="IMDB SQLite Pipeline")
@@ -381,7 +381,7 @@ def _run_demo(pipeline: IMDBPipeline) -> None:
 
 
 def _run_pipeline(pipeline: IMDBPipeline, batch_size: int) -> None:
-    """Run full pipeline.
+    """Run full pipelines.
 
     Args:
         pipeline: IMDBPipeline instance.
@@ -392,7 +392,7 @@ def _run_pipeline(pipeline: IMDBPipeline, batch_size: int) -> None:
 
 
 def _print_results(result: IMDBPipelineResult) -> None:
-    """Print pipeline results to stdout.
+    """Print pipelines results to stdout.
 
     Args:
         result: Pipeline execution result.

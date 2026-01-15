@@ -1,4 +1,4 @@
-"""ETL pipeline package for HorrorBot.
+"""ETL pipelines package for HorrorBot.
 
 Provides data extraction, transformation, and loading
 from multiple sources: TMDB, Rotten Tomatoes, Kaggle/Spark, PostgreSQL.

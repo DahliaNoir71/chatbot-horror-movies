@@ -104,7 +104,7 @@ INSERT INTO rgpd_processing_registry (
 ),
 (
     'ETL Pipeline Logging',
-    'Track extraction pipeline runs for monitoring and debugging.',
+    'Track extraction pipelines runs for monitoring and debugging.',
     ARRAY['Execution timestamps', 'Record counts', 'Error messages'],
     ARRAY['System processes'],
     ARRAY['Internal application only'],

@@ -58,7 +58,7 @@ class PathsSettings(BaseSettings):
 
     @property
     def checkpoints_dir(self) -> Path:
-        """ETL pipeline checkpoints."""
+        """ETL pipelines checkpoints."""
         return self.data_dir / "checkpoints"
 
     @property
@@ -114,7 +114,7 @@ class LoggingSettings(BaseSettings):
 
 
 class ETLSettings(BaseSettings):
-    """ETL pipeline configuration."""
+    """ETL pipelines configuration."""
 
     max_workers: int = Field(default=4, alias="ETL_MAX_WORKERS")
     scraping_delay: float = Field(default=2.0, alias="SCRAPING_DELAY")

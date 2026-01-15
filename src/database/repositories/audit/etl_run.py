@@ -1,6 +1,6 @@
-"""ETL run repository for pipeline tracking.
+"""ETL run repository for pipelines tracking.
 
-Provides CRUD and query operations for ETL pipeline
+Provides CRUD and query operations for ETL pipelines
 execution tracking.
 """
 
@@ -36,7 +36,7 @@ class ETLStatsData(TypedDict):
 class ETLRunRepository(BaseRepository[ETLRun]):
     """Repository for ETLRun entity operations.
 
-    Tracks ETL pipeline executions with per-source
+    Tracks ETL pipelines executions with per-source
     statistics and error logging.
     """
 

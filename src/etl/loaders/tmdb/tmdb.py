@@ -19,7 +19,7 @@ from src.etl.utils.logger import setup_logger
 class TMDBLoader:
     """Orchestrates loading of TMDB extraction bundles.
 
-    Handles the full pipeline from TMDBExtractor output
+    Handles the full pipelines from TMDBExtractor output
     to database insertion with proper FK ordering:
     1. Reference data (genres, keywords, companies, languages)
     2. Films

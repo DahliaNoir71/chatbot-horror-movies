@@ -2,13 +2,13 @@
 # ===================================================
 # Pipeline CI/CD GitHub Actions
 # ===================================================
-# Ce pipeline exécute les tests unitaires et les analyses de sécurité
+# Ce pipelines exécute les tests unitaires et les analyses de sécurité
 # Il s'exécute sur les push/PR vers main et develop
 
 name: CI/CD Pipeline
 
 # ===================================================
-# Déclencheurs du pipeline
+# Déclencheurs du pipelines
 # ===================================================
 on:
   # Exécution sur push vers les branches principales
@@ -193,7 +193,7 @@ jobs:
         run: pip install bandit[toml]
 
       # Exécute le scan de sécurité sur le dossier src/
-      # continue-on-error: ne bloque pas le pipeline si des vulnérabilités sont trouvées
+      # continue-on-error: ne bloque pas le pipelines si des vulnérabilités sont trouvées
       - name: Run Bandit security scan
         run: |
           mkdir -p security-reports

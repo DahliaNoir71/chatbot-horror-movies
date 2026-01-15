@@ -65,7 +65,7 @@ class PathsSettings(BaseSettings):
 
     @property
     def checkpoints_dir(self) -> Path:
-        """ETL pipeline checkpoints."""
+        """ETL pipelines checkpoints."""
         return self.data_dir / "checkpoints"
 
     @property
@@ -127,7 +127,7 @@ class LoggingSettings(BaseSettings):
 
 
 class ETLSettings(BaseSettings):
-    """ETL pipeline configuration.
+    """ETL pipelines configuration.
 
     Attributes:
         max_workers: Maximum parallel workers.

@@ -1,7 +1,7 @@
-"""Rotten Tomatoes enrichment pipeline.
+"""Rotten Tomatoes enrichment pipelines.
 
 Orchestrates RT scraping for films already in database.
-Requires TMDB pipeline to have been executed first.
+Requires TMDB pipelines to have been executed first.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ from src.etl.utils import setup_logger
 
 @dataclass
 class RTPipelineResult:
-    """Results from RT pipeline execution."""
+    """Results from RT pipelines execution."""
 
     films_processed: int = 0
     scores_loaded: int = 0
@@ -39,27 +39,27 @@ class RTPipelineResult:
 class RTPipeline:
     """Orchestrates RT enrichment for existing films.
 
-    This pipeline enriches films already in the database
+    This pipelines enriches films already in the database
     with Rotten Tomatoes scores and critics consensus.
 
     Requires:
-        - TMDB pipeline executed (films table populated)
+        - TMDB pipelines executed (films table populated)
         - Network access to rottentomatoes.com
     """
 
     def __init__(self, session: Session | None = None) -> None:
-        """Initialize RT pipeline.
+        """Initialize RT pipelines.
 
         Args:
             session: Optional SQLAlchemy session.
         """
         self._session = session
-        self._logger = setup_logger("etl.pipeline.rt")
+        self._logger = setup_logger("etl.pipelines.rt")
         self._extractor = RTExtractor()
         self._result = RTPipelineResult()
 
     def run(self, limit: int | None = None, batch_size: int = 10) -> RTPipelineResult:
-        """Execute RT enrichment pipeline.
+        """Execute RT enrichment pipelines.
 
         Args:
             limit: Max films to process (None = all).
@@ -75,7 +75,7 @@ class RTPipeline:
         limit: int | None = None,
         batch_size: int = 10,
     ) -> RTPipelineResult:
-        """Execute RT enrichment pipeline asynchronously.
+        """Execute RT enrichment pipelines asynchronously.
 
         Args:
             limit: Max films to process (None = all).
@@ -86,7 +86,7 @@ class RTPipeline:
         """
         start_time = datetime.now()
         self._logger.info("=" * 60)
-        self._logger.info("Starting Rotten Tomatoes enrichment pipeline")
+        self._logger.info("Starting Rotten Tomatoes enrichment pipelines")
         self._logger.info("=" * 60)
 
         try:
@@ -101,7 +101,7 @@ class RTPipeline:
         return self._result
 
     async def _execute_pipeline(self, limit: int | None, batch_size: int) -> None:
-        """Execute pipeline steps.
+        """Execute pipelines steps.
 
         Args:
             limit: Max films to process.
@@ -163,7 +163,7 @@ class RTPipeline:
         return self._session
 
     def _log_final_results(self) -> None:
-        """Log pipeline results summary."""
+        """Log pipelines results summary."""
         self._logger.info("=" * 60)
         self._logger.info("RT Pipeline Complete")
         self._logger.info("=" * 60)
@@ -175,7 +175,7 @@ class RTPipeline:
 
 
 def main() -> None:
-    """Entry point for RT pipeline."""
+    """Entry point for RT pipelines."""
     import argparse
 
     parser = argparse.ArgumentParser(description="RT Enrichment Pipeline")

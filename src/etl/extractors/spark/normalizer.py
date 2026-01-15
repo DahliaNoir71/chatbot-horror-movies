@@ -12,7 +12,7 @@ class SparkNormalizer:
     """Normalizes Spark extracted data.
 
     Transforms SparkEnrichedMovie into SparkNormalized
-    ready for aggregation pipeline.
+    ready for aggregation pipelines.
 
     Attributes:
         SOURCE_NAME: Source identifier for normalized records.
