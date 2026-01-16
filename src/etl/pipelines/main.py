@@ -4,6 +4,7 @@ Executes all pipelines sequentially in dependency order.
 Stops immediately on any failure - all data is required for RAG.
 """
 
+import argparse
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -83,6 +84,19 @@ class OrchestratorResult:
         return PipelineStatus.FAILED
 
 
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+TOTAL_PIPELINES = 6
+"""Total number of pipeline steps."""
+
+
+# =============================================================================
+# ORCHESTRATOR
+# =============================================================================
+
+
 class ETLOrchestrator:
     """Orchestrates all E1 ETL pipelines.
 
@@ -92,6 +106,7 @@ class ETLOrchestrator:
     3. Spark (Big Data analytics - C1/C2)
     4. IMDB (enrichment - SQLite/C2)
     5. Rotten Tomatoes (enrichment - Scraping)
+    6. Aggregation (JSON export for RAG)
 
     Stops immediately on any failure.
     """
@@ -103,6 +118,7 @@ class ETLOrchestrator:
         skip_spark: bool = False,
         skip_imdb: bool = False,
         skip_rt: bool = False,
+        skip_aggregation: bool = False,
     ) -> None:
         """Initialize orchestrator.
 
@@ -112,6 +128,7 @@ class ETLOrchestrator:
             skip_spark: Skip Spark pipelines.
             skip_imdb: Skip IMDB pipelines.
             skip_rt: Skip Rotten Tomatoes pipelines.
+            skip_aggregation: Skip Aggregation pipelines.
         """
         self._logger = setup_logger("etl.pipelines.main")
         self._skip_tmdb = skip_tmdb
@@ -119,6 +136,7 @@ class ETLOrchestrator:
         self._skip_spark = skip_spark
         self._skip_imdb = skip_imdb
         self._skip_rt = skip_rt
+        self._skip_aggregation = skip_aggregation
         self._result = OrchestratorResult()
 
     def run(self) -> OrchestratorResult:
@@ -136,6 +154,7 @@ class ETLOrchestrator:
             ("Spark", self._skip_spark, self._run_spark),
             ("IMDB", self._skip_imdb, self._run_imdb),
             ("RT", self._skip_rt, self._run_rt),
+            ("Aggregation", self._skip_aggregation, self._run_aggregation),
         ]
 
         for name, skip, runner in pipelines:
@@ -160,7 +179,7 @@ class ETLOrchestrator:
         Returns:
             True if successful, False otherwise.
         """
-        self._log_pipeline_start(1, 5, "TMDB", "REST API")
+        self._log_pipeline_start(1, TOTAL_PIPELINES, "TMDB", "REST API")
 
         try:
             from src.etl.pipelines.tmdb import run_tmdb_pipeline
@@ -188,7 +207,7 @@ class ETLOrchestrator:
         Returns:
             True if successful, False otherwise.
         """
-        self._log_pipeline_start(2, 5, "Kaggle", "CSV File")
+        self._log_pipeline_start(2, TOTAL_PIPELINES, "Kaggle", "CSV File")
 
         try:
             from src.etl.pipelines.kaggle import KagglePipeline
@@ -217,7 +236,7 @@ class ETLOrchestrator:
         Returns:
             True if successful, False otherwise.
         """
-        self._log_pipeline_start(3, 5, "Spark", "Big Data - C1/C2")
+        self._log_pipeline_start(3, TOTAL_PIPELINES, "Spark", "Big Data - C1/C2")
 
         try:
             from src.etl.pipelines.spark import run_spark_pipeline
@@ -245,7 +264,7 @@ class ETLOrchestrator:
         Returns:
             True if successful, False otherwise.
         """
-        self._log_pipeline_start(4, 5, "IMDB", "SQLite - C2")
+        self._log_pipeline_start(4, TOTAL_PIPELINES, "IMDB", "SQLite - C2")
 
         try:
             from src.etl.pipelines.imdb import IMDBPipeline
@@ -274,16 +293,16 @@ class ETLOrchestrator:
         Returns:
             True if successful, False otherwise.
         """
-        self._log_pipeline_start(5, 5, "Rotten Tomatoes", "Web Scraping")
+        self._log_pipeline_start(5, TOTAL_PIPELINES, "RT", "Web Scraping")
 
         try:
             from src.etl.pipelines.rotten_tomatoes import RTPipeline
 
             pipeline = RTPipeline()
-            result = pipeline.run(limit=100)
+            result = pipeline.run()
 
             if result.errors > 0:
-                self._add_failed("RT", f"{result.errors} errors during extraction")
+                self._add_failed("RT", f"{result.errors} errors during scraping")
                 return False
 
             self._add_success(
@@ -295,6 +314,34 @@ class ETLOrchestrator:
 
         except Exception as e:
             self._add_failed("RT", str(e))
+            return False
+
+    def _run_aggregation(self) -> bool:
+        """Run Aggregation pipelines (Step 6: JSON Export for RAG).
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        self._log_pipeline_start(6, TOTAL_PIPELINES, "Aggregation", "JSON Export")
+
+        try:
+            from src.etl.pipelines.aggregation import run_aggregation_pipeline
+
+            result = run_aggregation_pipeline()
+
+            if result.error_messages:
+                self._add_failed("Aggregation", result.error_messages[0])
+                return False
+
+            self._add_success(
+                name="Aggregation",
+                records=result.films_exported,
+                duration=result.duration_seconds,
+            )
+            return True
+
+        except Exception as e:
+            self._add_failed("Aggregation", str(e))
             return False
 
     # -------------------------------------------------------------------------
@@ -387,11 +434,12 @@ class ETLOrchestrator:
         self._logger.info("E1 ETL ORCHESTRATOR")
         self._logger.info("=" * 60)
         self._logger.info("Pipelines to execute:")
-        self._logger.info(f"  1. TMDB:   {'SKIP' if self._skip_tmdb else 'RUN'}")
-        self._logger.info(f"  2. Kaggle: {'SKIP' if self._skip_kaggle else 'RUN'}")
-        self._logger.info(f"  3. Spark:  {'SKIP' if self._skip_spark else 'RUN'}")
-        self._logger.info(f"  4. IMDB:   {'SKIP' if self._skip_imdb else 'RUN'}")
-        self._logger.info(f"  5. RT:     {'SKIP' if self._skip_rt else 'RUN'}")
+        self._logger.info(f"  1. TMDB:        {'SKIP' if self._skip_tmdb else 'RUN'}")
+        self._logger.info(f"  2. Kaggle:      {'SKIP' if self._skip_kaggle else 'RUN'}")
+        self._logger.info(f"  3. Spark:       {'SKIP' if self._skip_spark else 'RUN'}")
+        self._logger.info(f"  4. IMDB:        {'SKIP' if self._skip_imdb else 'RUN'}")
+        self._logger.info(f"  5. RT:          {'SKIP' if self._skip_rt else 'RUN'}")
+        self._logger.info(f"  6. Aggregation: {'SKIP' if self._skip_aggregation else 'RUN'}")
         self._logger.info("=" * 60)
 
     def _log_pipeline_start(
@@ -462,12 +510,18 @@ class ETLOrchestrator:
         return icons.get(status, "[??]")
 
 
+# =============================================================================
+# CONVENIENCE FUNCTION
+# =============================================================================
+
+
 def run_all_pipelines(
     skip_tmdb: bool = False,
     skip_kaggle: bool = False,
     skip_spark: bool = False,
     skip_imdb: bool = False,
     skip_rt: bool = False,
+    skip_aggregation: bool = False,
 ) -> OrchestratorResult:
     """Run all E1 pipelines. Stop on any failure.
 
@@ -477,6 +531,7 @@ def run_all_pipelines(
         skip_spark: Skip Spark pipelines.
         skip_imdb: Skip IMDB pipelines.
         skip_rt: Skip Rotten Tomatoes pipelines.
+        skip_aggregation: Skip Aggregation pipelines.
 
     Returns:
         OrchestratorResult with all results.
@@ -487,8 +542,14 @@ def run_all_pipelines(
         skip_spark=skip_spark,
         skip_imdb=skip_imdb,
         skip_rt=skip_rt,
+        skip_aggregation=skip_aggregation,
     )
     return orchestrator.run()
+
+
+# =============================================================================
+# CLI ENTRY POINT
+# =============================================================================
 
 
 def main() -> int:
@@ -497,8 +558,6 @@ def main() -> int:
     Returns:
         Exit code (0 success, 1 failure/aborted).
     """
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="E1 ETL Orchestrator - Run all extraction pipelines"
     )
@@ -508,31 +567,18 @@ def main() -> int:
     parser.add_argument("--skip-imdb", action="store_true", help="Skip IMDB pipelines")
     parser.add_argument("--skip-rt", action="store_true", help="Skip RT pipelines")
     parser.add_argument(
+        "--skip-aggregation", action="store_true", help="Skip Aggregation pipelines"
+    )
+    parser.add_argument(
         "--only",
         type=str,
-        choices=["tmdb", "kaggle", "spark", "imdb", "rt"],
+        choices=["tmdb", "kaggle", "spark", "imdb", "rt", "aggregation"],
         help="Run only specified pipelines",
     )
 
     args = parser.parse_args()
 
-    # Handle --only flag
-    if args.only:
-        skip_config = {
-            "skip_tmdb": args.only != "tmdb",
-            "skip_kaggle": args.only != "kaggle",
-            "skip_spark": args.only != "spark",
-            "skip_imdb": args.only != "imdb",
-            "skip_rt": args.only != "rt",
-        }
-    else:
-        skip_config = {
-            "skip_tmdb": args.skip_tmdb,
-            "skip_kaggle": args.skip_kaggle,
-            "skip_spark": args.skip_spark,
-            "skip_imdb": args.skip_imdb,
-            "skip_rt": args.skip_rt,
-        }
+    skip_config = _build_skip_config(args)
 
     try:
         result = run_all_pipelines(**skip_config)
@@ -541,6 +587,35 @@ def main() -> int:
     except Exception as e:
         logger.exception(f"Orchestrator failed: {e}")
         return 1
+
+
+def _build_skip_config(args: argparse.Namespace) -> dict[str, bool]:
+    """Build skip configuration from CLI arguments.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        Skip configuration dictionary.
+    """
+    if args.only:
+        return {
+            "skip_tmdb": args.only != "tmdb",
+            "skip_kaggle": args.only != "kaggle",
+            "skip_spark": args.only != "spark",
+            "skip_imdb": args.only != "imdb",
+            "skip_rt": args.only != "rt",
+            "skip_aggregation": args.only != "aggregation",
+        }
+
+    return {
+        "skip_tmdb": args.skip_tmdb,
+        "skip_kaggle": args.skip_kaggle,
+        "skip_spark": args.skip_spark,
+        "skip_imdb": args.skip_imdb,
+        "skip_rt": args.skip_rt,
+        "skip_aggregation": args.skip_aggregation,
+    }
 
 
 if __name__ == "__main__":
