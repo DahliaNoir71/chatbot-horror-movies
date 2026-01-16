@@ -57,6 +57,10 @@ CREATE INDEX idx_rag_documents_created ON rag_documents(created_at DESC);
 -- GIN index for JSONB metadata queries
 CREATE INDEX idx_rag_documents_metadata ON rag_documents USING GIN (metadata);
 
+-- Unique constraint for upsert operations
+CREATE UNIQUE INDEX idx_rag_documents_source_unique
+    ON rag_documents(source_type, source_id, chunk_index);
+
 -- -----------------------------------------------------------------------------
 -- RAG QUERIES LOG (Optional: track chatbot queries for analytics)
 -- -----------------------------------------------------------------------------
