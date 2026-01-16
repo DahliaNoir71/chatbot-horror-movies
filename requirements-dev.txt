@@ -1,7 +1,7 @@
 # ===================================================
-# Requirements Dev - Outils de test uniquement
+# Requirements Dev - Test tools only
 # ===================================================
-# Linting/formatting géré par pre-commit (venv isolé)
+# Linting/formatting handled by pre-commit (isolated venv)
 # Usage CI: pip install -r requirements-ci.txt -r requirements-dev.txt
 
 # --- Tests ---

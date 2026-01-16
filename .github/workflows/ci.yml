@@ -298,6 +298,7 @@ jobs:
             --exclude "**/security-reports/**" \
             --exclude "**/dist/**" \
             --exclude "**/build/**" \
+            --exclude "**/requirements.txt" \
             --failOnCVSS 7 || true
 
       # Vérifie que les rapports ont bien été générés

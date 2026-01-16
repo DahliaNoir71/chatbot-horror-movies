@@ -1,7 +1,7 @@
 # ===================================================
-# Requirements CI - Dépendances légères pour pipeline
+# Requirements CI - Lightweight dependencies for pipeline
 # ===================================================
-# Exclut: torch, transformers, sentence-transformers, etc.
+# Excludes: torch, transformers, sentence-transformers, etc.
 # Usage: pip install -r requirements-ci.txt
 
 # --- Core Web Framework ---
