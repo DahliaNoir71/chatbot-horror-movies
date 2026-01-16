@@ -1,7 +1,10 @@
-# Installation des dépendances applicatives
--r requirements.txt
+# ===================================================
+# Requirements Dev - Outils de test et qualité
+# ===================================================
+# Usage CI: pip install -r requirements-ci.txt -r requirements-dev.txt
+# Usage local: pip install -r requirements-ci.txt -r requirements-dev.txt -r requirements.txt
 
-# --- Tests & Coverage ---
+# --- Tests ---
 pytest>=8.0.0
 pytest-cov>=4.0.0
 pytest-mock>=3.0.0
@@ -15,7 +18,7 @@ pytest-html>=4.1.0
 coverage>=7.4.0
 Faker>=23.0.0
 
-# --- Quality & Linting ---
+# --- Linting & Formatting ---
 ruff>=0.3.0
 black>=24.0.0
 mypy>=1.9.0
