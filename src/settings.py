@@ -385,6 +385,9 @@ class APISettings(BaseSettings):
     )
 
 
+# Dans SecuritySettings (lignes 388-406), ajouter après jwt_expire_minutes :
+
+
 class SecuritySettings(BaseSettings):
     """JWT and rate limiting configuration for E3."""
 
@@ -393,6 +396,9 @@ class SecuritySettings(BaseSettings):
     jwt_expire_minutes: int = Field(default=30, alias="JWT_EXPIRE_MINUTES")
     rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
     rate_limit_per_hour: int = Field(default=1000, alias="RATE_LIMIT_PER_HOUR")
+
+    # Demo authentication (format: "user1:pass1,user2:pass2")
+    demo_users_raw: str = Field(default="", alias="AUTH_DEMO_USERS")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -404,6 +410,18 @@ class SecuritySettings(BaseSettings):
     def is_configured(self) -> bool:
         """Check if JWT secret is configured."""
         return bool(self.jwt_secret_key and len(self.jwt_secret_key) >= 32)
+
+    @property
+    def demo_users(self) -> dict[str, str]:
+        """Parse demo users from 'user:pass,user:pass' format."""
+        if not self.demo_users_raw:
+            return {}
+        users = {}
+        for pair in self.demo_users_raw.split(","):
+            if ":" in pair:
+                username, password = pair.strip().split(":", 1)
+                users[username.strip()] = password.strip()
+        return users
 
 
 class CORSSettings(BaseSettings):
