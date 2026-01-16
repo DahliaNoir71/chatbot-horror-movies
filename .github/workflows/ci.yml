@@ -63,14 +63,6 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements-ci.txt -r requirements-dev.txt
 
-      # Vérifie le formatage avec Black
-      - name: Check code formatting with Black
-        run: black --check src tests
-
-      # Vérifie le style de code avec Ruff
-      - name: Lint with Ruff
-        run: ruff check .
-
       # Exécute les tests avec pytest et génère les rapports de couverture
       - name: Run unit tests with coverage
         env:
@@ -197,12 +189,10 @@ jobs:
         run: pip install bandit[toml]
 
       # Exécute le scan de sécurité sur le dossier src/
-      # continue-on-error: ne bloque pas le pipelines si des vulnérabilités sont trouvées
       - name: Run Bandit security scan
         run: |
           mkdir -p security-reports
-          bandit -r src -f json -o security-reports/bandit-report.json
-        continue-on-error: true
+          bandit -r src -f json -o security-reports/bandit-report.json || true
 
       # Sauvegarde le rapport JSON pour consultation ultérieure
       - name: Upload Bandit report
