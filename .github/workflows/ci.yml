@@ -132,6 +132,12 @@ jobs:
           ENVIRONMENT: test
         run: |
           mkdir -p reports
+          # Count test files; skip gracefully if none exist yet
+          test_count=$(find tests/integration -name "test_*.py" -o -name "*_test.py" | wc -l)
+          if [ "$test_count" -eq 0 ]; then
+            echo "No integration tests found — skipping."
+            exit 0
+          fi
           uv run pytest -v tests/integration \
             --junitxml=reports/integration-junit.xml \
             --cov=src \
