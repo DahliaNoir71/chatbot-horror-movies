@@ -16,6 +16,7 @@ from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.routers import films
 from src.api.schemas import HealthResponse, TokenRequest, TokenResponse
 from src.api.services.jwt_service import JWTService, get_jwt_service
+from src.monitoring.middleware import PrometheusMiddleware, mount_metrics
 from src.settings import settings
 
 # =============================================================================
@@ -69,6 +70,8 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
     _configure_cors(app)
+    app.add_middleware(PrometheusMiddleware)
+    mount_metrics(app)
     _register_routers(app)
     return app
 
