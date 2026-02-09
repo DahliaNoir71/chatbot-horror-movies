@@ -20,64 +20,37 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-MANIFEST
 
 # Virtual environments
+.venv/
 venv/
-env/
-ENV/
-env.bak/
-venv.bak/
 
 # -------------------------------------------------------------------------
 # IDEs et éditeurs
 # -------------------------------------------------------------------------
-.vscode/
 .idea/
+.vscode/
+.claude/
+*.code-workspace
 *.swp
 *.swo
 *~
 .DS_Store
-
-# PyCharm
-.idea/
-
-# Visual Studio Code
-.vscode/
-*.code-workspace
-
-# Sublime Text
 *.sublime-project
 *.sublime-workspace
 
 # -------------------------------------------------------------------------
 # Données (volumineuses, ne pas commit)
 # -------------------------------------------------------------------------
-data/raw/
-data/processed/
-data/checkpoints/
-data/big_data/
+/data/**
+/downloads/
 
-# Exceptions : Garder un fichier README dans chaque dossier
-!data/raw/README.md
-!data/processed/README.md
-!data/checkpoints/README.md
-!data/big_data/README.md
+# Exceptions : Garder les README dans chaque sous-dossier
+!/data/**/
+!/data/**/README.md
 
 # -------------------------------------------------------------------------
 # Logs
@@ -96,8 +69,6 @@ logs/
 htmlcov/
 *.cover
 .hypothesis/
-.tox/
-.nox/
 
 # -------------------------------------------------------------------------
 # Base de données
@@ -139,6 +110,6 @@ spark-warehouse/
 .cache/
 /src/etl/data/
 /tests/unit/etl/data/
-/data/
 /bandit-report.json
 /src/scripts/data/
+/DOCUMENTATIONS

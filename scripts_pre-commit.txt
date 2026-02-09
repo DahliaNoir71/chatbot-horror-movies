@@ -1,17 +1,17 @@
-# Installation pre-commit
-pip install pre-commit
+# Installation pre-commit (via uv)
+uv tool install pre-commit
 
 # Nettoyage configuration
-pre-commit clean
+uvx pre-commit clean
 
 # Installation des hooks
-pre-commit install --install-hooks
+uvx pre-commit install --install-hooks
 
 # Tous les hooks sur tous les fichiers
-pre-commit run --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
+uvx pre-commit run --files @(Get-ChildItem -Recurse src,tests -Filter *.py | ForEach-Object { $_.FullName })
 
-pre-commit run --all-files
+uvx pre-commit run --all-files
 
-#  PyTest Coverage
-pytest --cov=src --cov-report=term-missing --cov-report=html
+# PyTest Coverage
+uv run pytest --cov=src --cov-report=term-missing --cov-report=html
 start htmlcov/index.html

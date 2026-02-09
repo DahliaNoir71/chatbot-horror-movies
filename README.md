@@ -70,6 +70,7 @@
 ### Prérequis
 
 - **Python 3.12+**
+- **[uv](https://docs.astral.sh/uv/)** (gestionnaire de dépendances)
 - **Docker & Docker Compose**
 - **Git**
 
@@ -80,23 +81,27 @@ git clone https://github.com/DahliaNoir71/chatbot-horror-movies.git
 cd chatbot-horror-movies
 ```
 
-### Étape 2 : Créer l'environnement virtuel
+### Étape 2 : Installer uv
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# ou
-.venv\Scripts\activate     # Windows
+# Linux/Mac
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 ### Étape 3 : Installer les dépendances
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+# Dépendances core + dev (sans ML lourd)
+uv sync
+
+# Avec les dépendances ML lourdes (torch CUDA, transformers, etc.)
+uv sync --group ml
 
 # Installer les navigateurs Playwright (pour scraping RT)
-playwright install
+uv run playwright install
 ```
 
 ### Étape 4 : Configuration
@@ -141,33 +146,33 @@ docker compose logs -f postgres
 
 ```bash
 # Pipeline complet : ETL + Import DB
-python -m src full
+uv run python -m src full
 
 # Ou par étapes :
-python -m src etl              # Extraction + enrichissement
-python -m src import-db        # Import en base avec embeddings
+uv run python -m src etl              # Extraction + enrichissement
+uv run python -m src import-db        # Import en base avec embeddings
 ```
 
 ## 📖 Commandes CLI
 
 ```bash
 # Pipeline ETL complet
-python -m src full --max-pages 5
+uv run python -m src full --max-pages 5
 
 # ETL seul (sans import DB)
-python -m src etl --max-pages 5
+uv run python -m src etl --max-pages 5
 
 # Reprendre depuis une étape
-python -m src etl --resume-from 2   # 1=TMDB, 2=RT, 3=Agrégation
+uv run python -m src etl --resume-from 2   # 1=TMDB, 2=RT, 3=Agrégation
 
 # Import checkpoint en base
-python -m src import-db
+uv run python -m src import-db
 
 # Lister les checkpoints
-python -m src list-checkpoints
+uv run python -m src list-checkpoints
 
 # Lancer l'API (E3 - en développement)
-python -m src api
+uv run python -m src api
 ```
 
 ## 📁 Structure du projet
@@ -196,7 +201,8 @@ chatbot-horror-movies/
 ├── tests/                    # Tests pytest
 ├── docs/                     # Documentation
 ├── docker-compose.yml        # PostgreSQL + pgvector
-├── requirements.txt
+├── pyproject.toml          # Dépendances et configuration (uv)
+├── uv.lock                 # Lock file reproductible
 ├── .env.example
 └── README.md
 ```
@@ -205,10 +211,10 @@ chatbot-horror-movies/
 
 ```bash
 # Lancer tous les tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Tests avec couverture
-pytest tests/ -v --cov=src --cov-report=html
+uv run pytest tests/ -v --cov=src --cov-report=html
 ```
 
 ## 📊 Statistiques actuelles

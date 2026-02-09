@@ -2,23 +2,23 @@
 # ===================================================
 # Pipeline CI/CD GitHub Actions
 # ===================================================
-# Ce pipelines exécute les tests unitaires et les analyses de sécurité
+# Ce pipeline exécute les tests unitaires et les analyses de sécurité
 # Il s'exécute sur les push/PR vers main et develop
 
 name: CI/CD Pipeline
 
 # ===================================================
-# Déclencheurs du pipelines
+# Déclencheurs du pipeline
 # ===================================================
 on:
   # Exécution sur push vers les branches principales
   push:
     branches: [ main, develop ]
-  
+
   # Exécution sur les pull requests vers main
   pull_request:
     branches: [ main ]
-  
+
   # Permet le déclenchement manuel depuis l'interface GitHub
   workflow_dispatch:
 
@@ -26,9 +26,8 @@ on:
 # Variables d'environnement globales
 # ===================================================
 env:
-  PYTHON_VERSION: "3.12"                    # Version Python utilisée
-  PIP_CACHE_DIR: ~/.cache/pip               # Cache des dépendances pip
-  PYTHONUNBUFFERED: "1"                     # Désactive le buffering Python
+  PYTHON_VERSION: "3.12"
+  PYTHONUNBUFFERED: "1"
 
 # ===================================================
 # JOBS DU PIPELINE
@@ -41,27 +40,23 @@ jobs:
   # Génère des rapports JUnit et Cobertura
   unit-tests:
     runs-on: ubuntu-latest
-    
+
     steps:
       # Récupère le code source du repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Configure Python avec cache automatique des dépendances
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # Installe uv avec cache basé sur uv.lock
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: |
-            requirements-ci.txt
-            requirements-dev.txt
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-      # Installe les dépendances CI + outils de test
+      # Installe les dépendances core + dev (PAS le groupe ml)
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -r requirements-ci.txt -r requirements-dev.txt
+        run: uv sync --locked --group dev
 
       # Exécute les tests avec pytest et génère les rapports de couverture
       - name: Run unit tests with coverage
@@ -70,14 +65,14 @@ jobs:
           ENVIRONMENT: test
         run: |
           mkdir -p reports
-          python -m pytest -v --tb=short \
+          uv run pytest -v --tb=short \
             --junitxml=reports/junit.xml \
             --cov=src \
             --cov-report=xml:reports/coverage.xml \
             --cov-report=html:reports/htmlcov \
             --cov-report=term
 
-      # Upload optionnel vers Codecov pour visualisation (nécessite compte gratuit)
+      # Upload optionnel vers Codecov pour visualisation
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
@@ -120,20 +115,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: |
-            requirements-ci.txt
-            requirements-dev.txt
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-      # Installe les dépendances CI + outils de test
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -r requirements-ci.txt -r requirements-dev.txt
+        run: uv sync --locked --group dev
 
       - name: Run integration tests
         env:
@@ -142,14 +132,14 @@ jobs:
           ENVIRONMENT: test
         run: |
           mkdir -p reports
-          python -m pytest -v tests/integration \
+          uv run pytest -v tests/integration \
             --junitxml=reports/integration-junit.xml \
             --cov=src \
             --cov-append \
             --cov-report=xml:reports/integration-coverage.xml \
             --cov-report=html:reports/htmlcov
 
-      # Upload optionnel vers Codecov pour visualisation (nécessite compte gratuit)
+      # Upload optionnel vers Codecov pour visualisation
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
         uses: codecov/codecov-action@v4
@@ -171,7 +161,6 @@ jobs:
   # JOB 3 : Analyse de sécurité Bandit
   # ============================================
   # Scanne le code Python à la recherche de vulnérabilités de sécurité
-  # Détecte : injections SQL, hardcoded passwords, imports dangereux, etc.
   security-bandit:
     runs-on: ubuntu-latest
 
@@ -179,20 +168,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Installe Bandit avec support TOML pour configuration
-      - name: Install Bandit
-        run: pip install bandit[toml]
-
-      # Exécute le scan de sécurité sur le dossier src/
+      # Installe et exécute Bandit via uv tool
       - name: Run Bandit security scan
         run: |
           mkdir -p security-reports
-          bandit -r src -f json -o security-reports/bandit-report.json || true
+          uvx bandit[toml] -r src -f json -o security-reports/bandit-report.json || true
 
       # Sauvegarde le rapport JSON pour consultation ultérieure
       - name: Upload Bandit report
@@ -206,8 +191,7 @@ jobs:
   # ============================================
   # JOB 4 : Analyse des dépendances avec Safety
   # ============================================
-  # Vérifie les vulnérabilités connues dans les dépendances pip
-  # Utilise Safety (base PyUp) et pip-audit (base OSV)
+  # Vérifie les vulnérabilités connues dans les dépendances
   security-dependencies:
     runs-on: ubuntu-latest
 
@@ -215,28 +199,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Installe les outils de scan de dépendances
-      - name: Install security scanners
-        run: pip install safety pip-audit
+      # Exporte les dépendances depuis le lock file pour les scanners
+      - name: Export dependencies
+        run: |
+          uv export --no-hashes --no-header --frozen > /tmp/requirements-export.txt
 
       # Safety : vérifie les vulnérabilités connues (base de données PyUp)
       - name: Run Safety scan
         run: |
           mkdir -p security-reports
-          safety check \
-            -r requirements-ci.txt \
+          uvx safety check \
+            -r /tmp/requirements-export.txt \
             --output json > security-reports/safety-report.json || true
 
-      # pip-audit : vérifie les vulnérabilités (base OSV - Open Source Vulnerabilities)
+      # pip-audit : vérifie les vulnérabilités (base OSV)
       - name: Run pip-audit scan
         run: |
-          pip-audit \
-            -r requirements-ci.txt \
+          uvx pip-audit \
+            -r /tmp/requirements-export.txt \
             -f json \
             -o security-reports/pip-audit.json || true
 
@@ -253,15 +238,13 @@ jobs:
   # JOB 5 : OWASP Dependency-Check
   # ============================================
   # Analyse complète des dépendances avec la base OWASP NVD
-  # Détecte les CVE dans toutes les dépendances du projet
-  # Attention : Ce job peut prendre 15-30 minutes à s'exécuter
   security-owasp:
     runs-on: ubuntu-latest
 
     # Utilise le container Docker officiel OWASP
     container:
       image: owasp/dependency-check-action:latest
-      options: --user root  # Nécessaire pour les permissions d'écriture
+      options: --user root
 
     # Configuration JVM pour optimiser les performances
     env:
@@ -298,7 +281,6 @@ jobs:
             --exclude "**/security-reports/**" \
             --exclude "**/dist/**" \
             --exclude "**/build/**" \
-            --exclude "**/requirements.txt" \
             --failOnCVSS 7 || true
 
       # Vérifie que les rapports ont bien été générés
@@ -307,9 +289,9 @@ jobs:
         run: |
           ls -lh security-reports/dependency-check/ || true
           if [ -f "security-reports/dependency-check/dependency-check-report.json" ]; then
-            echo "✅ Reports generated successfully"
+            echo "Reports generated successfully"
           else
-            echo "⚠️ Reports not found"
+            echo "Reports not found"
           fi
 
       # Conserve les rapports HTML, JSON et XML pour consultation
@@ -325,16 +307,15 @@ jobs:
   # JOB 6 : Validation finale
   # ============================================
   # Job récapitulatif qui s'exécute seulement si tous les jobs précédents réussissent
-  # Utile pour les branch protection rules et les badges de statut
   build-success:
     runs-on: ubuntu-latest
 
     # Attend la fin de tous les autres jobs
     needs: [unit-tests, integration-tests, security-bandit, security-dependencies, security-owasp]
-    
+
     # S'exécute uniquement si tous les jobs précédents ont réussi
     if: success()
-    
+
     steps:
       - name: Build successful
-        run: echo "✅ All checks passed successfully"
+        run: echo "All checks passed successfully"
