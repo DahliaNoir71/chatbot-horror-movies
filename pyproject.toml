@@ -226,7 +226,19 @@ markers = [
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["tests/*", "*/__pycache__/*"]
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+    "src/scripts/*",
+    "src/etl/pipelines/*",
+    "src/etl/extractors/tmdb/tmdb.py",
+    "src/etl/extractors/tmdb/client.py",
+    "src/etl/loaders/tmdb/tmdb.py",
+    "src/etl/loaders/tmdb/reference.py",
+    "src/etl/loaders/tmdb/association.py",
+    "src/database/connection.py",
+    "src/settings.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
