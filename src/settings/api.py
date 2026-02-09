@@ -44,7 +44,7 @@ class SecuritySettings(BaseSettings):
         rate_limit_per_hour: Max requests per hour.
     """
 
-    jwt_secret_key: str = Field(default="", alias="JWT_SECRET_KEY")
+    jwt_secret_key: str = Field(alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     jwt_expire_minutes: int = Field(default=30, alias="JWT_EXPIRE_MINUTES")
     rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")

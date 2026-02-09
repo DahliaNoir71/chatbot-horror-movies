@@ -20,7 +20,7 @@ class TMDBSettings(BaseSettings):
         horror_genre_id: TMDB genre ID for Horror (27).
     """
 
-    api_key: str = Field(default="", alias="TMDB_API_KEY")
+    api_key: str = Field(alias="TMDB_API_KEY")
     base_url: str = Field(
         default="https://api.themoviedb.org/3",
         alias="TMDB_BASE_URL",

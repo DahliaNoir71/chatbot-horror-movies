@@ -21,23 +21,63 @@ from src.settings.sources.tmdb import TMDBSettings
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all relevant environment variables for isolated testing."""
     env_vars = [
-        "IMDB_DB_PATH", "IMDB_BATCH_SIZE", "IMDB_MIN_VOTES", "IMDB_MIN_RATING",
-        "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_DATASET_SLUG",
-        "KAGGLE_CSV_FILENAME", "KAGGLE_BATCH_SIZE",
-        "RT_BASE_URL", "RT_MAX_RETRIES", "RT_TIMEOUT", "RT_USER_AGENT",
-        "SPARK_CSV_FILENAME", "SPARK_APP_NAME", "SPARK_MASTER",
-        "SPARK_DRIVER_MEMORY", "SPARK_SHUFFLE_PARTITIONS", "SPARK_UI_ENABLED",
-        "SPARK_LOG_LEVEL", "SPARK_MIN_VOTES", "SPARK_MIN_RATING",
-        "SPARK_EXPORT_FORMAT", "SPARK_BATCH_SIZE",
-        "TMDB_API_KEY", "TMDB_BASE_URL", "TMDB_IMAGE_BASE_URL", "TMDB_LANGUAGE",
-        "TMDB_INCLUDE_ADULT", "TMDB_HORROR_GENRE_ID", "TMDB_YEAR_MIN",
-        "TMDB_YEAR_MAX", "TMDB_YEARS_PER_BATCH", "TMDB_USE_PERIOD_BATCHING",
-        "TMDB_REQUESTS_PER_PERIOD", "TMDB_PERIOD_SECONDS", "TMDB_MIN_REQUEST_DELAY",
-        "TMDB_MAX_PAGES", "TMDB_CHECKPOINT_SAVE_INTERVAL", "TMDB_ENRICH_MOVIES",
+        "IMDB_DB_PATH",
+        "IMDB_BATCH_SIZE",
+        "IMDB_MIN_VOTES",
+        "IMDB_MIN_RATING",
+        "KAGGLE_USERNAME",
+        "KAGGLE_KEY",
+        "KAGGLE_DATASET_SLUG",
+        "KAGGLE_CSV_FILENAME",
+        "KAGGLE_BATCH_SIZE",
+        "RT_BASE_URL",
+        "RT_MAX_RETRIES",
+        "RT_TIMEOUT",
+        "RT_USER_AGENT",
+        "SPARK_CSV_FILENAME",
+        "SPARK_APP_NAME",
+        "SPARK_MASTER",
+        "SPARK_DRIVER_MEMORY",
+        "SPARK_SHUFFLE_PARTITIONS",
+        "SPARK_UI_ENABLED",
+        "SPARK_LOG_LEVEL",
+        "SPARK_MIN_VOTES",
+        "SPARK_MIN_RATING",
+        "SPARK_EXPORT_FORMAT",
+        "SPARK_BATCH_SIZE",
+        "TMDB_API_KEY",
+        "TMDB_BASE_URL",
+        "TMDB_IMAGE_BASE_URL",
+        "TMDB_LANGUAGE",
+        "TMDB_INCLUDE_ADULT",
+        "TMDB_HORROR_GENRE_ID",
+        "TMDB_YEAR_MIN",
+        "TMDB_YEAR_MAX",
+        "TMDB_YEARS_PER_BATCH",
+        "TMDB_USE_PERIOD_BATCHING",
+        "TMDB_REQUESTS_PER_PERIOD",
+        "TMDB_PERIOD_SECONDS",
+        "TMDB_MIN_REQUEST_DELAY",
+        "TMDB_MAX_PAGES",
+        "TMDB_CHECKPOINT_SAVE_INTERVAL",
+        "TMDB_ENRICH_MOVIES",
         "TMDB_SAVE_CHECKPOINTS",
     ]
     for var in env_vars:
         monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture
+def kaggle_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set required Kaggle environment variables."""
+    monkeypatch.setenv("KAGGLE_USERNAME", "test_user")
+    monkeypatch.setenv("KAGGLE_KEY", "test_key")
+
+
+@pytest.fixture
+def tmdb_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set required TMDB environment variables."""
+    monkeypatch.setenv("TMDB_API_KEY", "test_api_key")
 
 
 # =============================================================================
@@ -101,28 +141,26 @@ class TestKaggleSettings:
     """Tests for KaggleSettings class."""
 
     @staticmethod
-    def test_default_values() -> None:
+    def test_missing_credentials() -> None:
+        """Missing credentials raises ValidationError."""
+        with pytest.raises(ValidationError):
+            KaggleSettings(_env_file=None)
+
+    @staticmethod
+    def test_configured_values(kaggle_env_vars: None) -> None:
         """Default Kaggle settings are correct."""
         settings = KaggleSettings(_env_file=None)
         assert settings.dataset_slug == "evangower/horror-movies"
         assert settings.csv_filename == "horror_movies.csv"
 
     @staticmethod
-    def test_is_configured_false_when_credentials_missing() -> None:
-        """is_configured returns False when credentials are empty."""
-        settings = KaggleSettings(_env_file=None)
-        assert settings.is_configured is False
-
-    @staticmethod
-    def test_is_configured_true_when_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_is_configured_true_when_valid(kaggle_env_vars: None) -> None:
         """is_configured returns True when credentials are set."""
-        monkeypatch.setenv("KAGGLE_USERNAME", "user")
-        monkeypatch.setenv("KAGGLE_KEY", "api_key")
         settings = KaggleSettings(_env_file=None)
         assert settings.is_configured is True
 
     @staticmethod
-    def test_csv_path_property() -> None:
+    def test_csv_path_property(kaggle_env_vars: None) -> None:
         """csv_path returns correct path in raw directory."""
         settings = KaggleSettings(_env_file=None)
         path = settings.csv_path
@@ -278,22 +316,22 @@ class TestTMDBSettings:
     """Tests for TMDBSettings class."""
 
     @staticmethod
-    def test_default_values() -> None:
-        """Default TMDB settings are correct."""
+    def test_missing_api_key() -> None:
+        """Missing API key raises ValidationError."""
+        with pytest.raises(ValidationError):
+            TMDBSettings(_env_file=None)
+
+    @staticmethod
+    def test_configured_values(tmdb_env_vars: None) -> None:
+        """Configured TMDB settings have correct values."""
         settings = TMDBSettings(_env_file=None)
         assert settings.base_url == "https://api.themoviedb.org/3"
         assert settings.horror_genre_id == 27
         assert settings.language == "en-US"
 
     @staticmethod
-    def test_is_configured_false_when_empty() -> None:
-        """is_configured returns False when API key is empty."""
-        settings = TMDBSettings(_env_file=None)
-        assert settings.is_configured is False
-
-    @staticmethod
     def test_is_configured_false_when_placeholder(
-        monkeypatch: pytest.MonkeyPatch,
+        monkeypatch: pytest.MonkeyPatch, tmdb_env_vars: None
     ) -> None:
         """is_configured returns False for placeholder key."""
         monkeypatch.setenv("TMDB_API_KEY", "your_api_key_here")
@@ -301,41 +339,44 @@ class TestTMDBSettings:
         assert settings.is_configured is False
 
     @staticmethod
-    def test_is_configured_true_when_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_is_configured_true_when_valid(tmdb_env_vars: None) -> None:
         """is_configured returns True for valid API key."""
-        monkeypatch.setenv("TMDB_API_KEY", "abc123def456")
         settings = TMDBSettings(_env_file=None)
         assert settings.is_configured is True
 
     @staticmethod
-    def test_requests_per_second_calculation() -> None:
+    def test_requests_per_second_calculation(tmdb_env_vars: None) -> None:
         """requests_per_second calculates correctly."""
         settings = TMDBSettings(_env_file=None)
         assert settings.requests_per_second == pytest.approx(4.0)
 
     @staticmethod
-    def test_requests_per_second_zero_period(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_requests_per_second_zero_period(
+        monkeypatch: pytest.MonkeyPatch, tmdb_env_vars: None
+    ) -> None:
         """requests_per_second returns 1.0 for zero period."""
         monkeypatch.setenv("TMDB_PERIOD_SECONDS", "0")
         settings = TMDBSettings(_env_file=None)
         assert settings.requests_per_second == pytest.approx(1.0)
 
     @staticmethod
-    def test_validate_year_min_too_old(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_validate_year_min_too_old(
+        monkeypatch: pytest.MonkeyPatch, tmdb_env_vars: None
+    ) -> None:
         """year_min before 1888 raises ValidationError."""
         monkeypatch.setenv("TMDB_YEAR_MIN", "1800")
         with pytest.raises(ValidationError):
             TMDBSettings(_env_file=None)
 
     @staticmethod
-    def test_validate_year_min_future(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_validate_year_min_future(monkeypatch: pytest.MonkeyPatch, tmdb_env_vars: None) -> None:
         """year_min in future raises ValidationError."""
         monkeypatch.setenv("TMDB_YEAR_MIN", "2100")
         with pytest.raises(ValidationError):
             TMDBSettings(_env_file=None)
 
     @staticmethod
-    def test_validate_year_max_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_validate_year_max_capped(monkeypatch: pytest.MonkeyPatch, tmdb_env_vars: None) -> None:
         """year_max in future is capped to current year."""
         monkeypatch.setenv("TMDB_YEAR_MAX", "2100")
         settings = TMDBSettings(_env_file=None)

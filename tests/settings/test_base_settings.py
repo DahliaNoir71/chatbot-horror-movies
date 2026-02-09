@@ -24,16 +24,34 @@ from src.settings.database import DatabaseSettings
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all relevant environment variables for isolated testing."""
     env_vars = [
-        "LOG_LEVEL", "LOG_DIR", "LOG_FORMAT",
-        "API_HOST", "API_PORT", "API_RELOAD", "API_WORKERS",
-        "API_PUBLIC_URL", "API_TITLE", "API_VERSION",
-        "JWT_SECRET_KEY", "JWT_ALGORITHM", "JWT_EXPIRE_MINUTES",
-        "RATE_LIMIT_PER_MINUTE", "RATE_LIMIT_PER_HOUR",
+        "LOG_LEVEL",
+        "LOG_DIR",
+        "LOG_FORMAT",
+        "API_HOST",
+        "API_PORT",
+        "API_RELOAD",
+        "API_WORKERS",
+        "API_PUBLIC_URL",
+        "API_TITLE",
+        "API_VERSION",
+        "JWT_SECRET_KEY",
+        "JWT_ALGORITHM",
+        "JWT_EXPIRE_MINUTES",
+        "RATE_LIMIT_PER_MINUTE",
+        "RATE_LIMIT_PER_HOUR",
         "CORS_ORIGINS",
-        "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD",
-        "POSTGRES_DB", "POSTGRES_VECTORS_DB",
-        "DB_POOL_SIZE", "DB_POOL_OVERFLOW", "DB_POOL_TIMEOUT",
-        "ETL_MAX_WORKERS", "SCRAPING_DELAY", "USER_AGENT",
+        "POSTGRES_HOST",
+        "POSTGRES_PORT",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DB",
+        "POSTGRES_VECTORS_DB",
+        "DB_POOL_SIZE",
+        "DB_POOL_OVERFLOW",
+        "DB_POOL_TIMEOUT",
+        "ETL_MAX_WORKERS",
+        "SCRAPING_DELAY",
+        "USER_AGENT",
     ]
     for var in env_vars:
         monkeypatch.delenv(var, raising=False)
@@ -165,10 +183,10 @@ class TestSecuritySettings:
     """Tests for SecuritySettings class."""
 
     @staticmethod
-    def test_is_configured_false_when_empty() -> None:
-        """is_configured returns False when secret is empty."""
-        settings = SecuritySettings(_env_file=None)
-        assert settings.is_configured is False
+    def test_missing_jwt_secret_key() -> None:
+        """Missing JWT_SECRET_KEY raises ValidationError."""
+        with pytest.raises(ValidationError):
+            SecuritySettings(_env_file=None)
 
     @staticmethod
     def test_is_configured_false_when_short(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,35 +241,41 @@ class TestCORSSettings:
 # =============================================================================
 
 
+@pytest.fixture
+def db_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set all required database environment variables."""
+    monkeypatch.setenv("POSTGRES_HOST", "localhost")
+    monkeypatch.setenv("POSTGRES_PORT", "5432")
+    monkeypatch.setenv("POSTGRES_USER", "horrorbot_user")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "test_password")
+    monkeypatch.setenv("POSTGRES_DB", "horrorbot")
+    monkeypatch.setenv("POSTGRES_VECTORS_DB", "horrorbot_vectors")
+    monkeypatch.setenv("DB_POOL_SIZE", "5")
+    monkeypatch.setenv("DB_POOL_OVERFLOW", "10")
+    monkeypatch.setenv("DB_POOL_TIMEOUT", "30")
+
+
 @pytest.mark.usefixtures("clean_env")
 class TestDatabaseSettings:
     """Tests for DatabaseSettings class."""
 
     @staticmethod
-    def test_default_values() -> None:
-        """Default database settings are correct."""
+    def test_missing_required_fields() -> None:
+        """Missing required fields raises ValidationError."""
+        with pytest.raises(ValidationError):
+            DatabaseSettings(_env_file=None)
+
+    @staticmethod
+    def test_configured_values(db_env_vars: None) -> None:
+        """Database settings with all values configured."""
         settings = DatabaseSettings(_env_file=None)
         assert settings.host == "localhost"
         assert settings.port == 5432
         assert settings.database == "horrorbot"
-
-    @staticmethod
-    def test_is_configured_false_when_no_password() -> None:
-        """is_configured returns False when password is empty."""
-        settings = DatabaseSettings(_env_file=None)
-        assert settings.is_configured is False
-
-    @staticmethod
-    def test_is_configured_true_when_password_set(
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """is_configured returns True when password is set."""
-        monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
-        settings = DatabaseSettings(_env_file=None)
         assert settings.is_configured is True
 
     @staticmethod
-    def test_sync_url_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_sync_url_format(monkeypatch: pytest.MonkeyPatch, db_env_vars: None) -> None:
         """sync_url returns correct PostgreSQL URL."""
         monkeypatch.setenv("POSTGRES_HOST", "db.example.com")
         monkeypatch.setenv("POSTGRES_PORT", "5433")
@@ -263,7 +287,7 @@ class TestDatabaseSettings:
         assert settings.sync_url == expected
 
     @staticmethod
-    def test_async_url_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_async_url_format(monkeypatch: pytest.MonkeyPatch, db_env_vars: None) -> None:
         """async_url returns correct asyncpg URL."""
         monkeypatch.setenv("POSTGRES_HOST", "db.example.com")
         monkeypatch.setenv("POSTGRES_PORT", "5433")
@@ -275,7 +299,7 @@ class TestDatabaseSettings:
         assert "testuser:testpass@db.example.com:5433/testdb" in settings.async_url
 
     @staticmethod
-    def test_vectors_sync_url_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vectors_sync_url_format(monkeypatch: pytest.MonkeyPatch, db_env_vars: None) -> None:
         """vectors_sync_url returns correct URL for vectors DB."""
         monkeypatch.setenv("POSTGRES_USER", "user")
         monkeypatch.setenv("POSTGRES_PASSWORD", "pass")
@@ -284,7 +308,7 @@ class TestDatabaseSettings:
         assert "vectors_db" in settings.vectors_sync_url
 
     @staticmethod
-    def test_vectors_async_url_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vectors_async_url_format(monkeypatch: pytest.MonkeyPatch, db_env_vars: None) -> None:
         """vectors_async_url returns correct asyncpg URL for vectors DB."""
         monkeypatch.setenv("POSTGRES_USER", "user")
         monkeypatch.setenv("POSTGRES_PASSWORD", "pass")

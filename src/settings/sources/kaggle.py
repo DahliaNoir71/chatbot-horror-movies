@@ -18,8 +18,8 @@ class KaggleSettings(BaseSettings):
         dataset_slug: Dataset identifier (user/dataset-name).
     """
 
-    username: str = Field(default="", alias="KAGGLE_USERNAME")
-    key: str = Field(default="", alias="KAGGLE_KEY")
+    username: str = Field(alias="KAGGLE_USERNAME")
+    key: str = Field(alias="KAGGLE_KEY")
     dataset_slug: str = Field(
         default="evangower/horror-movies",
         alias="KAGGLE_DATASET_SLUG",

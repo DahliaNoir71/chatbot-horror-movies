@@ -24,22 +24,19 @@ class DatabaseSettings(BaseSettings):
         vectors_database: Vectors database name (RAG).
     """
 
-    host: str = Field(default="localhost", alias="POSTGRES_HOST")
-    port: int = Field(default=5432, alias="POSTGRES_PORT")
-    user: str = Field(default="horrorbot_user", alias="POSTGRES_USER")
-    password: str = Field(default="", alias="POSTGRES_PASSWORD")
+    host: str = Field(alias="POSTGRES_HOST")
+    port: int = Field(alias="POSTGRES_PORT")
+    user: str = Field(alias="POSTGRES_USER")
+    password: str = Field(alias="POSTGRES_PASSWORD")
 
     # Database names
-    database: str = Field(default="horrorbot", alias="POSTGRES_DB")
-    vectors_database: str = Field(
-        default="horrorbot_vectors",
-        alias="POSTGRES_VECTORS_DB",
-    )
+    database: str = Field(alias="POSTGRES_DB")
+    vectors_database: str = Field(alias="POSTGRES_VECTORS_DB")
 
     # Pool settings
-    pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
-    pool_overflow: int = Field(default=10, alias="DB_POOL_OVERFLOW")
-    pool_timeout: int = Field(default=30, alias="DB_POOL_TIMEOUT")
+    pool_size: int = Field(alias="DB_POOL_SIZE")
+    pool_overflow: int = Field(alias="DB_POOL_OVERFLOW")
+    pool_timeout: int = Field(alias="DB_POOL_TIMEOUT")
 
     model_config = SettingsConfigDict(
         env_file=".env",

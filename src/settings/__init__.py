@@ -1,7 +1,12 @@
 """Centralized configuration for HorrorBot project.
 
+Configuration strategy (Hybrid approach):
+- CRITICAL settings (AI, Database, Security): Require explicit .env configuration.
+  No defaults. Raises ValidationError if missing.
+- INFRASTRUCTURE settings (Logging, ETL, API ports): Can use safe defaults.
+  Override via .env as needed.
+
 All configuration values are sourced from environment variables (.env file).
-No hardcoded defaults for sensitive values.
 
 Usage:
     from src.settings import settings
@@ -16,6 +21,7 @@ from typing import Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.settings.ai import ClassifierSettings, EmbeddingSettings, LLMSettings
 from src.settings.api import APISettings, CORSSettings, SecuritySettings
 from src.settings.base import ETLSettings, LoggingSettings, PathsSettings
 from src.settings.database import DatabaseSettings
@@ -45,6 +51,10 @@ __all__ = [
     "RTSettings",
     "KaggleSettings",
     "SparkSettings",
+    # AI (E2)
+    "LLMSettings",
+    "ClassifierSettings",
+    "EmbeddingSettings",
     # Utilities
     "get_masked_settings",
     "print_sources_status",
@@ -84,6 +94,11 @@ class Settings(BaseSettings):
     api: APISettings = Field(default_factory=APISettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     cors: CORSSettings = Field(default_factory=CORSSettings)
+
+    # E2 AI Services
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    classifier: ClassifierSettings = Field(default_factory=ClassifierSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",
