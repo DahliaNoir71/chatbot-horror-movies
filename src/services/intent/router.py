@@ -8,7 +8,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -25,8 +25,9 @@ from src.services.chat.session import SessionManager, get_session_manager
 from src.services.intent.classifier import IntentClassifier, get_intent_classifier
 from src.services.intent.prompts import get_template_response
 from src.services.llm.llm_service import LLMService, get_llm_service
-from src.services.rag.pipeline import RAGPipeline
-from src.services.rag.prompt_builder import RAGPromptBuilder
+
+if TYPE_CHECKING:
+    from src.services.rag.pipeline import RAGPipeline
 
 logger = setup_logger("services.intent.router")
 
@@ -119,7 +120,7 @@ class IntentRouter:
     def __init__(
         self,
         classifier: IntentClassifier | None = None,
-        rag_pipeline: RAGPipeline | None = None,
+        rag_pipeline: "RAGPipeline | None" = None,
         llm_service: LLMService | None = None,
         session_manager: SessionManager | None = None,
     ) -> None:
@@ -132,7 +133,12 @@ class IntentRouter:
             session_manager: Override session manager (for testing).
         """
         self._classifier = classifier or get_intent_classifier()
-        self._rag_pipeline = rag_pipeline or RAGPipeline()
+        if rag_pipeline is None:
+            from src.services.rag.pipeline import RAGPipeline
+
+            self._rag_pipeline = RAGPipeline()
+        else:
+            self._rag_pipeline = rag_pipeline
         self._llm = llm_service or get_llm_service()
         self._session_manager = session_manager or get_session_manager()
         self._logger = logger
@@ -235,6 +241,8 @@ class IntentRouter:
             return token_stream, intent, confidence, session.session_id, None
 
         if intent in LLM_ONLY_INTENTS:
+            from src.services.rag.prompt_builder import RAGPromptBuilder
+
             messages = RAGPromptBuilder.build(
                 intent=intent,
                 user_message=user_message,
@@ -294,6 +302,8 @@ class IntentRouter:
         Returns:
             Generated response text.
         """
+        from src.services.rag.prompt_builder import RAGPromptBuilder
+
         messages = RAGPromptBuilder.build(
             intent=intent,
             user_message=user_message,
