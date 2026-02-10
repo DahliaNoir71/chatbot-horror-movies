@@ -4,9 +4,11 @@
 # PostgreSQL with pgvector extension for RAG embeddings
 #
 # Usage:
-#   docker-compose up -d          # Start services
-#   docker-compose down           # Stop services
-#   docker-compose logs -f db     # View database logs
+#   docker-compose up -d                          # Start core services (db)
+#   docker-compose --profile monitoring up -d     # Start Prometheus + Grafana
+#   docker-compose --profile tools up -d          # Start pgAdmin
+#   docker-compose down                           # Stop services
+#   docker-compose logs -f db                     # View database logs
 #   docker-compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB
 #
 # =============================================================================
@@ -109,6 +111,54 @@ services:
     networks:
       - horrorbot-network
 
+  # ---------------------------------------------------------------------------
+  # Prometheus (monitoring - metrics collection)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: horrorbot-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring  # Only starts with: docker-compose --profile monitoring up -d
+
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - horrorbot_prometheus:/prometheus
+
+    ports:
+      - "9090:9090"
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # Grafana (monitoring - dashboards & visualization)
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: horrorbot-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring  # Only starts with: docker-compose --profile monitoring up -d
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - horrorbot_grafana:/var/lib/grafana
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - prometheus
+
+    networks:
+      - horrorbot-network
+
 # =============================================================================
 # Volumes
 # =============================================================================
@@ -117,6 +167,10 @@ volumes:
     name: horrorbot_pgdata
   horrorbot_pgadmin:
     name: horrorbot_pgadmin
+  horrorbot_prometheus:
+    name: horrorbot_prometheus
+  horrorbot_grafana:
+    name: horrorbot_grafana
 
 # =============================================================================
 # Networks

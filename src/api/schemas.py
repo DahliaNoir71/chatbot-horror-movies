@@ -12,11 +12,40 @@ from pydantic import BaseModel, ConfigDict, Field
 # =============================================================================
 
 
+class LLMComponentHealth(BaseModel):
+    """LLM service health status."""
+
+    loaded: bool = False
+    memory_mb: int | None = None
+
+
+class DatabaseComponentHealth(BaseModel):
+    """Database connection health status."""
+
+    connected: bool = False
+    pool_available: int | None = None
+
+
+class EmbeddingsComponentHealth(BaseModel):
+    """Embeddings service health status."""
+
+    model_loaded: bool = False
+
+
+class HealthComponents(BaseModel):
+    """Health status of all system components."""
+
+    llm: LLMComponentHealth = Field(default_factory=LLMComponentHealth)
+    database: DatabaseComponentHealth = Field(default_factory=DatabaseComponentHealth)
+    embeddings: EmbeddingsComponentHealth = Field(default_factory=EmbeddingsComponentHealth)
+
+
 class HealthResponse(BaseModel):
     """Health check response schema."""
 
     status: str = Field(examples=["healthy"])
     version: str = Field(examples=["1.0.0"])
+    components: HealthComponents = Field(default_factory=HealthComponents)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

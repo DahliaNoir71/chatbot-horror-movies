@@ -207,7 +207,7 @@ def _execute_vector_search(
         List of search results with similarity scores.
     """
     # Import here to avoid circular dependency
-    from src.database.importer.embedding_service import get_embedding_service
+    from src.services.embedding.embedding_service import get_embedding_service
 
     embedding_service = get_embedding_service()
     query_embedding = embedding_service.encode(query)

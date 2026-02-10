@@ -15,7 +15,7 @@ from src.etl.utils.logger import setup_logger
 DEFAULT_MODEL = "all-MiniLM-L6-v2"
 EMBEDDING_DIMENSION = 384
 
-logger = setup_logger("database.importer.embedding")
+logger = setup_logger("services.embedding")
 
 
 class EmbeddingService:

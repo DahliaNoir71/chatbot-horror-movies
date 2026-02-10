@@ -1,0 +1,24 @@
+# =============================================================================
+# Prometheus Configuration — HorrorBot
+# =============================================================================
+# Scrapes the FastAPI /metrics endpoint for AI service monitoring.
+#
+# Metrics collected:
+#   - LLM inference latency and throughput
+#   - Intent classifier performance
+#   - Embedding encoding latency
+#   - HTTP request metrics (method, path, status)
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "horrorbot-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+        labels:
+          service: "horrorbot"
+          environment: "development"

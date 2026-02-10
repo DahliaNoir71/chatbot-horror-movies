@@ -1,0 +1,117 @@
+# Monitoring Guide — HorrorBot
+
+## Architecture
+
+```
+FastAPI (/metrics) → Prometheus (scrape 15s) → Grafana (dashboards)
+```
+
+- **FastAPI** expose les métriques via `PrometheusMiddleware` et l'endpoint `/metrics`
+- **Prometheus** scrape les métriques toutes les 15 secondes
+- **Grafana** visualise via 3 dashboards préconfigurés
+
+## Démarrage du stack monitoring
+
+```bash
+docker-compose --profile monitoring up -d
+```
+
+Services disponibles :
+
+| Service | URL | Identifiants par défaut |
+|---------|-----|------------------------|
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | admin / admin |
+
+## Métriques collectées
+
+### LLM (src/monitoring/metrics.py)
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_llm_request_duration_seconds` | Histogram | Latence inférence LLM |
+| `horrorbot_llm_tokens_generated_total` | Counter | Tokens générés cumulés |
+| `horrorbot_llm_prompt_tokens_total` | Counter | Tokens prompt cumulés |
+| `horrorbot_llm_tokens_per_second` | Gauge | Débit génération LLM (tokens/s) |
+| `horrorbot_llm_requests_total` | Counter | Requêtes LLM par statut (success/error/timeout) |
+
+### Intent Classifier
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_classifier_request_duration_seconds` | Histogram | Latence classification intent |
+| `horrorbot_classifier_requests_total` | Counter | Classifications par intent |
+| `horrorbot_classifier_confidence` | Histogram | Distribution scores de confiance |
+
+### Embeddings
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_embedding_request_duration_seconds` | Histogram | Latence encodage embeddings |
+
+### Système
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_model_memory_bytes` | Gauge | Mémoire par modèle (llm/classifier/embedding) |
+| `horrorbot_model` | Info | Métadonnées des modèles chargés |
+
+### HTTP (src/monitoring/middleware.py)
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_http_requests_total` | Counter | Requêtes HTTP (method, path, status) |
+| `horrorbot_http_request_duration_seconds` | Histogram | Durée requêtes HTTP |
+
+## Dashboards Grafana
+
+Trois dashboards JSON sont provisionnés automatiquement dans `docker/grafana/dashboards/` :
+
+### LLM Dashboard (`llm.json`)
+
+- Latence inférence P95 / P50
+- Tokens par seconde (gauge temps réel)
+- Mémoire RAM du modèle LLM
+- Requêtes par statut (success / error / timeout)
+- Débit tokens générés vs prompt
+
+### RAG Dashboard (`rag.json`)
+
+- Latence intent classifier P95 / P50
+- Distribution des scores de confiance
+- Répartition des classifications par intent
+- Latence encodage embeddings P95 / P50
+- Mémoire par modèle (LLM / classifier / embedding)
+
+### API Dashboard (`api.json`)
+
+- Requêtes par endpoint (rate/s)
+- Taux d'erreur par code HTTP
+- Latence P95 par endpoint
+- Taux d'erreur 5xx (%)
+- Total requêtes sur 1h
+
+## Seuils d'alerte recommandés
+
+| Métrique | Seuil | Signification |
+|----------|-------|---------------|
+| LLM latence P95 | > 3s | Inférence trop lente |
+| Classifier latence | > 200ms | Classification ralentie |
+| Embedding latence P95 | > 200ms | Encodage lent |
+| Confiance moyenne classifier | < 0.6 | Qualité classification dégradée |
+| Taux 5xx | > 5% | Erreurs serveur excessives |
+| Mémoire LLM | > 90% RAM dispo | Risque OOM |
+
+## Configuration Prometheus
+
+Fichier : `docker/prometheus/prometheus.yml`
+
+```yaml
+scrape_configs:
+  - job_name: "horrorbot-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+```
+
+Pour modifier l'intervalle de scrape, ajuster `scrape_interval` (défaut : 15s).

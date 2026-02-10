@@ -14,11 +14,11 @@ from uuid import uuid4
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from src.database.importer.embedding_service import (
+from src.etl.utils.logger import setup_logger
+from src.services.embedding.embedding_service import (
     EmbeddingService,
     get_embedding_service,
 )
-from src.etl.utils.logger import setup_logger
 from src.settings import settings
 
 logger = setup_logger("database.importer.rag")

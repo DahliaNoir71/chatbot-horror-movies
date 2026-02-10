@@ -14,7 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.database import get_engine
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.routers import films
-from src.api.schemas import HealthResponse, TokenRequest, TokenResponse
+from src.api.schemas import (
+    DatabaseComponentHealth,
+    EmbeddingsComponentHealth,
+    HealthComponents,
+    HealthResponse,
+    LLMComponentHealth,
+    TokenRequest,
+    TokenResponse,
+)
 from src.api.services.jwt_service import JWTService, get_jwt_service
 from src.monitoring.middleware import PrometheusMiddleware, mount_metrics
 from src.settings import settings
@@ -118,12 +126,71 @@ def health_check() -> HealthResponse:
     """Health check endpoint (no authentication required).
 
     Returns:
-        API health status with version.
+        API health status with version and component details.
     """
     return HealthResponse(
         status="healthy",
         version=settings.api.version,
+        components=_check_components(),
     )
+
+
+def _check_components() -> HealthComponents:
+    """Check health of all system components.
+
+    Returns:
+        Component health status.
+    """
+    return HealthComponents(
+        llm=_check_llm(),
+        database=_check_database(),
+        embeddings=_check_embeddings(),
+    )
+
+
+def _check_llm() -> LLMComponentHealth:
+    """Check LLM service status."""
+    try:
+        from src.services.llm.llm_service import get_llm_service
+
+        service = get_llm_service()
+        loaded = service._model is not None
+        memory_mb = None
+        if loaded:
+            import psutil
+
+            process = psutil.Process()
+            memory_mb = process.memory_info().rss // (1024 * 1024)
+        return LLMComponentHealth(loaded=loaded, memory_mb=memory_mb)
+    except Exception:
+        return LLMComponentHealth(loaded=False)
+
+
+def _check_database() -> DatabaseComponentHealth:
+    """Check database connection status."""
+    try:
+        from sqlalchemy import text as sa_text
+
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(sa_text("SELECT 1"))
+        pool = engine.pool
+        pool_available = pool.checkedin() if hasattr(pool, "checkedin") else None
+        return DatabaseComponentHealth(connected=True, pool_available=pool_available)
+    except Exception:
+        return DatabaseComponentHealth(connected=False)
+
+
+def _check_embeddings() -> EmbeddingsComponentHealth:
+    """Check embeddings service status."""
+    try:
+        from src.services.embedding.embedding_service import get_embedding_service
+
+        service = get_embedding_service()
+        model_loaded = service._model is not None
+        return EmbeddingsComponentHealth(model_loaded=model_loaded)
+    except Exception:
+        return EmbeddingsComponentHealth(model_loaded=False)
 
 
 @app.post(
