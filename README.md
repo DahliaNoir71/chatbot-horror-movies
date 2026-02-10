@@ -15,7 +15,7 @@
 | Bloc | Statut | Description |
 |------|--------|-------------|
 | **E1** | ⚠️ Partiel | 2/5 sources (TMDB + Rotten Tomatoes) |
-| **E2** | ✅ Complet | Veille, benchmark, paramétrage llama.cpp |
+| **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen3-8B via llama.cpp |
 | **E3** | 🚧 En cours | API REST, monitoring, CI/CD |
 | **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
 | **E5** | 📅 Planifié | Monitoring applicatif |
@@ -25,6 +25,10 @@
 - ✅ **Pipeline ETL robuste** : Extraction TMDB + enrichissement Rotten Tomatoes
 - ✅ **Base vectorielle** : PostgreSQL 16 + pgvector pour recherche sémantique
 - ✅ **Embeddings** : sentence-transformers (all-MiniLM-L6-v2)
+- ✅ **LLM local** : Qwen3-8B (Q4_K_M) via llama-cpp-python
+- ✅ **Intent Classifier** : DeBERTa-v3 zero-shot (routage intelligent des requêtes)
+- ✅ **API REST sécurisée** : FastAPI + JWT + rate limiting + CORS
+- ✅ **Monitoring** : Prometheus + Grafana (13 métriques, 3 dashboards)
 - ✅ **Configuration centralisée** : Pydantic Settings avec validation
 - ✅ **Checkpoints** : Reprise automatique après interruption
 - ✅ **100% open-source** : Aucun service payant
@@ -177,32 +181,39 @@ uv run python -m src api
 
 ## 📁 Structure du projet
 
-```
+```text
 chatbot-horror-movies/
 ├── src/
 │   ├── __main__.py           # CLI principal
-│   ├── settings.py           # Configuration Pydantic
+│   ├── settings/             # Configuration Pydantic (package)
+│   │   ├── ai.py             # LLMSettings, ClassifierSettings, EmbeddingSettings
+│   │   ├── api.py            # APISettings
+│   │   └── database.py       # DatabaseSettings
 │   ├── etl/
 │   │   ├── pipeline.py       # Orchestrateur ETL
 │   │   ├── aggregator.py     # Agrégation et validation
-│   │   ├── utils.py          # Logging, checkpoints
-│   │   └── extractors/
-│   │       ├── base_extractor.py
-│   │       ├── tmdb_extractor.py
-│   │       └── rotten_tomatoes_enricher.py
+│   │   └── extractors/       # Extracteurs par source
+│   ├── services/
+│   │   ├── llm/              # LLMService (wrapper llama-cpp-python)
+│   │   ├── intent/           # IntentClassifier (DeBERTa-v3 zero-shot)
+│   │   └── embedding/        # EmbeddingService (sentence-transformers)
 │   ├── database/
 │   │   ├── models.py         # SQLAlchemy + pgvector
-│   │   └── importer.py       # Import avec embeddings
-│   └── api/                  # (E3 - en cours)
-├── data/
-│   ├── checkpoints/          # JSON intermédiaires
-│   └── processed/            # Données finales
-├── logs/                     # Logs structurés JSON
-├── tests/                    # Tests pytest
-├── docs/                     # Documentation
-├── docker-compose.yml        # PostgreSQL + pgvector
-├── pyproject.toml          # Dépendances et configuration (uv)
-├── uv.lock                 # Lock file reproductible
+│   │   └── repositories/     # Repositories (films, RAG)
+│   ├── api/
+│   │   ├── main.py           # FastAPI app factory
+│   │   ├── routers/          # Endpoints (films, auth)
+│   │   ├── schemas.py        # Modèles Pydantic
+│   │   └── dependencies/     # JWT auth, rate limiting
+│   └── monitoring/
+│       ├── metrics.py        # Métriques Prometheus
+│       └── middleware.py      # PrometheusMiddleware + /metrics
+├── tests/                    # Tests pytest (~91% couverture)
+├── docs/                     # Documentation technique
+├── docker/                   # Config Prometheus, Grafana, init-db
+├── docker-compose.yml        # PostgreSQL + pgvector + monitoring
+├── pyproject.toml            # Dépendances et configuration (uv)
+├── uv.lock                   # Lock file reproductible
 ├── .env.example
 └── README.md
 ```
@@ -229,19 +240,33 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 ## 🛠️ Stack technique
 
 ### Backend
+
 - **Python 3.12** avec typage strict
+- **FastAPI** + **Uvicorn** (API REST async)
 - **Pydantic 2** pour validation et settings
 - **SQLAlchemy 2** ORM
 - **PostgreSQL 16** + **pgvector** 0.5
 
+### IA
+
+- **llama-cpp-python** : LLM local (Qwen3-8B Q4_K_M via GGUF)
+- **transformers** : Intent Classifier (DeBERTa-v3 zero-shot)
+- **sentence-transformers** : Embeddings (all-MiniLM-L6-v2)
+
 ### ETL
+
 - **requests** + **tenacity** (retry) pour TMDB
 - **Crawl4AI** + **BeautifulSoup4** pour Rotten Tomatoes
-- **sentence-transformers** pour embeddings
+
+### Monitoring
+
+- **Prometheus** + **Grafana** (3 dashboards : LLM, RAG, API)
+- **prometheus_client** (13 métriques)
 
 ### Qualité
-- **pytest** + **pytest-cov**
-- **Black**, **Ruff**, **SonarQube**
+
+- **pytest** + **pytest-cov** + **pytest-benchmark**
+- **Ruff** (linting + formatting), **Vulture** (dead code)
 - **structlog** pour logging JSON
 
 ## 🗺️ Roadmap
@@ -249,11 +274,15 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - [x] Pipeline ETL TMDB + Rotten Tomatoes
 - [x] Base PostgreSQL + pgvector
 - [x] Embeddings sentence-transformers
-- [ ] API REST FastAPI (E3)
-- [ ] Authentification JWT (E3)
-- [ ] Intégration LLM llama.cpp (E3)
+- [x] API REST FastAPI (JWT, rate limiting, CORS)
+- [x] Intégration LLM Qwen3-8B via llama.cpp
+- [x] Intent Classifier DeBERTa-v3 zero-shot
+- [x] Monitoring Prometheus/Grafana (3 dashboards)
+- [x] CI/CD GitHub Actions (6 jobs)
+- [ ] Pipeline RAG complet (retriever → prompt → LLM) (E3)
+- [ ] Endpoints chat + streaming SSE (E3)
 - [ ] Frontend Vue.js (E4)
-- [ ] Monitoring Prometheus/Grafana (E5)
+- [ ] Monitoring applicatif avancé (E5)
 
 ## 📄 Licence
 

@@ -34,7 +34,7 @@ Pas d'authentification requise.
   "status": "healthy",
   "version": "1.0.0",
   "components": {
-    "llm": { "loaded": true, "memory_mb": 4900 },
+    "llm": { "loaded": true, "memory_mb": 4500 },
     "database": { "connected": true, "pool_available": 8 },
     "embeddings": { "model_loaded": true }
   },

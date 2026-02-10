@@ -46,20 +46,26 @@ uv sync --group ml
 ```bash
 mkdir -p models
 # Télécharger depuis HuggingFace :
-# https://huggingface.co/TheBloke/Llama-3.1-8B-Instruct-GGUF
-# Fichier : llama-3.1-8b-instruct-q4_k_m.gguf → models/
+# https://huggingface.co/Qwen/Qwen3-8B-GGUF
+# Fichier : qwen3-8b.Q4_K_M.gguf → models/
 ```
 
 ### 5. Initialisation de la base de données
 
 ```bash
-python -m src.etl.pipeline.main
-python -m src.database.importer.rag_importer
+# Pipeline complet : ETL + Import DB
+uv run python -m src full
+
+# Ou par étapes :
+uv run python -m src etl              # Extraction + enrichissement
+uv run python -m src import-db        # Import en base avec embeddings
 ```
 
 ### 6. Lancement de l'API
 
 ```bash
+uv run python -m src api
+# Ou directement :
 uvicorn src.api.main:app --reload --port 8000
 ```
 
