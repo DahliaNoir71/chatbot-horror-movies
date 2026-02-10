@@ -41,13 +41,20 @@ uv sync
 uv sync --group ml
 ```
 
-### 4. Téléchargement du modèle LLM
+### 4. Téléchargement des modèles IA
 
 ```bash
-mkdir -p models
-# Télécharger depuis HuggingFace :
-# https://huggingface.co/Qwen/Qwen3-8B-GGUF
-# Fichier : qwen3-8b.Q4_K_M.gguf → models/
+# Télécharge automatiquement le LLM (Qwen2.5-7B-Instruct GGUF),
+# le classifier (DeBERTa-v3) et l'embedding (MiniLM) depuis HuggingFace
+uv run python -m src.scripts.init_models
+
+# Vérifier que tous les modèles sont présents
+uv run python -m src.scripts.init_models --check
+
+# Télécharger un modèle spécifique uniquement
+uv run python -m src.scripts.init_models --llm         # LLM seulement
+uv run python -m src.scripts.init_models --classifier   # Classifier seulement
+uv run python -m src.scripts.init_models --embedding    # Embedding seulement
 ```
 
 ### 5. Initialisation de la base de données

@@ -15,7 +15,7 @@
 | Bloc | Statut | Description |
 |------|--------|-------------|
 | **E1** | ⚠️ Partiel | 2/5 sources (TMDB + Rotten Tomatoes) |
-| **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen3-8B via llama.cpp |
+| **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen2.5-7B-Instruct via llama.cpp |
 | **E3** | 🚧 En cours | API REST, monitoring, CI/CD |
 | **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
 | **E5** | 📅 Planifié | Monitoring applicatif |
@@ -25,9 +25,9 @@
 - ✅ **Pipeline ETL robuste** : Extraction TMDB + enrichissement Rotten Tomatoes
 - ✅ **Base vectorielle** : PostgreSQL 16 + pgvector pour recherche sémantique
 - ✅ **Embeddings** : sentence-transformers (all-MiniLM-L6-v2)
-- ✅ **LLM local** : Qwen3-8B (Q4_K_M) via llama-cpp-python
+- ✅ **LLM local** : Qwen2.5-7B-Instruct (Q5_K_M) via llama-cpp-python
 - ✅ **Intent Classifier** : DeBERTa-v3 zero-shot (routage intelligent des requêtes)
-- ✅ **Pipeline RAG** : Retriever pgvector + prompt builder + LLM (Qwen3-8B)
+- ✅ **Pipeline RAG** : Retriever pgvector + prompt builder + LLM (Qwen2.5-7B-Instruct)
 - ✅ **Chatbot conversationnel** : Endpoints `/chat` + `/chat/stream` SSE, sessions multi-turn, routage par intent
 - ✅ **API REST sécurisée** : FastAPI + JWT + rate limiting + CORS
 - ✅ **Monitoring** : Prometheus + Grafana (21 métriques, 3 dashboards)
@@ -253,7 +253,7 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 
 ### IA
 
-- **llama-cpp-python** : LLM local (Qwen3-8B Q4_K_M via GGUF)
+- **llama-cpp-python** : LLM local (Qwen2.5-7B-Instruct Q5_K_M via GGUF)
 - **transformers** : Intent Classifier (DeBERTa-v3 zero-shot)
 - **sentence-transformers** : Embeddings (all-MiniLM-L6-v2)
 
@@ -279,7 +279,7 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - [x] Base PostgreSQL + pgvector
 - [x] Embeddings sentence-transformers
 - [x] API REST FastAPI (JWT, rate limiting, CORS)
-- [x] Intégration LLM Qwen3-8B via llama.cpp
+- [x] Intégration LLM Qwen2.5-7B-Instruct via llama.cpp
 - [x] Intent Classifier DeBERTa-v3 zero-shot
 - [x] Monitoring Prometheus/Grafana (3 dashboards)
 - [x] CI/CD GitHub Actions (6 jobs)

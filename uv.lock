@@ -1333,9 +1333,8 @@ dev = [
 ml = [
     { name = "hf-xet" },
     { name = "huggingface-hub" },
-    { name = "llama-cpp-python", version = "0.3.16", source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cu124" }, marker = "sys_platform == 'linux'" },
-    { name = "llama-cpp-python", version = "0.3.16", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "llama-cpp-python", version = "0.3.16", source = { url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl" }, marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
+    { name = "llama-cpp-python", version = "0.3.4", source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cu124" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "llama-cpp-python", version = "0.3.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "patchright" },
     { name = "playwright" },
     { name = "py4j" },
@@ -1419,9 +1418,9 @@ dev = [
 ml = [
     { name = "hf-xet", specifier = "==1.2.0" },
     { name = "huggingface-hub", specifier = "==0.36.0" },
-    { name = "llama-cpp-python", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==0.3.16" },
-    { name = "llama-cpp-python", marker = "sys_platform == 'linux'", specifier = "==0.3.16", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
-    { name = "llama-cpp-python", marker = "sys_platform == 'win32'", url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl" },
+    { name = "llama-cpp-python", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==0.3.4" },
+    { name = "llama-cpp-python", marker = "sys_platform == 'linux'", specifier = "==0.3.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
+    { name = "llama-cpp-python", marker = "sys_platform == 'win32'", specifier = "==0.3.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
     { name = "patchright", specifier = "==1.56.0" },
     { name = "playwright", specifier = "==1.57.0" },
     { name = "py4j", specifier = "==0.10.9.9" },
@@ -1810,25 +1809,28 @@ wheels = [
 
 [[package]]
 name = "llama-cpp-python"
-version = "0.3.16"
+version = "0.3.4"
 source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cu124" }
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'linux'",
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
     "python_full_version < '3.14' and sys_platform == 'linux'",
+    "python_full_version < '3.14' and sys_platform == 'win32'",
 ]
 dependencies = [
-    { name = "diskcache", marker = "sys_platform == 'linux'" },
-    { name = "jinja2", marker = "sys_platform == 'linux'" },
-    { name = "numpy", marker = "sys_platform == 'linux'" },
-    { name = "typing-extensions", marker = "sys_platform == 'linux'" },
+    { name = "diskcache", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "jinja2", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "numpy", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "typing-extensions", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 wheels = [
-    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.16-cu124/llama_cpp_python-0.3.16-cp312-cp312-linux_x86_64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.4-cu124/llama_cpp_python-0.3.4-cp312-cp312-linux_x86_64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.4-cu124/llama_cpp_python-0.3.4-cp312-cp312-win_amd64.whl" },
 ]
 
 [[package]]
 name = "llama-cpp-python"
-version = "0.3.16"
+version = "0.3.4"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'linux' and sys_platform != 'win32'",
@@ -1840,55 +1842,7 @@ dependencies = [
     { name = "numpy", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "typing-extensions", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/b4/c8cd17629ced0b9644a71d399a91145aedef109c0333443bef015e45b704/llama_cpp_python-0.3.16.tar.gz", hash = "sha256:34ed0f9bd9431af045bb63d9324ae620ad0536653740e9bb163a2e1fcb973be6", size = 50688636, upload-time = "2025-08-15T04:58:29.212Z" }
-
-[[package]]
-name = "llama-cpp-python"
-version = "0.3.16"
-source = { url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl" }
-resolution-markers = [
-    "python_full_version < '3.14' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "diskcache", marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
-    { name = "jinja2", marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
-    { name = "numpy", marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.14' and sys_platform == 'win32'" },
-]
-wheels = [
-    { url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl", hash = "sha256:008373598f305cd92f99740c896fd497fcb0bfc60179fb7ab57a9306fed77b2f" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.3.0" },
-    { name = "diskcache", specifier = ">=5.6.1" },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.100.0" },
-    { name = "fastapi", marker = "extra == 'test'", specifier = ">=0.100.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.1" },
-    { name = "httpx", marker = "extra == 'test'", specifier = ">=0.24.1" },
-    { name = "huggingface-hub", marker = "extra == 'test'", specifier = ">=0.23.0" },
-    { name = "jinja2", specifier = ">=2.11.3" },
-    { name = "llama-cpp-python", extras = ["dev", "server", "test"], marker = "extra == 'all'" },
-    { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.4.3" },
-    { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.1.18" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'", specifier = ">=0.22.0" },
-    { name = "numpy", specifier = ">=1.20.0" },
-    { name = "pydantic-settings", marker = "extra == 'server'", specifier = ">=2.0.1" },
-    { name = "pydantic-settings", marker = "extra == 'test'", specifier = ">=2.0.1" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4.0" },
-    { name = "pyyaml", marker = "extra == 'server'", specifier = ">=5.1" },
-    { name = "scipy", marker = "extra == 'test'", specifier = ">=1.10" },
-    { name = "sse-starlette", marker = "extra == 'server'", specifier = ">=1.6.1" },
-    { name = "sse-starlette", marker = "extra == 'test'", specifier = ">=1.6.1" },
-    { name = "starlette-context", marker = "extra == 'server'", specifier = ">=0.3.6,<0.4" },
-    { name = "starlette-context", marker = "extra == 'test'", specifier = ">=0.3.6,<0.4" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=4.0.2" },
-    { name = "typing-extensions", specifier = ">=4.5.0" },
-    { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.22.0" },
-]
-provides-extras = ["server", "test", "dev", "all"]
+sdist = { url = "https://files.pythonhosted.org/packages/af/07/6e9e19cf88bee4986f53f5310205364baae22cb31122ebf4c36ac6152b15/llama_cpp_python-0.3.4.tar.gz", hash = "sha256:52b37129c282753edf89213e852b8b46664b059116ae2213da9cb4a45374d23d", size = 64461957, upload-time = "2024-12-09T04:55:45.705Z" }
 
 [[package]]
 name = "lxml"

@@ -111,7 +111,7 @@ ml = [
     "safetensors==0.7.0",
 
     # LLM (local inference)
-    "llama-cpp-python==0.3.16",
+    "llama-cpp-python==0.3.4",
 
     # Hugging Face
     "huggingface-hub==0.36.0",
@@ -155,7 +155,7 @@ explicit = true
 torch = { index = "pytorch-cu126" }
 llama-cpp-python = [
     { index = "llama-cpp-python-cu124", marker = "sys_platform == 'linux'" },
-    { url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'" },
+    { index = "llama-cpp-python-cu124", marker = "sys_platform == 'win32'" },
 ]
 
 # =============================================================================
