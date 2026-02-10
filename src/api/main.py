@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.api.database import get_engine
 from src.api.dependencies.rate_limit import check_rate_limit
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     app.add_middleware(PrometheusMiddleware)
     mount_metrics(app)
     _register_routers(app)
+    _mount_integration_client(app)
     return app
 
 
@@ -107,6 +109,26 @@ def _register_routers(app: FastAPI) -> None:
     """
     app.include_router(films.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
+
+
+def _mount_integration_client(app: FastAPI) -> None:
+    """Mount the integration client as static files.
+
+    Serves the HTML/JS demo client at ``/client/``.
+    Mounted last so it doesn't shadow API routes.
+
+    Args:
+        app: FastAPI application instance.
+    """
+    from pathlib import Path
+
+    client_dir = Path(__file__).resolve().parent.parent / "integration"
+    if client_dir.is_dir():
+        app.mount(
+            "/client",
+            StaticFiles(directory=str(client_dir), html=True),
+            name="integration-client",
+        )
 
 
 # =============================================================================
