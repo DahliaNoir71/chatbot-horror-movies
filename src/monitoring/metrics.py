@@ -87,3 +87,63 @@ MODEL_INFO = Info(
     "horrorbot_model",
     "Information about loaded AI models",
 )
+
+# =============================================================================
+# RAG RETRIEVAL METRICS
+# =============================================================================
+
+RAG_RETRIEVAL_DURATION = Histogram(
+    "horrorbot_rag_retrieval_duration_seconds",
+    "RAG document retrieval latency in seconds",
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+)
+
+RAG_DOCUMENTS_RETRIEVED = Histogram(
+    "horrorbot_rag_documents_retrieved",
+    "Number of documents retrieved per RAG query",
+    buckets=[0, 1, 2, 3, 5, 10, 20],
+)
+
+RAG_TOP_SIMILARITY = Histogram(
+    "horrorbot_rag_top_similarity_score",
+    "Top similarity score from RAG retrieval",
+    buckets=[0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0],
+)
+
+# =============================================================================
+# CHAT ENDPOINT METRICS
+# =============================================================================
+
+CHAT_REQUESTS_TOTAL = Counter(
+    "horrorbot_chat_requests_total",
+    "Total chat endpoint requests",
+    ["intent", "mode"],  # mode: sync, stream
+)
+
+CHAT_REQUEST_DURATION = Histogram(
+    "horrorbot_chat_request_duration_seconds",
+    "Total chat request duration (end-to-end) in seconds",
+    ["intent"],
+    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
+)
+
+CHAT_ERRORS_TOTAL = Counter(
+    "horrorbot_chat_errors_total",
+    "Total chat errors by type",
+    ["error_type"],  # timeout, llm_crash, classifier_error, stream_error
+)
+
+# =============================================================================
+# SESSION METRICS
+# =============================================================================
+
+ACTIVE_SESSIONS = Gauge(
+    "horrorbot_active_sessions",
+    "Number of active chat sessions",
+)
+
+SESSION_MESSAGE_COUNT = Histogram(
+    "horrorbot_session_message_count",
+    "Number of messages per session at time of interaction",
+    buckets=[1, 2, 5, 10, 20, 50],
+)

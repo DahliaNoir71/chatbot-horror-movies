@@ -66,10 +66,8 @@ class LLMService:
             from llama_cpp import Llama
 
             self._logger.info(
-                "loading_llm",
-                model_path=self._model_path,
-                context_length=self._context_length,
-                n_gpu_layers=self._n_gpu_layers,
+                f"Loading LLM: {self._model_path} "
+                f"(context_length: {self._context_length}, gpu_layers: {self._n_gpu_layers})"
             )
             self._llm = Llama(
                 model_path=self._model_path,
@@ -77,7 +75,7 @@ class LLMService:
                 n_gpu_layers=self._n_gpu_layers,
                 verbose=False,
             )
-            self._logger.info("llm_loaded")
+            self._logger.info("LLM loaded successfully")
         return self._llm
 
     def generate(

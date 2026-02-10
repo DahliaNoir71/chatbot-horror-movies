@@ -98,6 +98,7 @@ dev = [
     "pytest-benchmark>=4.0.0",
     "coverage>=7.4.0",
     "Faker>=23.0.0",
+    "pre-commit>=3.0.0",
 ]
 
 # --- Dépendances ML lourdes (local/production uniquement, PAS en CI) ---
@@ -152,7 +153,10 @@ explicit = true
 # Router packages vers les index CUDA
 [tool.uv.sources]
 torch = { index = "pytorch-cu126" }
-llama-cpp-python = { index = "llama-cpp-python-cu124" }
+llama-cpp-python = [
+    { index = "llama-cpp-python-cu124", marker = "sys_platform == 'linux'" },
+    { url = "https://github.com/dougeeai/llama-cpp-python-wheels/releases/download/v0.3.16-cuda13.0-sm89-py312/llama_cpp_python-0.3.16%2Bcuda13.0.sm89.ada-cp312-cp312-win_amd64.whl", marker = "sys_platform == 'win32'" },
+]
 
 # =============================================================================
 # Build system

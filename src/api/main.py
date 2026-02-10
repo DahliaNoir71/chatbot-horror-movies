@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.database import get_engine
 from src.api.dependencies.rate_limit import check_rate_limit
-from src.api.routers import films
+from src.api.routers import chat, films
 from src.api.schemas import (
     DatabaseComponentHealth,
     EmbeddingsComponentHealth,
@@ -106,6 +106,7 @@ def _register_routers(app: FastAPI) -> None:
         app: FastAPI application instance.
     """
     app.include_router(films.router, prefix="/api/v1")
+    app.include_router(chat.router, prefix="/api/v1")
 
 
 # =============================================================================

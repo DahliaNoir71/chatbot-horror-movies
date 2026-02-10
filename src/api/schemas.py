@@ -182,3 +182,41 @@ class SearchResponse(BaseModel):
     query: str
     results: list[SearchResultItem]
     count: int
+
+
+# =============================================================================
+# CHAT SCHEMAS
+# =============================================================================
+
+
+class ChatRequest(BaseModel):
+    """Chat endpoint request schema."""
+
+    message: str = Field(min_length=1, max_length=2000, description="User message")
+    session_id: str | None = Field(
+        default=None,
+        description="Session UUID for multi-turn. Omit for new session.",
+    )
+
+
+class ChatResponse(BaseModel):
+    """Synchronous chat response schema."""
+
+    response: str = Field(description="Bot response text")
+    intent: str = Field(description="Classified intent label")
+    confidence: float = Field(description="Classifier confidence (0.0-1.0)")
+    session_id: str = Field(description="Session UUID for subsequent requests")
+
+
+class StreamChunk(BaseModel):
+    """SSE stream chunk schema.
+
+    Serialized as JSON in each SSE data field.
+    type='chunk' for text fragments, type='done' for final metadata.
+    """
+
+    type: str = Field(description="Event type: 'chunk' or 'done'")
+    content: str | None = Field(default=None, description="Text chunk (for type='chunk')")
+    intent: str | None = Field(default=None, description="Intent (for type='done')")
+    confidence: float | None = Field(default=None, description="Confidence (for type='done')")
+    session_id: str | None = Field(default=None, description="Session ID (for type='done')")

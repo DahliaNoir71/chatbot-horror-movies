@@ -70,17 +70,13 @@ class IntentClassifier:
             from transformers import pipeline
 
             device = self._resolve_device()
-            self._logger.info(
-                "loading_classifier",
-                model=self._model_name,
-                device=str(device),
-            )
+            self._logger.info(f"Loading classifier: {self._model_name} on {device}")
             self._pipeline = pipeline(
                 "zero-shot-classification",
                 model=self._model_name,
                 device=device,
             )
-            self._logger.info("classifier_loaded")
+            self._logger.info("Classifier loaded successfully")
         return self._pipeline
 
     def _resolve_device(self) -> int | str:

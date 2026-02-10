@@ -74,6 +74,8 @@ Endpoints disponibles :
 - API : http://localhost:8000/api/docs
 - Métriques Prometheus : http://localhost:8000/metrics
 - Health check : http://localhost:8000/api/v1/health
+- Chat synchrone : POST http://localhost:8000/api/v1/chat
+- Chat streaming : POST http://localhost:8000/api/v1/chat/stream
 
 ## Déploiement Production (Render)
 
@@ -117,4 +119,16 @@ curl http://localhost:8000/metrics
 curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"username": "demo", "password": "demopass1234"}'
+
+# Chat synchrone (remplacer <token> par le access_token obtenu)
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Recommande-moi un film comme Hereditary"}'
+
+# Chat streaming SSE
+curl -N -X POST http://localhost:8000/api/v1/chat/stream \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Pourquoi le found footage est efficace ?"}'
 ```

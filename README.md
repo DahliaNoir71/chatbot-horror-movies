@@ -27,8 +27,10 @@
 - ✅ **Embeddings** : sentence-transformers (all-MiniLM-L6-v2)
 - ✅ **LLM local** : Qwen3-8B (Q4_K_M) via llama-cpp-python
 - ✅ **Intent Classifier** : DeBERTa-v3 zero-shot (routage intelligent des requêtes)
+- ✅ **Pipeline RAG** : Retriever pgvector + prompt builder + LLM (Qwen3-8B)
+- ✅ **Chatbot conversationnel** : Endpoints `/chat` + `/chat/stream` SSE, sessions multi-turn, routage par intent
 - ✅ **API REST sécurisée** : FastAPI + JWT + rate limiting + CORS
-- ✅ **Monitoring** : Prometheus + Grafana (13 métriques, 3 dashboards)
+- ✅ **Monitoring** : Prometheus + Grafana (21 métriques, 3 dashboards)
 - ✅ **Configuration centralisée** : Pydantic Settings avec validation
 - ✅ **Checkpoints** : Reprise automatique après interruption
 - ✅ **100% open-source** : Aucun service payant
@@ -195,14 +197,16 @@ chatbot-horror-movies/
 │   │   └── extractors/       # Extracteurs par source
 │   ├── services/
 │   │   ├── llm/              # LLMService (wrapper llama-cpp-python)
-│   │   ├── intent/           # IntentClassifier (DeBERTa-v3 zero-shot)
+│   │   ├── intent/           # IntentClassifier + IntentRouter + prompts
+│   │   ├── chat/             # SessionManager (multi-turn)
+│   │   ├── rag/              # DocumentRetriever, RAGPromptBuilder, RAGPipeline
 │   │   └── embedding/        # EmbeddingService (sentence-transformers)
 │   ├── database/
 │   │   ├── models.py         # SQLAlchemy + pgvector
 │   │   └── repositories/     # Repositories (films, RAG)
 │   ├── api/
 │   │   ├── main.py           # FastAPI app factory
-│   │   ├── routers/          # Endpoints (films, auth)
+│   │   ├── routers/          # Endpoints (films, auth, chat)
 │   │   ├── schemas.py        # Modèles Pydantic
 │   │   └── dependencies/     # JWT auth, rate limiting
 │   └── monitoring/
@@ -261,7 +265,7 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 ### Monitoring
 
 - **Prometheus** + **Grafana** (3 dashboards : LLM, RAG, API)
-- **prometheus_client** (13 métriques)
+- **prometheus_client** (21 métriques)
 
 ### Qualité
 
@@ -279,8 +283,8 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - [x] Intent Classifier DeBERTa-v3 zero-shot
 - [x] Monitoring Prometheus/Grafana (3 dashboards)
 - [x] CI/CD GitHub Actions (6 jobs)
-- [ ] Pipeline RAG complet (retriever → prompt → LLM) (E3)
-- [ ] Endpoints chat + streaming SSE (E3)
+- [x] Pipeline RAG complet (retriever → prompt → LLM) (E3)
+- [x] Endpoints chat + streaming SSE (E3)
 - [ ] Frontend Vue.js (E4)
 - [ ] Monitoring applicatif avancé (E5)
 

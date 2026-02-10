@@ -56,6 +56,29 @@ Services disponibles :
 | `horrorbot_model_memory_bytes` | Gauge | Mémoire par modèle (llm/classifier/embedding) |
 | `horrorbot_model` | Info | Métadonnées des modèles chargés |
 
+### RAG Retrieval
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_rag_retrieval_duration_seconds` | Histogram | Latence recherche vectorielle pgvector |
+| `horrorbot_rag_documents_retrieved` | Histogram | Nombre de documents retournés par requête RAG |
+| `horrorbot_rag_top_similarity_score` | Histogram | Score de similarité cosine du document top-1 |
+
+### Chat Endpoint
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_chat_requests_total` | Counter | Requêtes chat par intent et mode (sync/stream) |
+| `horrorbot_chat_request_duration_seconds` | Histogram | Durée E2E d'une requête chat par intent |
+| `horrorbot_chat_errors_total` | Counter | Erreurs chat par type (timeout/llm_crash/stream_error) |
+
+### Sessions
+
+| Métrique | Type | Description |
+|----------|------|-------------|
+| `horrorbot_active_sessions` | Gauge | Nombre de sessions de chat actives |
+| `horrorbot_session_message_count` | Histogram | Nombre de messages par session au moment de l'interaction |
+
 ### HTTP (src/monitoring/middleware.py)
 
 | Métrique | Type | Description |
@@ -99,6 +122,9 @@ Trois dashboards JSON sont provisionnés automatiquement dans `docker/grafana/da
 | Classifier latence | > 200ms | Classification ralentie |
 | Embedding latence P95 | > 200ms | Encodage lent |
 | Confiance moyenne classifier | < 0.6 | Qualité classification dégradée |
+| RAG retrieval latence P95 | > 500ms | Recherche vectorielle lente |
+| Chat latence E2E P95 | > 5s | Réponse chatbot trop lente |
+| Sessions actives | > 500 | Charge mémoire sessions |
 | Taux 5xx | > 5% | Erreurs serveur excessives |
 | Mémoire LLM | > 90% RAM dispo | Risque OOM |
 

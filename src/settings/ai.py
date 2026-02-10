@@ -20,6 +20,8 @@ class LLMSettings(BaseSettings):
 
     Attributes:
         model_path: Path to GGUF model file (relative to project root or absolute).
+        hf_repo: HuggingFace repository ID for downloading the model.
+        hf_filename: Filename of the GGUF file in the HuggingFace repository.
         context_length: Context window size in tokens.
         max_tokens: Maximum tokens to generate per response.
         temperature: Sampling temperature (0.0 = deterministic, 2.0 = creative).
@@ -28,6 +30,8 @@ class LLMSettings(BaseSettings):
     """
 
     model_path: str = Field(alias="LLM_MODEL_PATH")
+    hf_repo: str = Field(alias="LLM_HF_REPO")
+    hf_filename: str = Field(alias="LLM_HF_FILENAME")
     context_length: int = Field(alias="LLM_CONTEXT_LENGTH")
     max_tokens: int = Field(alias="LLM_MAX_TOKENS")
     temperature: float = Field(alias="LLM_TEMPERATURE")

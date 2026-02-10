@@ -27,6 +27,12 @@ Client → POST /api/v1/auth/token (username, password)
 Client → GET /api/v1/films (Authorization: Bearer <token>)
        ← 200 {data: [...]}
 
+Client → POST /api/v1/chat (Authorization: Bearer <token>)
+       ← 200 {response, intent, confidence, session_id}
+
+Client → POST /api/v1/chat/stream (Authorization: Bearer <token>)
+       ← 200 SSE stream (chunks + done event)
+
 Client → GET /api/v1/films (token expiré)
        ← 401 Unauthorized
 ```
@@ -38,7 +44,10 @@ Client → GET /api/v1/films (token expiré)
 | `RATE_LIMIT_PER_MINUTE` | Requêtes max par minute par IP | `100` |
 | `RATE_LIMIT_PER_HOUR` | Requêtes max par heure par IP | `1000` |
 
-Le rate limiting est appliqué via `slowapi` sur l'endpoint `/api/v1/auth/token` pour prévenir les attaques par force brute.
+Le rate limiting est appliqué via `slowapi` sur les endpoints :
+
+- `/api/v1/auth/token` : prévention des attaques par force brute
+- `/api/v1/chat` et `/api/v1/chat/stream` : protection contre l'abus du LLM (ressource coûteuse en CPU/RAM)
 
 ## CORS (Cross-Origin Resource Sharing)
 
@@ -53,9 +62,9 @@ Headers autorisés : Authorization, Content-Type
 
 | Risque OWASP | Mesure HorrorBot |
 |--------------|------------------|
-| A01 Broken Access Control | JWT obligatoire sur tous les endpoints `/films/*` |
+| A01 Broken Access Control | JWT obligatoire sur tous les endpoints `/films/*` et `/chat/*` |
 | A02 Cryptographic Failures | HS256 avec clé ≥32 chars, pas de stockage de mots de passe en clair |
-| A03 Injection | Requêtes SQL paramétrées (SQLAlchemy ORM), validation Pydantic |
+| A03 Injection | Requêtes SQL paramétrées (SQLAlchemy ORM), validation Pydantic. Messages chat limités à 2000 caractères. System prompts non modifiables par l'utilisateur (protection injection de prompt). |
 | A04 Insecure Design | Architecture 100% locale, pas de transfert de données vers le cloud |
 | A05 Security Misconfiguration | CORS restrictif, headers de sécurité, rate limiting |
 | A06 Vulnerable Components | CI/CD : Bandit, Safety, pip-audit, OWASP Dependency-Check |
