@@ -4,11 +4,12 @@
 # PostgreSQL with pgvector extension for RAG embeddings
 #
 # Usage:
-#   docker-compose up -d                          # Start core services (db)
-#   docker-compose --profile monitoring up -d     # Start Prometheus + Grafana
-#   docker-compose --profile tools up -d          # Start pgAdmin
-#   docker-compose down                           # Stop services
-#   docker-compose logs -f db                     # View database logs
+#   docker-compose up -d                              # Start core services (db)
+#   docker-compose --profile monitoring up -d         # Start Prometheus + Grafana
+#   docker-compose --profile monitoring-test up -d    # Start monitoring sandbox (G17)
+#   docker-compose --profile tools up -d              # Start pgAdmin
+#   docker-compose down                               # Stop services
+#   docker-compose logs -f db                         # View database logs
 #   docker-compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB
 #
 # =============================================================================
@@ -160,6 +161,55 @@ services:
     networks:
       - horrorbot-network
 
+  # ---------------------------------------------------------------------------
+  # Prometheus Test (monitoring sandbox — G17)
+  # ---------------------------------------------------------------------------
+  prometheus-test:
+    image: prom/prometheus:latest
+    container_name: horrorbot-prometheus-test
+    restart: unless-stopped
+    profiles:
+      - monitoring-test  # docker-compose --profile monitoring-test up -d
+
+    volumes:
+      - ./docker/prometheus/prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
+      - horrorbot_prometheus_test:/prometheus
+
+    ports:
+      - "9091:9090"
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # Grafana Test (monitoring sandbox — G17)
+  # ---------------------------------------------------------------------------
+  grafana-test:
+    image: grafana/grafana:latest
+    container_name: horrorbot-grafana-test
+    restart: unless-stopped
+    profiles:
+      - monitoring-test
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-thx1138}
+      GF_UNIFIED_ALERTING_ENABLED: "true"
+
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - horrorbot_grafana_test:/var/lib/grafana
+
+    ports:
+      - "3001:3000"
+
+    depends_on:
+      - prometheus-test
+
+    networks:
+      - horrorbot-network
+
 # =============================================================================
 # Volumes
 # =============================================================================
@@ -172,6 +222,10 @@ volumes:
     name: horrorbot_prometheus
   horrorbot_grafana:
     name: horrorbot_grafana
+  horrorbot_prometheus_test:
+    name: horrorbot_prometheus_test
+  horrorbot_grafana_test:
+    name: horrorbot_grafana_test
 
 # =============================================================================
 # Networks

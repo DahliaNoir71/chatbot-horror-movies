@@ -23,6 +23,52 @@ Services disponibles :
 | Prometheus | http://localhost:9090 | — |
 | Grafana | http://localhost:3000 | admin / admin |
 
+## Environnement sandbox (test) — G17
+
+Un profil Docker dédié permet de valider la chaîne de monitoring dans un environnement
+isolé, sans impacter les données de développement.
+
+### Démarrage
+
+```bash
+# 1. Démarrer le stack monitoring sandbox
+docker-compose --profile monitoring-test up -d
+
+# 2. Lancer l'API sur le port test (8001)
+uvicorn src.api.main:app --port 8001
+
+# 3. Générer du trafic de test
+pytest tests/integration/ -v
+```
+
+### Services sandbox
+
+| Service | URL | Cible scrape |
+|---------|-----|-------------|
+| Prometheus Test | http://localhost:9091 | API sur port 8001 |
+| Grafana Test | http://localhost:3001 | admin / thx1138 |
+
+### Différences avec l'environnement de développement
+
+| Aspect | Développement (`monitoring`) | Sandbox (`monitoring-test`) |
+|--------|------|---------|
+| Prometheus | Port 9090 | Port 9091 |
+| Grafana | Port 3000 | Port 3001 |
+| API cible | `host.docker.internal:8000` | `host.docker.internal:8001` |
+| Label | `environment: "development"` | `environment: "test"` |
+| Volumes | `horrorbot_prometheus`, `horrorbot_grafana` | `horrorbot_prometheus_test`, `horrorbot_grafana_test` |
+
+Les dashboards et alertes sont identiques (mêmes fichiers de provisioning), ce qui permet
+de valider que la chaîne complète fonctionne avec les mêmes règles qu'en développement.
+
+### Nettoyage
+
+```bash
+docker-compose --profile monitoring-test down -v  # -v supprime les volumes de test
+```
+
+---
+
 ## Métriques collectées
 
 ### LLM (src/monitoring/metrics.py)

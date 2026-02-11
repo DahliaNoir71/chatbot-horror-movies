@@ -1,0 +1,24 @@
+# =============================================================================
+# HORRORBOT - Prometheus Test/Sandbox Configuration
+# =============================================================================
+# Scrapes the test API on port 8001 for monitoring validation.
+# Used with: docker-compose --profile monitoring-test up -d
+#
+# Differences from production (prometheus.yml):
+#   - Scrape target: port 8001 (test API) instead of 8000
+#   - Label: environment="test" instead of "development"
+#   - Job name: horrorbot-api-test
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "horrorbot-api-test"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+        labels:
+          service: "horrorbot"
+          environment: "test"
