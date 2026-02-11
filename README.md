@@ -16,7 +16,7 @@
 |------|--------|-------------|
 | **E1** | ⚠️ Partiel | 2/5 sources (TMDB + Rotten Tomatoes) |
 | **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen2.5-7B-Instruct via llama.cpp |
-| **E3** | 🚧 En cours | API REST, monitoring, CI/CD |
+| **E3** | 🚧 En cours | API REST, monitoring, CI/CD, pipeline MLOps |
 | **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
 | **E5** | 📅 Planifié | Monitoring applicatif |
 
@@ -285,6 +285,7 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - [x] CI/CD GitHub Actions (6 jobs)
 - [x] Pipeline RAG complet (retriever → prompt → LLM) (E3)
 - [x] Endpoints chat + streaming SSE (E3)
+- [x] Pipeline MLOps GitHub Actions (6 jobs : validation, évaluation, rapport, livraison) (E3)
 - [ ] Frontend Vue.js (E4)
 - [ ] Monitoring applicatif avancé (E5)
 
