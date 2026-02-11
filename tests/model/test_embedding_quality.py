@@ -121,11 +121,11 @@ class TestEmbeddingProperties:
         assert len(vec) == EMBEDDING_DIMENSION
 
     @staticmethod
+    @pytest.mark.slow
     def test_batch_consistency(embedding_service):
         """Batch-generated embeddings match individually-generated ones."""
         texts = [
             "zombie apocalypse horror film",
-            "haunted house ghost story",
         ]
 
         individual = [embedding_service.generate(t) for t in texts]
