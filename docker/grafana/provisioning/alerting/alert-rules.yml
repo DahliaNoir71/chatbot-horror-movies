@@ -1,0 +1,314 @@
+# =============================================================================
+# Grafana Alert Rules Provisioning — HorrorBot
+# =============================================================================
+# 10 alert rules organized in 2 groups (Critical + Warning).
+# Thresholds match docs/MONITORING.md and plan_travail_E2_E3.md (C11).
+#
+# Alerts are visible in Grafana UI: http://localhost:3000/alerting/list
+# =============================================================================
+
+apiVersion: 1
+
+groups:
+  # ---------------------------------------------------------------------------
+  # Critical alerts — Service health
+  # ---------------------------------------------------------------------------
+  - orgId: 1
+    name: HorrorBot - Critical
+    folder: HorrorBot
+    interval: 1m
+    rules:
+      # 1. LLM Inference Latency High (P95 > 3s)
+      - uid: horrorbot-llm-latency-high
+        title: LLM Inference Latency High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.95, rate(horrorbot_llm_request_duration_seconds_bucket[5m])) > 3
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: LLM inference P95 latency exceeds 3s
+          description: >-
+            The 95th percentile LLM inference latency has been above
+            3 seconds for 5 minutes.
+        labels:
+          severity: critical
+          service: horrorbot
+
+      # 2. 5xx Error Rate High (> 5%)
+      - uid: horrorbot-5xx-rate-high
+        title: 5xx Error Rate High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: >-
+                (sum(rate(horrorbot_http_requests_total{status=~"5.."}[5m]))
+                / sum(rate(horrorbot_http_requests_total[5m]))) * 100 > 5
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: 5xx error rate exceeds 5%
+          description: >-
+            More than 5% of HTTP requests are returning 5xx status codes
+            over the last 5 minutes.
+        labels:
+          severity: critical
+          service: horrorbot
+
+      # 3. Model Memory Usage High (> 90% of 16 GiB)
+      - uid: horrorbot-model-memory-high
+        title: Model Memory Usage High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # 90% of 16 GiB = 16 * 1024^3 * 0.9 = 15461882265 bytes
+              expr: sum(horrorbot_model_memory_bytes) > 15461882265
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Model memory usage exceeds 90% of 16 GiB
+          description: >-
+            Total AI model memory (LLM + classifier + embedding) exceeds
+            90% of the assumed 16 GiB RAM budget.
+        labels:
+          severity: critical
+          service: horrorbot
+
+      # 4. LLM Token Throughput Low (< 5 tok/s while active)
+      - uid: horrorbot-llm-throughput-low
+        title: LLM Token Throughput Low
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # Guard: > 0 ensures alert only fires during active generation
+              expr: horrorbot_llm_tokens_per_second < 5 and horrorbot_llm_tokens_per_second > 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: LLM generation throughput below 5 tokens/s
+          description: >-
+            The LLM is actively generating but throughput has dropped
+            below 5 tokens per second for 5 minutes.
+        labels:
+          severity: critical
+          service: horrorbot
+
+  # ---------------------------------------------------------------------------
+  # Warning alerts — Performance degradation
+  # ---------------------------------------------------------------------------
+  - orgId: 1
+    name: HorrorBot - Warning
+    folder: HorrorBot
+    interval: 1m
+    rules:
+      # 5. Classifier Latency High (P95 > 200ms)
+      - uid: horrorbot-classifier-latency-high
+        title: Classifier Latency High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.95, rate(horrorbot_classifier_request_duration_seconds_bucket[5m])) > 0.2
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Intent classifier P95 latency exceeds 200ms
+          description: >-
+            The 95th percentile intent classification latency has been
+            above 200ms for 5 minutes.
+        labels:
+          severity: warning
+          service: horrorbot
+
+      # 6. Classifier Confidence Low (median < 0.6)
+      - uid: horrorbot-classifier-confidence-low
+        title: Classifier Confidence Low
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.5, rate(horrorbot_classifier_confidence_bucket[5m])) < 0.6
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Intent classifier median confidence below 0.6
+          description: >-
+            The median confidence score of the intent classifier has
+            dropped below 0.6, indicating degraded classification quality.
+        labels:
+          severity: warning
+          service: horrorbot
+
+      # 7. RAG Retrieval Slow (P95 > 500ms)
+      - uid: horrorbot-rag-retrieval-slow
+        title: RAG Retrieval Slow
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.95, rate(horrorbot_rag_retrieval_duration_seconds_bucket[5m])) > 0.5
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: RAG retrieval P95 latency exceeds 500ms
+          description: >-
+            The 95th percentile RAG document retrieval latency has been
+            above 500ms for 5 minutes.
+        labels:
+          severity: warning
+          service: horrorbot
+
+      # 8. RAG No Documents Returned (> 50% queries with 0 docs)
+      - uid: horrorbot-rag-no-documents
+        title: RAG No Documents Returned
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: >-
+                rate(horrorbot_rag_documents_retrieved_bucket{le="0"}[5m])
+                / rate(horrorbot_rag_documents_retrieved_count[5m]) > 0.5
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Over 50% of RAG queries return zero documents
+          description: >-
+            More than half of RAG retrieval queries are returning no
+            documents, indicating a potential issue with the vector store
+            or embedding quality.
+        labels:
+          severity: warning
+          service: horrorbot
+
+      # 9. Embedding Latency High (P95 > 100ms)
+      - uid: horrorbot-embedding-latency-high
+        title: Embedding Latency High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: histogram_quantile(0.95, rate(horrorbot_embedding_request_duration_seconds_bucket[5m])) > 0.1
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Embedding encoding P95 latency exceeds 100ms
+          description: >-
+            The 95th percentile embedding encoding latency has been
+            above 100ms for 5 minutes.
+        labels:
+          severity: warning
+          service: horrorbot
+
+      # 10. API Request Rate High (> 1000 rpm)
+      - uid: horrorbot-api-rate-high
+        title: API Request Rate High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: sum(rate(horrorbot_http_requests_total[1m])) * 60 > 1000
+              intervalMs: 15000
+              maxDataPoints: 43200
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: API request rate exceeds 1000 requests/minute
+          description: >-
+            The total HTTP request rate has exceeded 1000 requests per
+            minute, indicating unusually high traffic or potential abuse.
+        labels:
+          severity: warning
+          service: horrorbot

@@ -120,13 +120,70 @@ Trois dashboards JSON sont provisionnés automatiquement dans `docker/grafana/da
 |----------|-------|---------------|
 | LLM latence P95 | > 3s | Inférence trop lente |
 | Classifier latence | > 200ms | Classification ralentie |
-| Embedding latence P95 | > 200ms | Encodage lent |
+| Embedding latence P95 | > 100ms | Encodage lent |
 | Confiance moyenne classifier | < 0.6 | Qualité classification dégradée |
 | RAG retrieval latence P95 | > 500ms | Recherche vectorielle lente |
 | Chat latence E2E P95 | > 5s | Réponse chatbot trop lente |
 | Sessions actives | > 500 | Charge mémoire sessions |
 | Taux 5xx | > 5% | Erreurs serveur excessives |
 | Mémoire LLM | > 90% RAM dispo | Risque OOM |
+
+## Alertes Grafana
+
+Les alertes sont provisionnées automatiquement via les fichiers YAML dans
+`docker/grafana/provisioning/alerting/`. Elles se déclenchent lorsqu'un seuil est dépassé
+pendant 5 minutes consécutives (`for: 5m`).
+
+### Fichiers de configuration
+
+| Fichier | Rôle |
+|---------|------|
+| `provisioning/alerting/alert-rules.yml` | Définitions des 10 règles d'alerte |
+| `provisioning/alerting/notification-policies.yml` | Politique de routage par sévérité |
+
+### Règles d'alerte actives
+
+#### Critiques (santé du service)
+
+| Alerte | Seuil | Métrique |
+|--------|-------|----------|
+| LLM Inference Latency High | P95 > 3s | `horrorbot_llm_request_duration_seconds` |
+| 5xx Error Rate High | > 5% | `horrorbot_http_requests_total` |
+| Model Memory Usage High | > 90% de 16 GiB | `horrorbot_model_memory_bytes` |
+| LLM Token Throughput Low | < 5 tok/s (actif) | `horrorbot_llm_tokens_per_second` |
+
+#### Avertissements (dégradation performance)
+
+| Alerte | Seuil | Métrique |
+|--------|-------|----------|
+| Classifier Latency High | P95 > 200ms | `horrorbot_classifier_request_duration_seconds` |
+| Classifier Confidence Low | Médiane < 0.6 | `horrorbot_classifier_confidence` |
+| RAG Retrieval Slow | P95 > 500ms | `horrorbot_rag_retrieval_duration_seconds` |
+| RAG No Documents Returned | > 50% requêtes à 0 docs | `horrorbot_rag_documents_retrieved` |
+| Embedding Latency High | P95 > 100ms | `horrorbot_embedding_request_duration_seconds` |
+| API Request Rate High | > 1000 rpm | `horrorbot_http_requests_total` |
+
+### Consultation des alertes
+
+Les alertes sont visibles dans l'interface Grafana :
+
+- **URL** : http://localhost:3000/alerting/list
+- Les alertes critiques ont un intervalle de répétition de 1h
+- Les alertes d'avertissement ont un intervalle de répétition de 4h
+- État « Normal » = aucun problème ; « Pending » = seuil dépassé, en attente de confirmation ; « Firing » = alerte active
+
+### Personnalisation
+
+Pour modifier un seuil, éditer `docker/grafana/provisioning/alerting/alert-rules.yml`
+et redémarrer Grafana :
+
+```bash
+docker-compose --profile monitoring restart grafana
+```
+
+Pour ajouter un canal de notification externe (email, Discord, Slack), créer
+`docker/grafana/provisioning/alerting/contact-points.yml` avec la configuration
+du receiver souhaité et mettre à jour les noms de receiver dans `notification-policies.yml`.
 
 ## Configuration Prometheus
 
