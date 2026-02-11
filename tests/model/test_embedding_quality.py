@@ -38,6 +38,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 @pytest.mark.model
+@pytest.mark.slow
 class TestEmbeddingSimilarity:
     """T8 — Validate semantic coherence of embedding vectors."""
 
@@ -88,6 +89,7 @@ class TestEmbeddingSimilarity:
 
 
 @pytest.mark.model
+@pytest.mark.slow
 class TestEmbeddingProperties:
     """T8 — Verify real model embedding properties."""
 

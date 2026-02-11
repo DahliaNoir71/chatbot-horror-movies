@@ -48,6 +48,7 @@ MIN_STRONG_INTENTS_PASSING = 4
 
 
 @pytest.mark.model
+@pytest.mark.slow
 class TestIntentAccuracy:
     """T1 — Confusion matrix on 50+ labeled queries."""
 
