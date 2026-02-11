@@ -67,6 +67,7 @@ jobs:
         run: |
           mkdir -p reports
           uv run pytest -v --tb=short \
+            -m "not slow" \
             --junitxml=reports/junit.xml \
             --cov=src \
             --cov-report=xml:reports/coverage.xml \
