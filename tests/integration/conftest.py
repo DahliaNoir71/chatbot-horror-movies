@@ -118,3 +118,107 @@ def parse_sse_events(text: str) -> list[dict]:
                 except json.JSONDecodeError:
                     continue
     return events
+
+
+# ---------------------------------------------------------------------------
+# Service mocks for RAG and Films API tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mock_embedding_service():
+    """Mock EmbeddingService to avoid loading ML model.
+
+    Returns a mock that encodes text as a fixed 384-dimensional vector.
+    """
+    with patch("src.services.embedding.embedding_service.get_embedding_service") as mock:
+        mock_service = MagicMock()
+        mock_service.encode.return_value = [0.1] * 384  # Fixed 384-dim vector
+        mock.return_value = mock_service
+        yield mock
+
+
+@pytest.fixture
+def mock_retriever():
+    """Mock DocumentRetriever with sample horror film documents.
+
+    Simulates successful document retrieval for RAG pipeline tests.
+    """
+    from uuid import uuid4
+
+    from src.services.rag.retriever import RetrievedDocument
+
+    mock = MagicMock()
+    mock.retrieve.return_value = [
+        RetrievedDocument(
+            id=uuid4(),
+            content="The Conjuring (2013) is a supernatural horror film directed by James Wan. It's widely regarded as one of the best horror films of the 2010s.",
+            source_type="film_overview",
+            source_id=185,
+            metadata={
+                "title": "The Conjuring",
+                "year": 2013,
+                "rating": 7.5,
+            },
+            similarity=0.85,
+        ),
+        RetrievedDocument(
+            id=uuid4(),
+            content="Hereditary (2018) is a psychological horror film that explores themes of grief and family trauma.",
+            source_type="film_overview",
+            source_id=438631,
+            metadata={
+                "title": "Hereditary",
+                "year": 2018,
+                "rating": 8.3,
+            },
+            similarity=0.78,
+        ),
+    ]
+    return mock
+
+
+@pytest.fixture
+def mock_llm_service():
+    """Mock LLMService to avoid calling actual GGUF model.
+
+    Provides deterministic responses for RAG pipeline tests.
+    """
+    mock = MagicMock()
+    mock.generate_chat.return_value = {
+        "text": "Je vous recommande The Conjuring (2013). C'est un film d'horreur classique très bien réalisé avec d'excellentes performances d'acteurs.",
+        "usage": {
+            "prompt_tokens": 150,
+            "completion_tokens": 50,
+        },
+    }
+    mock.generate_stream.return_value = iter([
+        "Je ",
+        "vous ",
+        "recommande ",
+        "The ",
+        "Conjuring. ",
+    ])
+    return mock
+
+
+@pytest.fixture
+def rag_pipeline(mock_retriever, mock_llm_service):
+    """RAGPipeline with mocked dependencies.
+
+    Used for testing RAG orchestration without real retrieval or LLM calls.
+    """
+    from src.services.rag.pipeline import RAGPipeline
+
+    return RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
+
+
+@pytest.fixture
+def session_manager():
+    """Fresh SessionManager instance for concurrency and TTL tests.
+
+    Configured with short TTL (2 seconds) and small history (5 messages).
+    """
+    from src.services.chat.session import SessionManager
+
+    return SessionManager(max_history=5, ttl_seconds=2)
