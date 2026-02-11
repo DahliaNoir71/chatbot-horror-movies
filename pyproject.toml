@@ -227,7 +227,8 @@ env_files = [".env.test"]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
-    "slow: Slow tests requiring network"
+    "slow: Slow tests requiring network",
+    "model: Model tests requiring ML dependencies (sentence-transformers, transformers)",
 ]
 
 [tool.coverage.run]

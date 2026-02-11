@@ -1,0 +1,30 @@
+{
+  "horror_recommendation": {
+    "text": "Je vous recommande The Conjuring (2013), un classique de l'horreur moderne réalisé par James Wan. Avec une note de 7.5/10 sur TMDB, ce film de maison hantée offre une atmosphère terrifiante et des performances remarquables. Si vous avez aimé Hereditary, vous apprécierez son approche similaire du surnaturel familial.",
+    "usage": {"prompt_tokens": 180, "completion_tokens": 65}
+  },
+  "horror_discussion": {
+    "text": "Le found footage fonctionne car il crée un sentiment d'authenticité et d'immersion que le cinéma traditionnel ne peut pas reproduire. Le spectateur a l'impression d'être témoin direct des événements, ce qui amplifie la tension et la peur. Des films comme Paranormal Activity ont prouvé l'efficacité de ce format.",
+    "usage": {"prompt_tokens": 140, "completion_tokens": 55}
+  },
+  "horror_trivia": {
+    "text": "L'Exorciste a été réalisé par William Friedkin en 1973. Adapté du roman de William Peter Blatty, le film a été un phénomène culturel majeur et reste considéré comme l'un des films les plus terrifiants jamais réalisés. Il a remporté deux Oscars sur dix nominations.",
+    "usage": {"prompt_tokens": 150, "completion_tokens": 50}
+  },
+  "film_details": {
+    "text": "**The Shining**\nSortie : 23/05/1980\nNote TMDB : 8.4/10\nVotes : 16,284\nDurée : 2h26\n\nJack Torrance accepte un poste de gardien dans l'hôtel Overlook, isolé dans les montagnes du Colorado. Peu à peu, les forces surnaturelles de l'hôtel le poussent vers la folie.\n\n_\"A masterpiece of modern horror\"_",
+    "usage": {"prompt_tokens": 100, "completion_tokens": 70}
+  },
+  "greeting": {
+    "text": "Bonjour ! Je suis HorrorBot, votre compagnon du cinéma d'horreur. Je peux vous recommander des films effrayants, discuter du cinéma d'horreur, partager des anecdotes ou chercher des détails sur des films spécifiques. Que souhaitez-vous explorer ?",
+    "usage": {}
+  },
+  "farewell": {
+    "text": "Au revoir ! Merci d'avoir discuté de films d'horreur avec moi. Revenez quand vous voudrez une bonne frayeur. Restez sur vos gardes !",
+    "usage": {}
+  },
+  "out_of_scope": {
+    "text": "J'apprécie votre question, mais je suis spécialisé dans les films d'horreur ! Je peux vous aider avec des recommandations de films d'horreur, des détails sur des films, des anecdotes ou des discussions générales sur l'horreur. Quel sujet horrifique vous intéresse ?",
+    "usage": {}
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "similarity_pairs": [
+    {
+      "query_a": "film d'horreur avec des fantômes",
+      "query_b": "ghost horror movie haunted house",
+      "expected_min_similarity": 0.2
+    },
+    {
+      "query_a": "recommande-moi un film de zombies effrayant",
+      "query_b": "suggest a scary zombie movie",
+      "expected_min_similarity": 0.5
+    },
+    {
+      "query_a": "film d'horreur psychologique angoissant",
+      "query_b": "psychological horror thriller anxiety",
+      "expected_min_similarity": 0.4
+    },
+    {
+      "query_a": "meilleur film de vampires",
+      "query_b": "best vampire horror movie",
+      "expected_min_similarity": 0.5
+    },
+    {
+      "query_a": "film d'horreur pour Halloween",
+      "query_b": "scary movie for Halloween night",
+      "expected_min_similarity": 0.5
+    },
+    {
+      "query_a": "slasher avec un tueur masqué",
+      "query_b": "slasher movie masked killer",
+      "expected_min_similarity": 0.2
+    },
+    {
+      "query_a": "horreur japonaise fantômes",
+      "query_b": "Japanese horror ghost film",
+      "expected_min_similarity": 0.2
+    },
+    {
+      "query_a": "film d'horreur found footage caméra",
+      "query_b": "found footage horror camera style",
+      "expected_min_similarity": 0.5
+    },
+    {
+      "query_a": "maison hantée film terrifiant",
+      "query_b": "terrifying haunted house movie",
+      "expected_min_similarity": 0.4
+    },
+    {
+      "query_a": "film d'horreur avec des démons et exorcisme",
+      "query_b": "demon exorcism horror movie",
+      "expected_min_similarity": 0.4
+    }
+  ],
+  "dissimilar_pairs": [
+    {
+      "query_a": "film d'horreur avec des zombies",
+      "query_b": "recette de gâteau au chocolat",
+      "expected_max_similarity": 0.35
+    },
+    {
+      "query_a": "recommande-moi un bon slasher",
+      "query_b": "how to learn mathematics",
+      "expected_max_similarity": 0.3
+    },
+    {
+      "query_a": "meilleur film de vampires effrayant",
+      "query_b": "weather forecast for tomorrow",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "horreur psychologique angoissante",
+      "query_b": "stock market financial analysis",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "film d'horreur japonais fantômes",
+      "query_b": "Italian pasta carbonara recipe",
+      "expected_max_similarity": 0.25
+    },
+    {
+      "query_a": "found footage terrifiant",
+      "query_b": "quantum physics introduction course",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "exorcisme film démons",
+      "query_b": "gardening tips for spring flowers",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "maison hantée film classique",
+      "query_b": "smartphone latest technology review",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "film gore body horror",
+      "query_b": "children bedtime stories collection",
+      "expected_max_similarity": 0.2
+    },
+    {
+      "query_a": "survival horror isolement",
+      "query_b": "yoga meditation relaxation exercises",
+      "expected_max_similarity": 0.2
+    }
+  ],
+  "quality_questions": [
+    {
+      "query": "Recommande-moi un bon film de zombies",
+      "expected_keywords": ["zombie", "mort", "dead"],
+      "intent": "horror_recommendation"
+    },
+    {
+      "query": "Je cherche un film avec des fantômes",
+      "expected_keywords": ["fantôme", "ghost", "hant", "spirit"],
+      "intent": "horror_recommendation"
+    },
+    {
+      "query": "Un film d'horreur psychologique comme Hereditary",
+      "expected_keywords": ["Hereditary", "psycholog", "horreur"],
+      "intent": "horror_recommendation"
+    },
+    {
+      "query": "Quel est le meilleur slasher de tous les temps ?",
+      "expected_keywords": ["slasher", "Halloween", "Scream", "tueur"],
+      "intent": "horror_recommendation"
+    },
+    {
+      "query": "Un film de vampires effrayant",
+      "expected_keywords": ["vampire", "sang", "blood", "nuit"],
+      "intent": "horror_recommendation"
+    },
+    {
+      "query": "Qui a réalisé L'Exorciste ?",
+      "expected_keywords": ["Friedkin", "William", "1973", "Exorciste"],
+      "intent": "horror_trivia"
+    },
+    {
+      "query": "En quelle année est sorti Halloween ?",
+      "expected_keywords": ["1978", "Carpenter", "John", "Halloween"],
+      "intent": "horror_trivia"
+    },
+    {
+      "query": "Combien de films Saw existe-t-il ?",
+      "expected_keywords": ["Saw", "film", "suite", "sequel"],
+      "intent": "horror_trivia"
+    },
+    {
+      "query": "Quel acteur joue Pennywise ?",
+      "expected_keywords": ["Skarsgård", "Bill", "Tim", "Curry", "clown"],
+      "intent": "horror_trivia"
+    },
+    {
+      "query": "Quel est le premier film d'horreur de l'histoire ?",
+      "expected_keywords": ["Méliès", "Nosferatu", "Caligari", "1920", "1896"],
+      "intent": "horror_trivia"
+    },
+    {
+      "query": "Pourquoi le found footage fonctionne-t-il si bien ?",
+      "expected_keywords": ["found footage", "réalisme", "caméra", "authentic"],
+      "intent": "horror_discussion"
+    },
+    {
+      "query": "Qu'est-ce qui rend un film d'horreur vraiment effrayant ?",
+      "expected_keywords": ["peur", "tension", "suspense", "atmosphere"],
+      "intent": "horror_discussion"
+    },
+    {
+      "query": "L'horreur japonaise est-elle supérieure à l'horreur américaine ?",
+      "expected_keywords": ["japon", "améric", "J-horror", "Ringu", "culture"],
+      "intent": "horror_discussion"
+    },
+    {
+      "query": "Le gore est-il nécessaire dans un bon film d'horreur ?",
+      "expected_keywords": ["gore", "violence", "sang", "nécessaire", "subtil"],
+      "intent": "horror_discussion"
+    },
+    {
+      "query": "Comment le cinéma d'horreur a-t-il évolué depuis les années 70 ?",
+      "expected_keywords": ["évolution", "70", "année", "moderne", "classique"],
+      "intent": "horror_discussion"
+    },
+    {
+      "query": "Quelle est la note de The Shining ?",
+      "expected_keywords": ["Shining", "Kubrick", "note", "Jack"],
+      "intent": "film_details"
+    },
+    {
+      "query": "Donne-moi les détails sur Get Out",
+      "expected_keywords": ["Get Out", "Peele", "Jordan", "2017"],
+      "intent": "film_details"
+    },
+    {
+      "query": "C'est quoi Midsommar ?",
+      "expected_keywords": ["Midsommar", "Aster", "Ari", "suède", "folk"],
+      "intent": "film_details"
+    },
+    {
+      "query": "Parle-moi du film Scream",
+      "expected_keywords": ["Scream", "Craven", "Wes", "Ghostface", "1996"],
+      "intent": "film_details"
+    },
+    {
+      "query": "Informations sur le film It Follows",
+      "expected_keywords": ["It Follows", "Mitchell", "2014", "indépendant"],
+      "intent": "film_details"
+    }
+  ]
+}
