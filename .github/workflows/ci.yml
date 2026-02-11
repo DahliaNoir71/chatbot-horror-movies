@@ -34,11 +34,12 @@ env:
 # ===================================================
 jobs:
   # ============================================
-  # JOB 1 : Tests unitaires avec couverture
+  # JOB 1 : Tests (unitaires + intégration)
   # ============================================
-  # Exécute pytest avec calcul de la couverture de code
+  # Exécute tous les tests avec calcul de la couverture de code
   # Génère des rapports JUnit et Cobertura
-  unit-tests:
+  # Couverture minimale requise : 50%
+  tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -54,12 +55,12 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      # Installe les dépendances core + dev (PAS le groupe ml)
+      # Installe toutes les dépendances (core + dev + ml)
       - name: Install dependencies
-        run: uv sync --locked --group dev
+        run: uv sync --locked --group dev --group ml
 
-      # Exécute les tests avec pytest et génère les rapports de couverture
-      - name: Run unit tests with coverage
+      # Exécute tous les tests avec pytest et génère les rapports de couverture
+      - name: Run all tests with coverage
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           ENVIRONMENT: test
@@ -87,79 +88,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: reports/
-          retention-days: 7
-
-  # ============================================
-  # JOB 2 : Tests d'intégration
-  # ============================================
-  integration-tests:
-    needs: unit-tests
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Install dependencies
-        run: uv sync --locked --group dev --group ml
-
-      - name: Run integration tests
-        env:
-          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
-          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          ENVIRONMENT: test
-        run: |
-          mkdir -p reports
-          # Count test files; skip gracefully if none exist yet
-          test_count=$(find tests/integration -name "test_*.py" -o -name "*_test.py" | wc -l)
-          if [ "$test_count" -eq 0 ]; then
-            echo "No integration tests found — skipping."
-            exit 0
-          fi
-          uv run pytest -v tests/integration \
-            --junitxml=reports/integration-junit.xml \
-            --cov=src \
-            --cov-append \
-            --cov-report=xml:reports/integration-coverage.xml \
-            --cov-report=html:reports/htmlcov
-
-      # Upload optionnel vers Codecov pour visualisation
-      - name: Upload coverage to Codecov
-        if: github.event_name == 'push'
-        uses: codecov/codecov-action@v4
-        with:
-          files: reports/integration-coverage.xml
-          fail_ci_if_error: false
-        continue-on-error: true
-
-      # Conserve les rapports de test comme artifacts (7 jours)
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-reports
           path: reports/
           retention-days: 7
 
@@ -317,7 +245,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Attend la fin de tous les autres jobs
-    needs: [unit-tests, integration-tests, security-bandit, security-dependencies, security-owasp]
+    needs: [tests, security-bandit, security-dependencies, security-owasp]
 
     # S'exécute uniquement si tous les jobs précédents ont réussi
     if: success()
