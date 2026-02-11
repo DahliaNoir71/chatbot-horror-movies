@@ -192,7 +192,7 @@ class TestIntentAccuracy:
             )
 
     @staticmethod
-    def test_confusion_matrix_generated(intent_classifier, intent_test_cases, tmp_path):
+    def test_confusion_matrix_generated(intent_classifier, intent_test_cases, artifact_dir):
         """Generate and save a confusion matrix as JSON artifact."""
         predictions = []
         actuals = []
@@ -230,7 +230,7 @@ class TestIntentAccuracy:
         report["overall_accuracy"] = round(total_correct / len(intent_test_cases), 3)
 
         # Save artifact
-        report_path = tmp_path / "intent_confusion_matrix.json"
+        report_path = artifact_dir / "intent_confusion_matrix.json"
         report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False))
         assert report_path.exists()
 
