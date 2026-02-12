@@ -16,7 +16,7 @@
 |------|--------|-------------|
 | **E1** | ✅ Complet | 5 sources (TMDB, RT, Kaggle, IMDB, Spark), PostgreSQL + pgvector |
 | **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen2.5-7B-Instruct via llama.cpp |
-| **E3** | ⚠️ Partiel | API REST, monitoring, MLOps — code complet, rédactionnel en cours |
+| **E3** | ✅ Complet | API REST, monitoring, MLOps — code complet, rédaction terminée |
 | **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
 | **E5** | 📅 Planifié | Monitoring applicatif |
 
