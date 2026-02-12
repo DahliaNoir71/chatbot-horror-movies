@@ -14,15 +14,15 @@
 
 | Bloc | Statut | Description |
 |------|--------|-------------|
-| **E1** | ⚠️ Partiel | 2/5 sources (TMDB + Rotten Tomatoes) |
+| **E1** | ✅ Complet | 5 sources (TMDB, RT, Kaggle, IMDB, Spark), PostgreSQL + pgvector |
 | **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen2.5-7B-Instruct via llama.cpp |
-| **E3** | 🚧 En cours | API REST, monitoring, CI/CD, pipeline MLOps |
+| **E3** | ⚠️ Partiel | API REST, monitoring, MLOps — code complet, rédactionnel en cours |
 | **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
 | **E5** | 📅 Planifié | Monitoring applicatif |
 
 ### Caractéristiques implémentées
 
-- ✅ **Pipeline ETL robuste** : Extraction TMDB + enrichissement Rotten Tomatoes
+- ✅ **Pipeline ETL multi-sources** : TMDB API, Rotten Tomatoes (scraping), Kaggle CSV, IMDB SQLite, Apache Spark
 - ✅ **Base vectorielle** : PostgreSQL 16 + pgvector pour recherche sémantique
 - ✅ **Embeddings** : sentence-transformers (all-MiniLM-L6-v2)
 - ✅ **LLM local** : Qwen2.5-7B-Instruct (Q5_K_M) via llama-cpp-python
@@ -38,14 +38,14 @@
 ## 🏗️ Architecture technique
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   SOURCES DE DONNÉES                     │
-├─────────────────────────┬───────────────────────────────┤
-│       TMDB API          │      Rotten Tomatoes          │
-│        (REST)           │       (Scraping)              │
-└───────────┬─────────────┴───────────────┬───────────────┘
-            │                             │
-            └──────────────┬──────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                        SOURCES DE DONNÉES                             │
+├──────────┬──────────────┬──────────┬──────────────┬──────────────────┤
+│ TMDB API │ Rotten Tom.  │  Kaggle  │ IMDB SQLite  │  Apache Spark   │
+│  (REST)  │  (Scraping)  │  (CSV)   │   (Joins)    │   (SparkSQL)    │
+└────┬─────┴───────┬──────┴─────┬────┴──────┬───────┴────────┬────────┘
+     │             │            │           │                │
+     └─────────────┴────────────┴─────┬─────┴────────────────┘
                            │
                    ┌───────▼────────┐
                    │  ETL PIPELINE  │
@@ -61,7 +61,7 @@
                    └───────┬────────┘
                            │
                    ┌───────▼────────┐
-                   │   API FastAPI  │  ← E3 (en cours)
+                   │   API FastAPI  │
                    │  • JWT Auth    │
                    │  • Rate Limit  │
                    └───────┬────────┘
@@ -177,7 +177,7 @@ uv run python -m src import-db
 # Lister les checkpoints
 uv run python -m src list-checkpoints
 
-# Lancer l'API (E3 - en développement)
+# Lancer l'API
 uv run python -m src api
 ```
 
@@ -212,7 +212,7 @@ chatbot-horror-movies/
 │   └── monitoring/
 │       ├── metrics.py        # Métriques Prometheus
 │       └── middleware.py      # PrometheusMiddleware + /metrics
-├── tests/                    # Tests pytest (~91% couverture)
+├── tests/                    # Tests pytest (seuil CI ≥ 50%)
 ├── docs/                     # Documentation technique
 ├── docker/                   # Config Prometheus, Grafana, init-db
 ├── docker-compose.yml        # PostgreSQL + pgvector + monitoring
@@ -236,9 +236,9 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 
 | Métrique | Valeur |
 |----------|--------|
-| **Sources de données** | 2 (TMDB API + Rotten Tomatoes scraping) |
-| **Lignes de code Python** | ~2 800 |
-| **Couverture tests** | ~91% |
+| **Sources de données** | 5 (TMDB API, Rotten Tomatoes, Kaggle CSV, IMDB SQLite, Spark) |
+| **Fichiers Python** | 149 (~23 500 lignes) |
+| **Couverture tests** | ≥ 50% (seuil CI) |
 | **Temps extraction** | ~2-3h pour 1950-2025 |
 
 ## 🛠️ Stack technique
@@ -261,6 +261,9 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 
 - **requests** + **tenacity** (retry) pour TMDB
 - **Crawl4AI** + **BeautifulSoup4** pour Rotten Tomatoes
+- **pandas** + **polars** pour Kaggle CSV
+- **SQLAlchemy** pour IMDB SQLite
+- **PySpark** pour Apache Spark
 
 ### Monitoring
 
@@ -275,14 +278,14 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 
 ## 🗺️ Roadmap
 
-- [x] Pipeline ETL TMDB + Rotten Tomatoes
+- [x] Pipeline ETL 5 sources (TMDB, RT, Kaggle, IMDB, Spark)
 - [x] Base PostgreSQL + pgvector
 - [x] Embeddings sentence-transformers
 - [x] API REST FastAPI (JWT, rate limiting, CORS)
 - [x] Intégration LLM Qwen2.5-7B-Instruct via llama.cpp
 - [x] Intent Classifier DeBERTa-v3 zero-shot
 - [x] Monitoring Prometheus/Grafana (3 dashboards)
-- [x] CI/CD GitHub Actions (6 jobs)
+- [x] CI/CD GitHub Actions (5 jobs)
 - [x] Pipeline RAG complet (retriever → prompt → LLM) (E3)
 - [x] Endpoints chat + streaming SSE (E3)
 - [x] Pipeline MLOps GitHub Actions (6 jobs : validation, évaluation, rapport, livraison) (E3)
