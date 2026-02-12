@@ -178,7 +178,11 @@ uv run python -m src import-db
 uv run python -m src list-checkpoints
 
 # Lancer l'API
-uv run python -m src api
+uv run uvicorn src.api.main:app --reload
+
+# Lancer le frontend (dans un autre terminal)
+uv run python -m http.server 8080 --directory src/integration/
+# Accès chatbot : http://localhost:8080
 ```
 
 ## 📁 Structure du projet

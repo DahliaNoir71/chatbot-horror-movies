@@ -71,10 +71,17 @@ uv run python -m src import-db        # Import en base avec embeddings
 ### 6. Lancement de l'API
 
 ```bash
-uv run python -m src api
-# Ou directement :
-uvicorn src.api.main:app --reload --port 8000
+uv run uvicorn src.api.main:app --reload --port 8000
 ```
+
+### 7. Lancement du frontend
+
+```bash
+# Dans un autre terminal
+uv run python -m http.server 8080 --directory src/integration/
+```
+
+Interface chatbot : <http://localhost:8080>
 
 Endpoints disponibles :
 
