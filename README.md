@@ -179,6 +179,7 @@ uv run python -m src list-checkpoints
 
 # Lancer l'API
 uv run uvicorn src.api.main:app --reload
+# Documentation Swagger : http://localhost:8000/api/docs
 
 # Lancer le frontend (dans un autre terminal)
 uv run python -m http.server 8080 --directory src/integration/
