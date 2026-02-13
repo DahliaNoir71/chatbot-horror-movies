@@ -69,6 +69,29 @@ class TokenResponse(BaseModel):
     expires_in: int = Field(description="Token lifetime in seconds")
 
 
+class RegisterRequest(BaseModel):
+    """User registration request schema."""
+
+    username: str = Field(
+        min_length=3,
+        max_length=50,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        description="Username (alphanumeric, underscore, hyphen)",
+    )
+    password: str = Field(
+        min_length=8,
+        max_length=100,
+        description="Password (min 8 characters)",
+    )
+
+
+class RegisterResponse(BaseModel):
+    """User registration response schema."""
+
+    username: str
+    message: str
+
+
 # =============================================================================
 # PAGINATION
 # =============================================================================

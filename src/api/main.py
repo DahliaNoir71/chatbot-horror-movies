@@ -21,6 +21,8 @@ from src.api.schemas import (
     HealthComponents,
     HealthResponse,
     LLMComponentHealth,
+    RegisterRequest,
+    RegisterResponse,
     TokenRequest,
     TokenResponse,
 )
@@ -254,7 +256,7 @@ def login(
 
 
 def _validate_credentials(username: str, password: str) -> bool:
-    """Validate user credentials against configured demo users.
+    """Validate user credentials against demo and registered users.
 
     Args:
         username: Username to validate.
@@ -264,7 +266,54 @@ def _validate_credentials(username: str, password: str) -> bool:
         True if credentials are valid.
     """
     demo_users = settings.security.demo_users
-    return demo_users.get(username) == password
+    if demo_users.get(username) == password:
+        return True
+    return _registered_users.get(username) == password
+
+
+# =============================================================================
+# REGISTRATION
+# =============================================================================
+
+_registered_users: dict[str, str] = {}
+
+
+@app.post(
+    "/api/v1/auth/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Authentication"],
+    summary="Register new user",
+    description="Create a new user account.",
+    dependencies=[Depends(check_rate_limit)],
+)
+def register(request: RegisterRequest) -> RegisterResponse:
+    """Register a new user.
+
+    Args:
+        request: Registration credentials.
+
+    Returns:
+        Confirmation with username.
+
+    Raises:
+        HTTPException: 409 if username already taken.
+    """
+    if request.username in settings.security.demo_users:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already taken",
+        )
+    if request.username in _registered_users:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already taken",
+        )
+    _registered_users[request.username] = request.password
+    return RegisterResponse(
+        username=request.username,
+        message="User registered successfully",
+    )
 
 
 # =============================================================================
