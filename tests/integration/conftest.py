@@ -18,6 +18,20 @@ from httpx import ASGITransport, AsyncClient
 from src.api.database import get_db
 from src.services.intent.router import ChatResult
 
+
+# ---------------------------------------------------------------------------
+# Auto-mark all tests in this directory as "integration"
+# ---------------------------------------------------------------------------
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Auto-apply ``@pytest.mark.integration`` to every test collected here."""
+    integration_marker = pytest.mark.integration
+    for item in items:
+        if "integration" in str(item.fspath):
+            item.add_marker(integration_marker)
+
+
 # ---------------------------------------------------------------------------
 # Stable test session UUID
 # ---------------------------------------------------------------------------
