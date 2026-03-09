@@ -83,6 +83,26 @@ def intent_classifier():
 
 
 @pytest.fixture(scope="module")
+def intent_predictions(intent_classifier, intent_test_cases):
+    """Classify all intent test cases once, reused by every test.
+
+    Returns a list of dicts with keys: query, expected, predicted,
+    confidence, all_scores.
+    """
+    results = []
+    for case in intent_test_cases:
+        result = intent_classifier.classify(case["query"])
+        results.append({
+            "query": case["query"],
+            "expected": case["expected_intent"],
+            "predicted": result["intent"],
+            "confidence": result["confidence"],
+            "all_scores": result["all_scores"],
+        })
+    return results
+
+
+@pytest.fixture(scope="module")
 def embedding_service():
     """Load the real EmbeddingService with all-MiniLM-L6-v2 model.
 

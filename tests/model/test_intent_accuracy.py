@@ -53,7 +53,7 @@ class TestIntentAccuracy:
     """T1 — Confusion matrix on 50+ labeled queries."""
 
     @staticmethod
-    def test_overall_accuracy(intent_classifier, intent_test_cases):
+    def test_overall_accuracy(intent_predictions):
         """Overall accuracy >= 55% across all test cases.
 
         Note: Target is intentionally below the initial 85% plan because
@@ -61,38 +61,23 @@ class TestIntentAccuracy:
         ``horror_trivia``) cannot reliably distinguish from
         ``horror_discussion``. This finding is documented for G11.
         """
-        correct = 0
-        failures = []
+        correct = sum(1 for p in intent_predictions if p["predicted"] == p["expected"])
+        accuracy = correct / len(intent_predictions)
+        failures = [p for p in intent_predictions if p["predicted"] != p["expected"]]
 
-        for case in intent_test_cases:
-            result = intent_classifier.classify(case["query"])
-            predicted = result["intent"]
-            expected = case["expected_intent"]
-
-            if predicted == expected:
-                correct += 1
-            else:
-                failures.append({
-                    "query": case["query"],
-                    "expected": expected,
-                    "predicted": predicted,
-                    "confidence": round(result["confidence"], 3),
-                })
-
-        accuracy = correct / len(intent_test_cases)
         assert accuracy >= MINIMUM_OVERALL_ACCURACY, (
             f"Overall accuracy {accuracy:.2%} < {MINIMUM_OVERALL_ACCURACY:.0%} "
-            f"({correct}/{len(intent_test_cases)}). "
+            f"({correct}/{len(intent_predictions)}). "
             f"Failures:\n"
             + "\n".join(
                 f"  - \"{f['query']}\" expected={f['expected']} got={f['predicted']} "
-                f"(conf={f['confidence']})"
+                f"(conf={f['confidence']:.3f})"
                 for f in failures
             )
         )
 
     @staticmethod
-    def test_strong_intents_recall(intent_classifier, intent_test_cases):
+    def test_strong_intents_recall(intent_predictions):
         """Strong intents (non-ambiguous labels) achieve recall >= 60%.
 
         At least 4 out of 5 strong intents (horror_recommendation,
@@ -100,12 +85,10 @@ class TestIntentAccuracy:
         """
         by_intent = defaultdict(lambda: {"total": 0, "correct": 0})
 
-        for case in intent_test_cases:
-            result = intent_classifier.classify(case["query"])
-            expected = case["expected_intent"]
-            by_intent[expected]["total"] += 1
-            if result["intent"] == expected:
-                by_intent[expected]["correct"] += 1
+        for p in intent_predictions:
+            by_intent[p["expected"]]["total"] += 1
+            if p["predicted"] == p["expected"]:
+                by_intent[p["expected"]]["correct"] += 1
 
         strong_passing = 0
         strong_failing = []
@@ -125,7 +108,7 @@ class TestIntentAccuracy:
         )
 
     @staticmethod
-    def test_weak_intents_documented(intent_classifier, intent_test_cases):
+    def test_weak_intents_documented(intent_predictions):
         """Weak intents are measured and reported (no hard threshold).
 
         film_details and horror_trivia overlap with horror_discussion
@@ -134,12 +117,10 @@ class TestIntentAccuracy:
         """
         by_intent = defaultdict(lambda: {"total": 0, "correct": 0})
 
-        for case in intent_test_cases:
-            result = intent_classifier.classify(case["query"])
-            expected = case["expected_intent"]
-            by_intent[expected]["total"] += 1
-            if result["intent"] == expected:
-                by_intent[expected]["correct"] += 1
+        for p in intent_predictions:
+            by_intent[p["expected"]]["total"] += 1
+            if p["predicted"] == p["expected"]:
+                by_intent[p["expected"]]["correct"] += 1
 
         print("\n=== Weak Intent Recall (documented, no hard threshold) ===")
         for intent in WEAK_INTENTS:
@@ -153,7 +134,7 @@ class TestIntentAccuracy:
         assert total_weak_correct >= 0  # Always passes — metric is informational
 
     @staticmethod
-    def test_confidence_above_threshold_for_correct(intent_classifier, intent_test_cases):
+    def test_confidence_above_threshold_for_correct(intent_predictions):
         """Correctly classified cases have confidence >= 0.3.
 
         Note: The classifier falls back to ``horror_discussion`` when
@@ -161,59 +142,44 @@ class TestIntentAccuracy:
         fallback (e.g. broad discussion queries with low confidence).
         We use 0.3 as the test threshold to allow for these valid fallbacks.
         """
-        low_confidence = []
-
-        for case in intent_test_cases:
-            result = intent_classifier.classify(case["query"])
-            if result["intent"] == case["expected_intent"] and result["confidence"] < 0.3:
-                low_confidence.append({
-                    "query": case["query"],
-                    "intent": result["intent"],
-                    "confidence": round(result["confidence"], 3),
-                })
+        low_confidence = [
+            p for p in intent_predictions
+            if p["predicted"] == p["expected"] and p["confidence"] < 0.3
+        ]
 
         assert len(low_confidence) == 0, (
             f"{len(low_confidence)} correctly classified queries have confidence < 0.3:\n"
             + "\n".join(
-                f"  - \"{c['query']}\" ({c['intent']}, conf={c['confidence']})"
+                f"  - \"{c['query']}\" ({c['predicted']}, conf={c['confidence']:.3f})"
                 for c in low_confidence
             )
         )
 
     @staticmethod
-    def test_all_scores_contain_all_labels(intent_classifier, intent_test_cases):
+    def test_all_scores_contain_all_labels(intent_predictions):
         """The all_scores dict contains scores for every defined intent label."""
-        sample = intent_test_cases[0]
-        result = intent_classifier.classify(sample["query"])
+        sample = intent_predictions[0]
 
         for label in INTENT_LABELS:
-            assert label in result["all_scores"], (
+            assert label in sample["all_scores"], (
                 f"Label '{label}' missing from all_scores"
             )
 
     @staticmethod
-    def test_confusion_matrix_generated(intent_classifier, intent_test_cases, artifact_dir):
+    def test_confusion_matrix_generated(intent_predictions, artifact_dir):
         """Generate and save a confusion matrix as JSON artifact."""
-        predictions = []
-        actuals = []
-
-        for case in intent_test_cases:
-            result = intent_classifier.classify(case["query"])
-            predictions.append(result["intent"])
-            actuals.append(case["expected_intent"])
-
         # Build confusion matrix manually (no sklearn dependency needed)
         labels = sorted(set(INTENT_LABELS))
         matrix = {actual: dict.fromkeys(labels, 0) for actual in labels}
-        for actual, predicted in zip(actuals, predictions):
-            if actual in matrix and predicted in matrix[actual]:
-                matrix[actual][predicted] += 1
+        for p in intent_predictions:
+            if p["expected"] in matrix and p["predicted"] in matrix[p["expected"]]:
+                matrix[p["expected"]][p["predicted"]] += 1
 
         # Compute per-intent metrics
         report = {
             "confusion_matrix": matrix,
             "per_intent": {},
-            "total_cases": len(intent_test_cases),
+            "total_cases": len(intent_predictions),
             "weak_intents": list(WEAK_INTENTS),
         }
         total_correct = 0
@@ -227,7 +193,7 @@ class TestIntentAccuracy:
                 "recall": round(tp / total, 3) if total > 0 else 0.0,
                 "is_weak": intent in WEAK_INTENTS,
             }
-        report["overall_accuracy"] = round(total_correct / len(intent_test_cases), 3)
+        report["overall_accuracy"] = round(total_correct / len(intent_predictions), 3)
 
         # Save artifact
         report_path = artifact_dir / "intent_confusion_matrix.json"
