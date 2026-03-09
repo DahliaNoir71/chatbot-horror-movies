@@ -20,3 +20,4 @@ export type {
   PaginatedMeta,
   PaginatedResponse,
 } from './film.types'
+export type { HealthComponent, HealthResponse } from './health.types'
