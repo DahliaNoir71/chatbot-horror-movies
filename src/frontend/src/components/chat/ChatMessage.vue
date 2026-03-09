@@ -46,7 +46,7 @@ const confidencePercent = computed(() =>
     >
       <p class="whitespace-pre-wrap break-words">{{ message.content }}</p>
 
-      <div class="mt-2 flex items-center gap-3 text-xs opacity-70">
+      <div class="mt-2 flex items-center gap-3 text-xs text-smoke-gray-300">
         <time :datetime="message.timestamp.toISOString()">
           {{ formattedTime }}
         </time>

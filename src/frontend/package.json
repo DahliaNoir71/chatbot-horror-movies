@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
+    "test:lighthouse": "playwright test e2e/lighthouse-a11y.spec.ts --project=chromium",
     "lint": "eslint src --max-warnings 0",
     "format": "prettier --write src/",
     "type-check": "vue-tsc -b --noEmit"
@@ -42,6 +43,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.7.0",
     "jsdom": "^28.0.0",
+    "lighthouse": "^13.0.3",
     "playwright": "^1.58.2",
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",

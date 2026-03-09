@@ -50,6 +50,7 @@ const imdbUrl = computed(() =>
       <div
         v-else
         class="w-full h-full flex items-center justify-center text-smoke-gray-500"
+        role="img"
         :aria-label="`Aucune affiche pour ${film.title}`"
       >
         <svg
