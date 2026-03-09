@@ -49,7 +49,6 @@ env:
   PYTHON_VERSION: "3.12"
   PYTHONUNBUFFERED: "1"
   HF_HOME: ~/.cache/huggingface
-  TRANSFORMERS_CACHE: ~/.cache/huggingface/hub
 
 # ===================================================
 # Permissions pour la creation de PR
@@ -91,9 +90,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface/hub
-          key: huggingface-${{ hashFiles('.env.test') }}
+          key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
-            huggingface-
+            huggingface-${{ hashFiles('uv.lock') }}-
 
       - name: Run data validation tests
         env:
@@ -144,9 +143,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface/hub
-          key: huggingface-${{ hashFiles('.env.test') }}
+          key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
-            huggingface-
+            huggingface-${{ hashFiles('uv.lock') }}-
 
       - name: Run intent accuracy tests
         env:
@@ -198,9 +197,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface/hub
-          key: huggingface-${{ hashFiles('.env.test') }}
+          key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
-            huggingface-
+            huggingface-${{ hashFiles('uv.lock') }}-
 
       - name: Generate sample embeddings (equivalent entrainement)
         env:
@@ -259,9 +258,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface/hub
-          key: huggingface-${{ hashFiles('.env.test') }}
+          key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
-            huggingface-
+            huggingface-${{ hashFiles('uv.lock') }}-
 
       - name: Run response quality tests
         env:
