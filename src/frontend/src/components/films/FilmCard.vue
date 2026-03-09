@@ -40,27 +40,12 @@ const rating = computed(() =>
           class="w-full h-full object-cover"
           loading="lazy"
         />
-        <div
+        <img
           v-else
-          class="w-full h-full flex items-center justify-center text-smoke-gray-500"
-          role="img"
-          :aria-label="`Aucune affiche pour ${film.title}`"
-        >
-          <svg
-            class="w-16 h-16"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
-            />
-          </svg>
-        </div>
+          :src="`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z'/%3E%3C/svg%3E`"
+          :alt="`Aucune affiche pour ${film.title}`"
+          class="w-full h-full object-scale-down p-8 bg-deep-black-800"
+        />
       </div>
 
       <div class="p-3">
