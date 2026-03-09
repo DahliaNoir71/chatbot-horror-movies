@@ -88,7 +88,7 @@ onUnmounted(() => {
             Posez-moi vos questions sur les films d'horreur : recommandations,
             anecdotes, analyses…
           </p>
-          <p class="mt-2 text-xs text-smoke-gray-600">
+          <p class="mt-2 text-xs text-smoke-gray-500">
             Ctrl+N pour une nouvelle conversation
           </p>
         </div>

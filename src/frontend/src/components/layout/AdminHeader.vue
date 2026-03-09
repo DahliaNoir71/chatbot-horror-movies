@@ -25,7 +25,7 @@ function toggleMenu() {
     class="bg-deep-black-800 border-b border-blood-red-800"
   >
     <div class="flex items-center justify-between px-6 py-3">
-      <span class="text-lg font-bold text-blood-red-500 tracking-wide">
+      <span class="text-xl font-bold text-blood-red-500 tracking-wide">
         HorrorBot Admin
       </span>
 

@@ -11,6 +11,10 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
+const hasRegisterRoute = computed(() =>
+  router.getRoutes().some((r) => r.name === 'register')
+)
+
 const username = ref('')
 const password = ref('')
 const errors = ref<{ username: string | null; password: string | null }>({
@@ -124,7 +128,10 @@ onMounted(() => {
         </BaseButton>
       </form>
 
-      <p class="text-center text-sm text-smoke-gray-400">
+      <p
+        v-if="hasRegisterRoute"
+        class="text-center text-sm text-smoke-gray-400"
+      >
         Pas encore de compte ?
         <RouterLink
           :to="{ name: 'register' }"

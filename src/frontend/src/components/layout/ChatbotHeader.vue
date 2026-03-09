@@ -18,7 +18,7 @@ async function handleLogout() {
     role="banner"
     class="flex items-center justify-between px-6 py-3 bg-deep-black-800 border-b border-blood-red-800"
   >
-    <span class="text-lg font-bold text-blood-red-500 tracking-wide">
+    <span class="text-xl font-bold text-blood-red-500 tracking-wide">
       HorrorBot
     </span>
 
