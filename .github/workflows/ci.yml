@@ -134,6 +134,17 @@ jobs:
       - name: Build production
         run: npm run build
 
+      # Vérifie que le bundle gzippé total reste sous 150 KB (éco-conception)
+      - name: Verify bundle size (gzipped < 150 KB)
+        run: |
+          TOTAL=$(find dist -type f \( -name '*.js' -o -name '*.css' \) -exec gzip -c {} \; | wc -c)
+          TOTAL_KB=$((TOTAL / 1024))
+          echo "Total gzipped bundle: ${TOTAL_KB} KB (limit: 150 KB)"
+          if [ "$TOTAL_KB" -gt 150 ]; then
+            echo "::error::Bundle ${TOTAL_KB} KB exceeds 150 KB"
+            exit 1
+          fi
+
       # Installe les navigateurs Playwright pour les tests e2e
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

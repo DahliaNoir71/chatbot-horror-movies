@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "playwright test e2e/lighthouse-a11y.spec.ts --project=chromium",
+    "test:lighthouse-perf": "npm run build && playwright test e2e/lighthouse-perf.spec.ts --project=chromium",
     "lint": "eslint src --max-warnings 0",
     "format": "prettier --write src/",
     "type-check": "vue-tsc -b --noEmit"
