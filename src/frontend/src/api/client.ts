@@ -20,8 +20,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+      const url = error.config?.url ?? ''
+      if (!url.startsWith('/auth/')) {
+        localStorage.removeItem(TOKEN_KEY)
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

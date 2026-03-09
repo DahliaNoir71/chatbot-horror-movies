@@ -32,7 +32,7 @@ const rating = computed(() =>
       :to="`/films/${film.id}`"
       class="block focus:outline-none focus:ring-2 focus:ring-blood-red-500 focus:ring-inset"
     >
-      <div class="aspect-[2/3] bg-deep-black-800">
+      <div class="aspect-2/3 bg-deep-black-800">
         <img
           v-if="posterUrl"
           :src="posterUrl"
@@ -43,7 +43,6 @@ const rating = computed(() =>
         <div
           v-else
           class="w-full h-full flex items-center justify-center text-smoke-gray-500"
-          role="img"
           :aria-label="`Aucune affiche pour ${film.title}`"
         >
           <svg

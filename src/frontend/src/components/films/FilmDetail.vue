@@ -40,7 +40,7 @@ const imdbUrl = computed(() =>
 
 <template>
   <div class="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-8">
-    <div class="aspect-[2/3] bg-deep-black-800 rounded-xl overflow-hidden">
+    <div class="aspect-2/3 bg-deep-black-800 rounded-xl overflow-hidden">
       <img
         v-if="posterUrl"
         :src="posterUrl"
@@ -50,7 +50,6 @@ const imdbUrl = computed(() =>
       <div
         v-else
         class="w-full h-full flex items-center justify-center text-smoke-gray-500"
-        role="img"
         :aria-label="`Aucune affiche pour ${film.title}`"
       >
         <svg
