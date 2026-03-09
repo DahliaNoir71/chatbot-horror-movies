@@ -13,44 +13,38 @@ declare module 'vue-router' {
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/chat',
+    redirect: '/dashboard',
   },
   {
     path: '/login',
     name: 'login',
     component: () => import('@/views/LoginView.vue'),
-    meta: { guest: true, title: 'Login' },
+    meta: { guest: true, title: 'Connexion' },
   },
   {
-    path: '/register',
-    name: 'register',
-    component: () => import('@/views/RegisterView.vue'),
-    meta: { guest: true, title: 'Register' },
-  },
-  {
-    path: '/chat',
-    name: 'chat',
-    component: () => import('@/views/ChatView.vue'),
-    meta: { requiresAuth: true, title: 'Chat' },
+    path: '/dashboard',
+    name: 'dashboard',
+    component: () => import('@/views/admin/DashboardView.vue'),
+    meta: { requiresAuth: true, title: 'Tableau de bord' },
   },
   {
     path: '/films',
     name: 'films',
-    component: () => import('@/views/FilmsView.vue'),
+    component: () => import('@/views/admin/FilmsView.vue'),
     meta: { requiresAuth: true, title: 'Films' },
   },
   {
     path: '/films/:id',
     name: 'film-detail',
-    component: () => import('@/views/FilmDetailView.vue'),
-    meta: { requiresAuth: true, title: 'Film Detail' },
+    component: () => import('@/views/admin/FilmDetailView.vue'),
+    meta: { requiresAuth: true, title: 'Détail film' },
     props: true,
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: () => import('@/views/NotFoundView.vue'),
-    meta: { title: 'Page Not Found' },
+    meta: { title: 'Page non trouvée' },
   },
 ]
 
@@ -59,6 +53,6 @@ const router = createRouter({
   routes,
 })
 
-setupGuards(router)
+setupGuards(router, { defaultRoute: '/dashboard' })
 
 export default router

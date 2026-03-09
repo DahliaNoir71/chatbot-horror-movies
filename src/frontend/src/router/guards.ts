@@ -4,7 +4,14 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const APP_TITLE = 'HorrorBot'
 
-export function setupGuards(router: Router): void {
+export interface GuardOptions {
+  defaultRoute: string
+}
+
+export function setupGuards(
+  router: Router,
+  options: GuardOptions = { defaultRoute: '/chat' }
+): void {
   router.beforeEach((to) => {
     const auth = useAuthStore()
 
@@ -15,7 +22,7 @@ export function setupGuards(router: Router): void {
 
     // Guest guard: redirect authenticated users away from guest pages
     if (to.meta.guest && auth.isAuthenticated) {
-      return { name: 'chat' }
+      return options.defaultRoute
     }
 
     return true

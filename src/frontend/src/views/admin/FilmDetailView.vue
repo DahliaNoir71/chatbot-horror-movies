@@ -1,5 +1,5 @@
 <template>
   <div>
-    <h1>Film Detail</h1>
+    <h1>Détail film</h1>
   </div>
 </template>

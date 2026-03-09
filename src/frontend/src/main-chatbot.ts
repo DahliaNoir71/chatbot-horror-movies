@@ -1,11 +1,11 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import router from '@/router'
+import router from '@/router/chatbot'
 import { useAuthStore } from '@/stores/auth.store'
 import './style.css'
-import App from './App.vue'
+import AppChatbot from './AppChatbot.vue'
 
-const app = createApp(App)
+const app = createApp(AppChatbot)
 app.use(createPinia())
 
 const authStore = useAuthStore()
