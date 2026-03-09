@@ -142,6 +142,10 @@ jobs:
       - name: Run accessibility tests
         run: npm run test:a11y -- --project=chromium
 
+      # Exécute les tests e2e fonctionnels (auth, chat, films)
+      - name: Run e2e functional tests
+        run: npx playwright test e2e/auth.spec.ts e2e/chat.spec.ts e2e/films.spec.ts --project=chromium
+
       # Conserve le rapport Playwright en cas d'échec
       - name: Upload Playwright report
         if: failure()
