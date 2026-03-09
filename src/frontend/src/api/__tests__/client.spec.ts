@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import axios from 'axios'
-import type { InternalAxiosRequestConfig, AxiosResponse, AxiosHeaders } from 'axios'
+import type { InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
 // Must mock before importing client
 vi.mock('axios', async () => {
@@ -18,11 +18,6 @@ vi.mock('axios', async () => {
 })
 
 const TOKEN_KEY = 'horrorbot_token'
-
-function getInterceptors() {
-  const instance = (axios.create as ReturnType<typeof vi.fn>).mock.results[0]?.value
-  return instance?.interceptors
-}
 
 describe('API Client', () => {
   beforeEach(() => {
@@ -44,9 +39,13 @@ describe('API Client', () => {
 
       // Access the interceptor handlers via the instance
       const interceptors = apiClient.interceptors.request as unknown as {
-        handlers: Array<{ fulfilled: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig }>
+        handlers: Array<{
+          fulfilled: (
+            config: InternalAxiosRequestConfig
+          ) => InternalAxiosRequestConfig
+        }>
       }
-      const handler = interceptors.handlers[0]
+      const handler = interceptors.handlers[0]!
       const result = handler.fulfilled(config)
 
       expect(result.headers.Authorization).toBe('Bearer test-jwt-token')
@@ -59,9 +58,13 @@ describe('API Client', () => {
       }
 
       const interceptors = apiClient.interceptors.request as unknown as {
-        handlers: Array<{ fulfilled: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig }>
+        handlers: Array<{
+          fulfilled: (
+            config: InternalAxiosRequestConfig
+          ) => InternalAxiosRequestConfig
+        }>
       }
-      const handler = interceptors.handlers[0]
+      const handler = interceptors.handlers[0]!
       const result = handler.fulfilled(config)
 
       expect(result.headers.Authorization).toBeUndefined()
@@ -93,15 +96,21 @@ describe('API Client', () => {
           rejected: (error: unknown) => Promise<never>
         }>
       }
-      const handler = interceptors.handlers[0]
+      const handler = interceptors.handlers[0]!
 
-      const axiosError = new axios.AxiosError('Unauthorized', '401', undefined, undefined, {
-        status: 401,
-        data: {},
-        statusText: 'Unauthorized',
-        headers: {},
-        config: { headers: new axios.AxiosHeaders() },
-      })
+      const axiosError = new axios.AxiosError(
+        'Unauthorized',
+        '401',
+        undefined,
+        undefined,
+        {
+          status: 401,
+          data: {},
+          statusText: 'Unauthorized',
+          headers: {},
+          config: { headers: new axios.AxiosHeaders() },
+        }
+      )
 
       await expect(handler.rejected(axiosError)).rejects.toThrow()
       expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
@@ -117,15 +126,21 @@ describe('API Client', () => {
           rejected: (error: unknown) => Promise<never>
         }>
       }
-      const handler = interceptors.handlers[0]
+      const handler = interceptors.handlers[0]!
 
-      const axiosError = new axios.AxiosError('Server Error', '500', undefined, undefined, {
-        status: 500,
-        data: {},
-        statusText: 'Internal Server Error',
-        headers: {},
-        config: { headers: new axios.AxiosHeaders() },
-      })
+      const axiosError = new axios.AxiosError(
+        'Server Error',
+        '500',
+        undefined,
+        undefined,
+        {
+          status: 500,
+          data: {},
+          statusText: 'Internal Server Error',
+          headers: {},
+          config: { headers: new axios.AxiosHeaders() },
+        }
+      )
 
       await expect(handler.rejected(axiosError)).rejects.toThrow()
       // No redirect on 500

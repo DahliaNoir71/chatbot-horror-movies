@@ -93,6 +93,48 @@ jobs:
           retention-days: 7
 
   # ============================================
+  # JOB 2 : Tests Frontend (lint + type-check + tests + build)
+  # ============================================
+  # Vérifie le code frontend Vue.js/TypeScript
+  frontend-tests:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: src/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      # Installe les dépendances de manière reproductible via le lock file
+      - name: Install dependencies
+        run: npm ci
+
+      # Vérifie la qualité du code avec ESLint
+      - name: Run linter
+        run: npx eslint src/
+
+      # Vérifie les types TypeScript
+      - name: Run type-check
+        run: npx vue-tsc -b --noEmit
+
+      # Exécute les tests unitaires Vitest
+      - name: Run unit tests
+        run: npx vitest run
+
+      # Vérifie que le build de production fonctionne
+      - name: Build production
+        run: npm run build
+
+  # ============================================
   # JOB 3 : Analyse de sécurité Bandit
   # ============================================
   # Scanne le code Python à la recherche de vulnérabilités de sécurité
@@ -246,7 +288,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # Attend la fin de tous les autres jobs
-    needs: [tests, security-bandit, security-dependencies, security-owasp]
+    needs: [tests, frontend-tests, security-bandit, security-dependencies, security-owasp]
 
     # S'exécute uniquement si tous les jobs précédents ont réussi
     if: success()

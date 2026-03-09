@@ -1,4 +1,10 @@
-export type { LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, User } from './auth.types'
+export type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+  User,
+} from './auth.types'
 export type {
   ChatRequest,
   ChatResponse,

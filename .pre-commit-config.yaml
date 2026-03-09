@@ -44,3 +44,30 @@ repos:
       - id: vulture
         args: ["src/", "tests/"]
         pass_filenames: false
+
+  # ===================================================
+  # Frontend - ESLint, Prettier, TypeScript
+  # Hooks locaux car les outils sont dans src/frontend/node_modules
+  # ===================================================
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: frontend eslint
+        entry: bash -c "cd src/frontend && npx eslint --fix src/"
+        language: system
+        files: ^src/frontend/src/.*\.(ts|vue)$
+        pass_filenames: false
+
+      - id: frontend-prettier
+        name: frontend prettier
+        entry: bash -c "cd src/frontend && npx prettier --write src/"
+        language: system
+        files: ^src/frontend/src/.*\.(ts|vue|css)$
+        pass_filenames: false
+
+      - id: frontend-typecheck
+        name: frontend type-check
+        entry: bash -c "cd src/frontend && npx vue-tsc -b --noEmit"
+        language: system
+        files: ^src/frontend/src/.*\.(ts|vue)$
+        pass_filenames: false

@@ -8,7 +8,7 @@ export function ask(request: ChatRequest): Promise<ChatResponse> {
 export async function askStream(
   request: ChatRequest,
   onEvent: (event: StreamEvent) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<void> {
   const token = localStorage.getItem(TOKEN_KEY)
   const response = await fetch(`${import.meta.env.VITE_API_URL}/chat/stream`, {
