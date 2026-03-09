@@ -94,10 +94,11 @@ describe('FilmsView', () => {
       expect(wrapper.findAll('.film-card')).toHaveLength(2)
     })
 
-    it('shows loading spinner while loading', () => {
+    it('shows loading spinner while loading', async () => {
       vi.mocked(listFilms).mockReturnValue(new Promise(() => {}))
 
       const wrapper = mountFilms()
+      await wrapper.vm.$nextTick()
       expect(wrapper.find('.loading-spinner').exists()).toBe(true)
     })
 

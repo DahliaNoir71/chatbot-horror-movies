@@ -195,10 +195,11 @@ describe('ChatView', () => {
       error.value = 'Something went wrong'
       const wrapper = mountChat()
       const errorAlert = wrapper.findComponent(ErrorAlertStub)
-      await errorAlert.vm.$emit('dismiss')
+      errorAlert.vm.$emit('dismiss')
       await flushPromises()
 
-      expect(error.value).toBeNull()
+      // Template does chatStore.error = null which replaces ref on store object
+      expect(mockStore.error).toBeNull()
     })
   })
 
