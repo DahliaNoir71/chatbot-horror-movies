@@ -65,6 +65,14 @@ export default [
     },
   },
 
+  // Test files — allow multiple inline stub components
+  {
+    files: ['src/**/*.spec.ts', 'src/**/*.test.ts'],
+    rules: {
+      'vue/one-component-per-file': 'off',
+    },
+  },
+
   // Disable formatting rules handled by Prettier
   prettier,
 ]
