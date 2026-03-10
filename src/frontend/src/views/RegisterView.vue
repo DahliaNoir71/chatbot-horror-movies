@@ -123,6 +123,12 @@ onMounted(() => {
           Se connecter
         </RouterLink>
       </p>
+
+      <p class="text-center text-sm text-smoke-gray-500">
+        <a href="/" class="hover:text-smoke-gray-300 underline">
+          &larr; Retour à l'accueil
+        </a>
+      </p>
     </div>
   </div>
 </template>
