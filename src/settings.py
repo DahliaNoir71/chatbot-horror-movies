@@ -428,7 +428,7 @@ class CORSSettings(BaseSettings):
     """CORS configuration for E3."""
 
     origins_raw: str = Field(
-        default="http://localhost:3000",
+        default="http://localhost:3000,http://localhost:5173",
         alias="CORS_ORIGINS",
     )
 
