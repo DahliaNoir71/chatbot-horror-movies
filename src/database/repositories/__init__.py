@@ -13,6 +13,7 @@ Usage:
         films = film_repo.search_by_title("Halloween")
 """
 
+# Auth repositories
 # Audit repositories
 from src.database.repositories.audit import (
     DataRetentionLogRepository,
@@ -21,6 +22,7 @@ from src.database.repositories.audit import (
     ETLStatsData,
     RetentionDetailsData,
 )
+from src.database.repositories.auth import UserRepository
 from src.database.repositories.base import BaseRepository
 
 # Rotten Tomatoes repositories
@@ -42,6 +44,8 @@ from src.database.repositories.tmdb import (
 __all__ = [
     # Base
     "BaseRepository",
+    # Auth
+    "UserRepository",
     # TMDB
     "FilmRepository",
     "GenreRepository",

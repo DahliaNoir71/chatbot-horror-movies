@@ -6,12 +6,14 @@ Re-exports all models organized by source:
 - audit: RGPD compliance and ETL tracking
 """
 
+# Auth models
 # Audit models
 from src.database.models.audit import (
     DataRetentionLog,
     ETLRun,
     RGPDProcessingRegistry,
 )
+from src.database.models.auth import User
 from src.database.models.base import Base, ExtractedAtMixin
 
 # Rotten Tomatoes models
@@ -35,6 +37,8 @@ __all__ = [
     # Base
     "Base",
     "ExtractedAtMixin",
+    # Auth
+    "User",
     # TMDB
     "Film",
     "Genre",

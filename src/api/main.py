@@ -11,8 +11,9 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
-from src.api.database import get_engine
+from src.api.database import get_db, get_engine
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.routers import chat, films
 from src.api.schemas import (
@@ -27,6 +28,9 @@ from src.api.schemas import (
     TokenResponse,
 )
 from src.api.services.jwt_service import JWTService, get_jwt_service
+from src.api.services.password_service import hash_password, verify_password
+from src.database.models.auth.user import User
+from src.database.repositories.auth.user import UserRepository
 from src.monitoring.middleware import PrometheusMiddleware, mount_metrics
 from src.settings import settings
 
@@ -142,7 +146,6 @@ app = create_app()
 
 @app.get(
     "/api/v1/health",
-    response_model=HealthResponse,
     tags=["Health"],
     summary="Health check",
     description="Verify API is running and responsive.",
@@ -220,7 +223,6 @@ def _check_embeddings() -> EmbeddingsComponentHealth:
 
 @app.post(
     "/api/v1/auth/token",
-    response_model=TokenResponse,
     tags=["Authentication"],
     summary="Get access token",
     description="Authenticate and receive JWT token.",
@@ -229,12 +231,17 @@ def _check_embeddings() -> EmbeddingsComponentHealth:
 def login(
     request: TokenRequest,
     jwt_service: Annotated[JWTService, Depends(get_jwt_service)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> TokenResponse:
     """Authenticate user and return JWT token.
+
+    Checks database users first, then falls back to demo users
+    for backward compatibility.
 
     Args:
         request: Login credentials.
         jwt_service: JWT service for token generation.
+        db: Database session.
 
     Returns:
         JWT access token.
@@ -242,76 +249,91 @@ def login(
     Raises:
         HTTPException: 401 if credentials invalid.
     """
-    if not _validate_credentials(request.username, request.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    # Check database users
+    repo = UserRepository(db)
+    user = repo.get_by_username(request.username)
+    if user and verify_password(request.password, user.password_hash):
+        token = jwt_service.create_token(subject=request.username)
+        return TokenResponse(
+            access_token=token,
+            expires_in=jwt_service.expire_seconds,
         )
-    token = jwt_service.create_token(subject=request.username)
-    return TokenResponse(
-        access_token=token,
-        expires_in=jwt_service.expire_seconds,
-    )
 
-
-def _validate_credentials(username: str, password: str) -> bool:
-    """Validate user credentials against demo and registered users.
-
-    Args:
-        username: Username to validate.
-        password: Password to validate.
-
-    Returns:
-        True if credentials are valid.
-    """
+    # Fallback to demo users
     demo_users = settings.security.demo_users
-    if demo_users.get(username) == password:
-        return True
-    return _registered_users.get(username) == password
+    if demo_users.get(request.username) == request.password:
+        token = jwt_service.create_token(subject=request.username)
+        return TokenResponse(
+            access_token=token,
+            expires_in=jwt_service.expire_seconds,
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid username or password",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 # =============================================================================
 # REGISTRATION
 # =============================================================================
 
-_registered_users: dict[str, str] = {}
-
 
 @app.post(
     "/api/v1/auth/register",
-    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["Authentication"],
     summary="Register new user",
     description="Create a new user account.",
     dependencies=[Depends(check_rate_limit)],
 )
-def register(request: RegisterRequest) -> RegisterResponse:
+def register(
+    request: RegisterRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> RegisterResponse:
     """Register a new user.
 
     Args:
         request: Registration credentials.
+        db: Database session.
 
     Returns:
-        Confirmation with username.
+        Confirmation with username and email.
 
     Raises:
-        HTTPException: 409 if username already taken.
+        HTTPException: 409 if username or email already taken.
     """
     if request.username in settings.security.demo_users:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username already taken",
         )
-    if request.username in _registered_users:
+
+    repo = UserRepository(db)
+
+    if repo.username_exists(request.username):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username already taken",
         )
-    _registered_users[request.username] = request.password
-    return RegisterResponse(
+
+    if repo.email_exists(request.email):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already taken",
+        )
+
+    user = User(
         username=request.username,
+        email=request.email,
+        password_hash=hash_password(request.password),
+    )
+    repo.create(user)
+
+    return RegisterResponse(
+        username=user.username,
+        email=user.email,
         message="User registered successfully",
     )
 

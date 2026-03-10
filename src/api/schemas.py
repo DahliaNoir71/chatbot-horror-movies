@@ -78,6 +78,12 @@ class RegisterRequest(BaseModel):
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Username (alphanumeric, underscore, hyphen)",
     )
+    email: str = Field(
+        min_length=5,
+        max_length=255,
+        pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        description="Email address",
+    )
     password: str = Field(
         min_length=8,
         max_length=100,
@@ -89,6 +95,7 @@ class RegisterResponse(BaseModel):
     """User registration response schema."""
 
     username: str
+    email: str
     message: str
 
 

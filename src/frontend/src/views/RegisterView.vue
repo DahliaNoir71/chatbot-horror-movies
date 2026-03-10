@@ -8,13 +8,20 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ErrorAlert from '@/components/ui/ErrorAlert.vue'
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,50}$/
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
 const router = useRouter()
 
 const username = ref('')
+const email = ref('')
 const password = ref('')
-const errors = ref<{ username: string | null; password: string | null }>({
+const errors = ref<{
+  username: string | null
+  email: string | null
+  password: string | null
+}>({
   username: null,
+  email: null,
   password: null,
 })
 const apiError = ref<string | null>(null)
@@ -31,6 +38,14 @@ function validate(): boolean {
     errors.value.username = null
   }
 
+  if (!email.value.trim()) {
+    errors.value.email = "L'email est requis"
+  } else if (!EMAIL_PATTERN.test(email.value.trim())) {
+    errors.value.email = "L'email n'est pas valide"
+  } else {
+    errors.value.email = null
+  }
+
   if (!password.value) {
     errors.value.password = 'Le mot de passe est requis'
   } else if (password.value.length < 8) {
@@ -40,7 +55,7 @@ function validate(): boolean {
     errors.value.password = null
   }
 
-  return !errors.value.username && !errors.value.password
+  return !errors.value.username && !errors.value.email && !errors.value.password
 }
 
 async function handleSubmit() {
@@ -51,13 +66,16 @@ async function handleSubmit() {
   try {
     await register({
       username: username.value.trim(),
+      email: email.value.trim(),
       password: password.value,
     })
     await router.push({ name: 'login', query: { registered: 'true' } })
   } catch (error) {
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 409) {
-        apiError.value = "Ce nom d'utilisateur est déjà pris"
+        apiError.value =
+          error.response.data?.detail ||
+          "Ce nom d'utilisateur ou email est déjà pris"
       } else if (!error.response) {
         apiError.value = 'Erreur de connexion au serveur'
       } else {
@@ -98,6 +116,14 @@ onMounted(() => {
           v-model="username"
           label="Nom d'utilisateur"
           :error="errors.username"
+          required
+        />
+
+        <BaseInput
+          v-model="email"
+          type="email"
+          label="Email"
+          :error="errors.email"
           required
         />
 

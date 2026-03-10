@@ -8,14 +8,17 @@ in the lifespan is patched out so tests run without PostgreSQL.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import StaticPool, create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.database import get_db
+from src.database.models.base import Base
 from src.services.intent.router import ChatResult
 
 
@@ -85,16 +88,47 @@ def make_mock_session_manager():
 
 
 @pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+def _test_db_session() -> Generator[Session, None, None]:
+    """Create an in-memory SQLite database with the users table for testing."""
+    from src.database.models.auth.user import User
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine, tables=[User.__table__])
+    session_factory = sessionmaker(
+        bind=engine, autocommit=False, autoflush=False, expire_on_commit=False,
+    )
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine, tables=[User.__table__])
+        engine.dispose()
+
+
+@pytest.fixture
+async def client(_test_db_session: Session) -> AsyncGenerator[AsyncClient, None]:
     """Provide an ``httpx.AsyncClient`` wired to the real app.
 
     * ``_verify_database_connection`` is patched to skip DB checks.
-    * ``get_db`` is overridden with a mock.
+    * ``get_db`` is overridden with an in-memory SQLite session.
     """
     from src.api.main import app
 
+    def _override_get_db() -> Generator[Session, None, None]:
+        try:
+            yield _test_db_session
+            _test_db_session.commit()
+        except Exception:
+            _test_db_session.rollback()
+            raise
+
     with patch("src.api.main._verify_database_connection"):
-        app.dependency_overrides[get_db] = lambda: MagicMock()
+        app.dependency_overrides[get_db] = _override_get_db
         transport = ASGITransport(app=app, raise_app_exceptions=False)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
