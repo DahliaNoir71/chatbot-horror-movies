@@ -43,29 +43,17 @@ export async function setupAuth(page: Page) {
 /**
  * Navigate to a route within a multi-page Vue app.
  *
- * The routers use createWebHistory() so hash URLs don't work.
- * We load the HTML entry point, then trigger a client-side navigation
- * via Vue Router so it resolves the target route.
+ * The routers use createWebHashHistory() so we navigate directly
+ * via the hash URL: e.g. /chatbot.html#/chat
  */
 export async function navigateToRoute(
   page: Page,
   htmlEntry: string,
   route: string,
 ) {
-  await page.goto(htmlEntry)
-  // Wait for Vue app to fully mount and initial router navigation to settle
+  await page.goto(`${htmlEntry}#${route}`)
   await page.waitForFunction(() => {
     const app = document.querySelector('#app')
     return app && app.children.length > 0
   })
-  // Use Vue Router directly — popstate is unreliable across multi-page apps
-  await page.evaluate(async (r) => {
-    const el = document.querySelector('#app') as any
-    const router = el?.__vue_app__?.config?.globalProperties?.$router
-    if (router) {
-      // Wait for initial navigation to complete before pushing
-      await router.isReady()
-      await router.push(r)
-    }
-  }, route)
 }

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { redirectToLogin } from './auth-redirect'
 
 if (import.meta.env.PROD) {
   const url = import.meta.env.VITE_API_URL
@@ -32,7 +33,7 @@ apiClient.interceptors.response.use(
       const url = error.config?.url ?? ''
       if (!url.startsWith('/auth/')) {
         localStorage.removeItem(TOKEN_KEY)
-        window.location.href = '/login'
+        redirectToLogin()
       }
     }
     return Promise.reject(error)

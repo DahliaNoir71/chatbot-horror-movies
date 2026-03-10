@@ -1,4 +1,5 @@
 import apiClient, { TOKEN_KEY } from './client'
+import { redirectToLogin } from './auth-redirect'
 import type { ChatRequest, ChatResponse, StreamEvent } from '@/types'
 
 export function ask(request: ChatRequest): Promise<ChatResponse> {
@@ -24,7 +25,7 @@ export async function askStream(
   if (!response.ok) {
     if (response.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+      redirectToLogin()
     }
     throw new Error(`Stream request failed: ${response.status}`)
   }

@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import axios from 'axios'
 import type { InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
+vi.mock('../auth-redirect', () => ({
+  redirectToLogin: vi.fn(),
+}))
+
 // Must mock before importing client
 vi.mock('axios', async () => {
   const actual = await vi.importActual<typeof import('axios')>('axios')
@@ -76,19 +80,7 @@ describe('API Client', () => {
       localStorage.setItem(TOKEN_KEY, 'expired-token')
 
       const { default: apiClient } = await import('../client')
-
-      // Mock window.location
-      const hrefSetter = vi.fn()
-      Object.defineProperty(window, 'location', {
-        value: { href: '' },
-        writable: true,
-        configurable: true,
-      })
-      Object.defineProperty(window.location, 'href', {
-        set: hrefSetter,
-        get: () => '',
-        configurable: true,
-      })
+      const { redirectToLogin } = await import('../auth-redirect')
 
       const interceptors = apiClient.interceptors.response as unknown as {
         handlers: Array<{
@@ -114,7 +106,7 @@ describe('API Client', () => {
 
       await expect(handler.rejected(axiosError)).rejects.toThrow()
       expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
-      expect(hrefSetter).toHaveBeenCalledWith('/login')
+      expect(redirectToLogin).toHaveBeenCalled()
     })
 
     it('passes through non-401 errors', async () => {

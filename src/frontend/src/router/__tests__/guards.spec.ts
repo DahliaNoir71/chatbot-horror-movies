@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 import { setupGuards } from '../guards'
 import { useAuthStore } from '@/stores/auth.store'
@@ -12,7 +12,7 @@ const DummyComponent = { template: '<div />' }
 
 function createTestRouter() {
   const router = createRouter({
-    history: createWebHistory(),
+    history: createWebHashHistory(),
     routes: [
       { path: '/', redirect: '/chat' },
       {

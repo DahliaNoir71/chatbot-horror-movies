@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { askStream } from '../chat.api'
 import { TOKEN_KEY } from '../client'
+import { redirectToLogin } from '../auth-redirect'
+
+vi.mock('../auth-redirect', () => ({
+  redirectToLogin: vi.fn(),
+}))
 
 function createSSEStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -157,18 +162,6 @@ describe('askStream', () => {
     it('clears token and redirects on 401', async () => {
       localStorage.setItem(TOKEN_KEY, 'expired-token')
 
-      const hrefSetter = vi.fn()
-      Object.defineProperty(window, 'location', {
-        value: { href: '' },
-        writable: true,
-        configurable: true,
-      })
-      Object.defineProperty(window.location, 'href', {
-        set: hrefSetter,
-        get: () => '',
-        configurable: true,
-      })
-
       vi.mocked(fetch).mockResolvedValue({
         ok: false,
         status: 401,
@@ -178,7 +171,7 @@ describe('askStream', () => {
         'Stream request failed: 401'
       )
       expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
-      expect(hrefSetter).toHaveBeenCalledWith('/login')
+      expect(redirectToLogin).toHaveBeenCalled()
     })
 
     it('throws when response body is null', async () => {
