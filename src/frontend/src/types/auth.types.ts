@@ -1,5 +1,10 @@
-export interface LoginRequest {
+export interface UserLoginRequest {
   username: string
+  password: string
+}
+
+export interface AdminLoginRequest {
+  email: string
   password: string
 }
 
@@ -23,4 +28,5 @@ export interface RegisterResponse {
 
 export interface User {
   username: string
+  role: string
 }

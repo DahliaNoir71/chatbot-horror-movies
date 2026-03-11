@@ -18,6 +18,7 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.database import get_db
+from src.api.dependencies.rate_limit import check_rate_limit
 from src.database.models.base import Base
 from src.services.intent.router import ChatResult
 
@@ -40,6 +41,18 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 # ---------------------------------------------------------------------------
 
 TEST_SESSION_ID = uuid4()
+
+# Test-only credentials (never used outside tests)
+TEST_DEMO_USER = "testuser"
+TEST_DEMO_EMAIL = "testuser@example.com"
+TEST_DEMO_PASS = "testpass123"  # noqa: S105
+TEST_ADMIN_USER = "adminuser"
+TEST_ADMIN_EMAIL = "serge.pfeiffer@proton.me"
+TEST_ADMIN_PASS = "adminpass123"  # noqa: S105
+TEST_REGISTER_PASS = "securepass123"  # noqa: S105
+TEST_WRONG_PASS = "wrongpassword"  # noqa: S105
+TEST_SHORT_PASS = "short"  # noqa: S105
+TEST_OTHER_PASS = "otherpass456"  # noqa: S105
 
 # ---------------------------------------------------------------------------
 # ChatResult factory
@@ -127,22 +140,62 @@ async def client(_test_db_session: Session) -> AsyncGenerator[AsyncClient, None]
             _test_db_session.rollback()
             raise
 
-    with patch("src.api.main._verify_database_connection"):
+    with (
+        patch("src.api.main._verify_database_connection"),
+        patch("src.api.main._ensure_schema_up_to_date"),
+        patch("src.api.main._seed_admin_account"),
+    ):
         app.dependency_overrides[get_db] = _override_get_db
+        app.dependency_overrides[check_rate_limit] = lambda: None
         transport = ASGITransport(app=app, raise_app_exceptions=False)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(check_rate_limit, None)
 
 
 @pytest.fixture
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
-    """Login with test credentials and return Authorization headers."""
+    """Register a test user and return Authorization headers."""
+    reg_resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": TEST_DEMO_USER,
+            "email": TEST_DEMO_EMAIL,
+            "password": TEST_DEMO_PASS,
+        },
+    )
+    assert reg_resp.status_code == 201, f"Register failed: {reg_resp.text}"
+
     resp = await client.post(
         "/api/v1/auth/token",
-        json={"username": "testuser", "password": "testpass123"},
+        json={"username": TEST_DEMO_USER, "password": TEST_DEMO_PASS},
     )
     assert resp.status_code == 200, f"Login failed: {resp.text}"
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def admin_auth_headers(client: AsyncClient) -> dict[str, str]:
+    """Register an admin user and return Authorization headers with admin role."""
+    # Register with admin-allowed email
+    reg_resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": TEST_ADMIN_USER,
+            "email": TEST_ADMIN_EMAIL,
+            "password": TEST_ADMIN_PASS,
+        },
+    )
+    assert reg_resp.status_code == 201, f"Admin register failed: {reg_resp.text}"
+
+    # Login to get admin JWT via admin endpoint
+    resp = await client.post(
+        "/api/v1/auth/admin/token",
+        json={"email": TEST_ADMIN_EMAIL, "password": TEST_ADMIN_PASS},
+    )
+    assert resp.status_code == 200, f"Admin login failed: {resp.text}"
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 

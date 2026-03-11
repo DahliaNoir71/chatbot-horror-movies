@@ -16,7 +16,7 @@ from src.api.schemas import (
     SearchRequest,
     SearchResponse,
     SearchResultItem,
-    TokenRequest,
+    UserTokenRequest,
     TokenResponse,
 )
 
@@ -40,13 +40,13 @@ class TestHealthResponse:
         assert response.timestamp == ts
 
 
-class TestTokenRequest:
-    """Tests for TokenRequest schema."""
+class TestUserTokenRequest:
+    """Tests for UserTokenRequest schema."""
 
     @staticmethod
     def test_valid_credentials() -> None:
         """Test valid username and password."""
-        request = TokenRequest(username="testuser", password="securepass123")
+        request = UserTokenRequest(username="testuser", password="securepass123")
         assert request.username == "testuser"
         assert request.password == "securepass123"
 
@@ -54,28 +54,28 @@ class TestTokenRequest:
     def test_username_too_short() -> None:
         """Test username minimum length validation."""
         with pytest.raises(ValidationError) as exc_info:
-            TokenRequest(username="ab", password="securepass123")
+            UserTokenRequest(username="ab", password="securepass123")
         assert "username" in str(exc_info.value)
 
     @staticmethod
     def test_username_too_long() -> None:
         """Test username maximum length validation."""
         with pytest.raises(ValidationError) as exc_info:
-            TokenRequest(username="a" * 51, password="securepass123")
+            UserTokenRequest(username="a" * 51, password="securepass123")
         assert "username" in str(exc_info.value)
 
     @staticmethod
     def test_password_too_short() -> None:
         """Test password minimum length validation."""
         with pytest.raises(ValidationError) as exc_info:
-            TokenRequest(username="testuser", password="short")
+            UserTokenRequest(username="testuser", password="short")
         assert "password" in str(exc_info.value)
 
     @staticmethod
     def test_password_too_long() -> None:
         """Test password maximum length validation."""
         with pytest.raises(ValidationError) as exc_info:
-            TokenRequest(username="testuser", password="a" * 101)
+            UserTokenRequest(username="testuser", password="a" * 101)
         assert "password" in str(exc_info.value)
 
 

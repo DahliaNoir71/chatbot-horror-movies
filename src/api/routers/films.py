@@ -11,7 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from src.api.database import get_db
-from src.api.dependencies.auth import CurrentUser
+from src.api.dependencies.auth import AdminUser
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.schemas import (
     FilmBase,
@@ -60,12 +60,11 @@ def get_pagination(
 
 @router.get(
     "",
-    response_model=FilmListResponse,
     summary="List films",
     description="Get paginated list of films sorted by popularity.",
 )
 def list_films(
-    _user: CurrentUser,
+    _user: AdminUser,
     db: Annotated[Session, Depends(get_db)],
     pagination: Annotated[PaginationParams, Depends(get_pagination)],
 ) -> FilmListResponse:
@@ -89,13 +88,12 @@ def list_films(
 
 @router.get(
     "/{film_id}",
-    response_model=FilmDetail,
     summary="Get film details",
     description="Retrieve detailed information for a specific film.",
 )
 def get_film(
     film_id: int,
-    _user: CurrentUser,
+    _user: AdminUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> FilmDetail:
     """Get film by ID.
@@ -122,13 +120,12 @@ def get_film(
 
 @router.post(
     "/search",
-    response_model=SearchResponse,
     summary="Semantic search",
     description="Search films using vector similarity on embeddings.",
 )
 def search_films(
     request: SearchRequest,
-    _user: CurrentUser,
+    _user: AdminUser,
     db: Annotated[Session, Depends(get_db)],
 ) -> SearchResponse:
     """Search films by semantic similarity.

@@ -1,14 +1,25 @@
 import apiClient from './client'
 import type {
-  LoginRequest,
+  UserLoginRequest,
+  AdminLoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
 } from '@/types'
 
-export function login(credentials: LoginRequest): Promise<LoginResponse> {
+export function loginUser(
+  credentials: UserLoginRequest
+): Promise<LoginResponse> {
   return apiClient
     .post<LoginResponse>('/auth/token', credentials)
+    .then((r) => r.data)
+}
+
+export function loginAdmin(
+  credentials: AdminLoginRequest
+): Promise<LoginResponse> {
+  return apiClient
+    .post<LoginResponse>('/auth/admin/token', credentials)
     .then((r) => r.data)
 }
 

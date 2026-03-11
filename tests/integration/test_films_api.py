@@ -84,12 +84,12 @@ class TestFilmsListEndpoint:
     @staticmethod
     async def test_list_films_default_pagination(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test listing films with default pagination (page=1, size=20)."""
         resp = await client.get(
             "/api/v1/films",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         # Either 200 (success) or 500 (DB not initialized)
         assert resp.status_code in (200, 500)
@@ -105,12 +105,12 @@ class TestFilmsListEndpoint:
     @staticmethod
     async def test_list_films_custom_pagination(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test listing films with custom pagination parameters."""
         resp = await client.get(
             "/api/v1/films?page=2&size=10",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code in (200, 500)
 
@@ -122,48 +122,48 @@ class TestFilmsListEndpoint:
     @staticmethod
     async def test_list_films_invalid_page_zero_returns_422(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that page=0 returns validation error (422)."""
         resp = await client.get(
             "/api/v1/films?page=0&size=20",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code == 422  # Pydantic validation error
 
     @staticmethod
     async def test_list_films_invalid_page_negative_returns_422(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that negative page returns validation error (422)."""
         resp = await client.get(
             "/api/v1/films?page=-1&size=20",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code == 422
 
     @staticmethod
     async def test_list_films_invalid_size_zero_returns_422(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that size=0 returns validation error (422)."""
         resp = await client.get(
             "/api/v1/films?page=1&size=0",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code == 422
 
     @staticmethod
     async def test_list_films_max_page_boundary(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that maximum page value (1000) is accepted."""
         resp = await client.get(
             "/api/v1/films?page=1000&size=20",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         # Should succeed (even if empty results) or DB error
         assert resp.status_code in (200, 500)
@@ -171,12 +171,12 @@ class TestFilmsListEndpoint:
     @staticmethod
     async def test_list_films_response_schema(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that response follows FilmListResponse schema."""
         resp = await client.get(
             "/api/v1/films?page=1&size=5",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code in (200, 500)
 
@@ -212,6 +212,18 @@ class TestFilmsListEndpoint:
         resp = await client.get("/api/v1/films")
         assert resp.status_code in (401, 403)
 
+    @staticmethod
+    async def test_list_films_non_admin_returns_403(
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that non-admin user gets 403 on films endpoint."""
+        resp = await client.get(
+            "/api/v1/films",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 403
+
 
 # ============================================================================
 # Film Details Tests
@@ -232,12 +244,12 @@ class TestFilmDetailsEndpoint:
     @staticmethod
     async def test_get_film_by_id_404_not_found(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that non-existent film returns 404."""
         resp = await client.get(
             "/api/v1/films/999999",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code in (404, 500)
 
@@ -249,7 +261,7 @@ class TestFilmDetailsEndpoint:
     @staticmethod
     async def test_get_film_response_schema(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that response follows FilmDetail schema.
 
@@ -259,7 +271,7 @@ class TestFilmDetailsEndpoint:
         # Try to get film ID 1 (if it exists)
         resp = await client.get(
             "/api/v1/films/1",
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
 
         # Either 200 (film exists), 404 (no films in test DB), or 500 (DB error)
@@ -297,20 +309,20 @@ class TestFilmSearchEndpoint:
     @staticmethod
     async def test_search_films_empty_query_422(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
     ) -> None:
         """Test that empty query returns validation error (422)."""
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "", "limit": 10},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code == 422
 
     @staticmethod
     async def test_search_films_basic_query(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
         mock_embedding_service,
     ) -> None:
         """Test basic semantic search for films.
@@ -320,7 +332,7 @@ class TestFilmSearchEndpoint:
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "scary horror movie", "limit": 10},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         # Either 200 (search successful) or 500 (DB not seeded)
         # In a real test with DB seeding, this would be 200
@@ -337,14 +349,14 @@ class TestFilmSearchEndpoint:
     @staticmethod
     async def test_search_films_custom_limit(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
         mock_embedding_service,
     ) -> None:
         """Test search with custom result limit."""
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "horror", "limit": 5},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         # Either success or DB not seeded
         assert resp.status_code in (200, 500)
@@ -358,14 +370,14 @@ class TestFilmSearchEndpoint:
     @staticmethod
     async def test_search_films_response_schema(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
         mock_embedding_service,
     ) -> None:
         """Test that search response follows SearchResponse schema."""
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "thriller", "limit": 10},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
 
         assert resp.status_code in (200, 500)
@@ -389,7 +401,7 @@ class TestFilmSearchEndpoint:
     @staticmethod
     async def test_search_films_limit_boundaries(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
         mock_embedding_service,
     ) -> None:
         """Test search with boundary limit values."""
@@ -397,7 +409,7 @@ class TestFilmSearchEndpoint:
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "horror films", "limit": 1},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         # Accept various status codes due to DB state
         assert resp.status_code in (200, 422, 500)
@@ -406,21 +418,21 @@ class TestFilmSearchEndpoint:
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "horror films", "limit": 100},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
         assert resp.status_code in (200, 422, 500)
 
     @staticmethod
     async def test_search_films_ordered_by_score(
         client: AsyncClient,
-        auth_headers: dict[str, str],
+        admin_auth_headers: dict[str, str],
         mock_embedding_service,
     ) -> None:
         """Test that search results are ordered by relevance score (descending)."""
         resp = await client.post(
             "/api/v1/films/search",
             json={"query": "horror", "limit": 10},
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
 
         assert resp.status_code in (200, 500)

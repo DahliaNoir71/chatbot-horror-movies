@@ -53,6 +53,16 @@ class SecuritySettings(BaseSettings):
     # Demo authentication (format: "user1:pass1,user2:pass2")
     demo_users_raw: str = Field(default="", alias="AUTH_DEMO_USERS")
 
+    # Admin access control
+    admin_allowed_emails_raw: str = Field(
+        default="serge.pfeiffer@proton.me",
+        alias="ADMIN_ALLOWED_EMAILS",
+    )
+    admin_default_password: str = Field(
+        default="sp-thx1138",
+        alias="ADMIN_DEFAULT_PASSWORD",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -75,6 +85,19 @@ class SecuritySettings(BaseSettings):
                 username, password = pair.strip().split(":", 1)
                 users[username.strip()] = password.strip()
         return users
+
+    @property
+    def admin_allowed_emails(self) -> list[str]:
+        """Parse admin allowed emails from comma-separated string."""
+        if not self.admin_allowed_emails_raw:
+            return []
+        return [
+            email.strip() for email in self.admin_allowed_emails_raw.split(",") if email.strip()
+        ]
+
+    def is_admin_email(self, email: str) -> bool:
+        """Check if an email is in the admin allowlist."""
+        return email.lower() in [e.lower() for e in self.admin_allowed_emails]
 
 
 class CORSSettings(BaseSettings):

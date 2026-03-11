@@ -29,6 +29,7 @@ class TokenPayload:
     """
 
     sub: str
+    role: str
     exp: datetime
     iat: datetime
 
@@ -72,11 +73,12 @@ class JWTService:
         self._algorithm = security.jwt_algorithm
         self._expire_minutes = security.jwt_expire_minutes
 
-    def create_token(self, subject: str) -> str:
+    def create_token(self, subject: str, role: str = "user") -> str:
         """Generate a new JWT token.
 
         Args:
             subject: Token subject (username or user ID).
+            role: User role (user or admin).
 
         Returns:
             Encoded JWT string.
@@ -84,6 +86,7 @@ class JWTService:
         now = datetime.now(UTC)
         payload = {
             "sub": subject,
+            "role": role,
             "iat": now,
             "exp": now + timedelta(minutes=self._expire_minutes),
         }
@@ -126,6 +129,7 @@ class JWTService:
         """
         return TokenPayload(
             sub=payload["sub"],
+            role=payload.get("role", "user"),
             exp=datetime.fromtimestamp(payload["exp"], tz=UTC),
             iat=datetime.fromtimestamp(payload["iat"], tz=UTC),
         )

@@ -36,6 +36,12 @@ class User(Base, TimestampMixin):
         index=True,
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="user",
+        server_default="user",
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     def __repr__(self) -> str:

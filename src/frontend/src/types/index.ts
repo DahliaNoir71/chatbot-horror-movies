@@ -1,5 +1,6 @@
 export type {
-  LoginRequest,
+  UserLoginRequest,
+  AdminLoginRequest,
   LoginResponse,
   RegisterRequest,
   RegisterResponse,

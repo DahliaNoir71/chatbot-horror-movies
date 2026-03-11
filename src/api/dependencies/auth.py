@@ -72,3 +72,29 @@ def get_current_user(
 
 # Type alias for cleaner endpoint signatures
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
+
+
+def require_admin(
+    current_user: CurrentUser,
+) -> TokenPayload:
+    """Require admin role for access.
+
+    Args:
+        current_user: Current authenticated user from JWT.
+
+    Returns:
+        Token payload if user is admin.
+
+    Raises:
+        HTTPException: 403 if user is not admin.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
+# Type alias for admin-only endpoints
+AdminUser = Annotated[TokenPayload, Depends(require_admin)]

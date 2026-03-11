@@ -54,10 +54,27 @@ class HealthResponse(BaseModel):
 # =============================================================================
 
 
-class TokenRequest(BaseModel):
-    """Token request schema (login credentials)."""
+class UserTokenRequest(BaseModel):
+    """User login request schema (username + password)."""
 
-    username: str = Field(min_length=3, max_length=50)
+    username: str = Field(
+        min_length=3,
+        max_length=50,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+        description="Username (alphanumeric, underscore, hyphen)",
+    )
+    password: str = Field(min_length=8, max_length=100)
+
+
+class AdminTokenRequest(BaseModel):
+    """Admin login request schema (email + password)."""
+
+    email: str = Field(
+        min_length=5,
+        max_length=255,
+        pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        description="Email address",
+    )
     password: str = Field(min_length=8, max_length=100)
 
 

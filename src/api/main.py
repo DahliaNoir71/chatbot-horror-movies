@@ -14,9 +14,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from src.api.database import get_db, get_engine
+from src.api.dependencies.auth import AdminUser
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.routers import chat, films
 from src.api.schemas import (
+    AdminTokenRequest,
     DatabaseComponentHealth,
     EmbeddingsComponentHealth,
     HealthComponents,
@@ -24,8 +26,8 @@ from src.api.schemas import (
     LLMComponentHealth,
     RegisterRequest,
     RegisterResponse,
-    TokenRequest,
     TokenResponse,
+    UserTokenRequest,
 )
 from src.api.services.jwt_service import JWTService, get_jwt_service
 from src.api.services.password_service import hash_password, verify_password
@@ -52,6 +54,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         None after startup tasks complete.
     """
     _verify_database_connection()
+    _ensure_schema_up_to_date()
+    _seed_admin_account()
     yield
 
 
@@ -62,6 +66,84 @@ def _verify_database_connection() -> None:
     engine = get_engine()
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
+
+
+def _ensure_schema_up_to_date() -> None:
+    """Apply lightweight schema migrations for columns added after initial deploy."""
+    import logging
+
+    from sqlalchemy import text
+
+    logger = logging.getLogger("horrorbot.schema")
+    engine = get_engine()
+
+    migrations = [
+        (
+            "users",
+            "role",
+            "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'",
+        ),
+    ]
+
+    with engine.connect() as conn:
+        for table, column, ddl in migrations:
+            result = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = :table AND column_name = :column"
+                ),
+                {"table": table, "column": column},
+            )
+            if not result.first():
+                conn.execute(text(ddl))
+                conn.commit()
+                logger.info("Added column %s.%s", table, column)
+
+
+def _seed_admin_account() -> None:
+    """Create default admin account if none exists in DB."""
+    import logging
+
+    logger = logging.getLogger("horrorbot.admin")
+
+    admin_emails = settings.security.admin_allowed_emails
+    if not admin_emails:
+        return
+
+    engine = get_engine()
+    from sqlalchemy.orm import Session as SASession
+
+    with SASession(engine) as db:
+        repo = UserRepository(db)
+        admin_email = admin_emails[0]
+
+        existing = repo.get_by_email(admin_email)
+        if existing:
+            changed = False
+            if existing.role != "admin":
+                existing.role = "admin"
+                changed = True
+            if not verify_password(
+                settings.security.admin_default_password, existing.password_hash
+            ):
+                existing.password_hash = hash_password(settings.security.admin_default_password)
+                changed = True
+            if changed:
+                db.commit()
+                logger.info("Admin account updated (%s)", admin_email)
+            else:
+                logger.info("Admin account already exists (%s)", admin_email)
+            return
+
+        username = admin_email.split("@")[0]
+        admin_user = User(
+            username=username,
+            email=admin_email,
+            password_hash=hash_password(settings.security.admin_default_password),
+            role="admin",
+        )
+        repo.create(admin_user)
+        logger.info("Admin account created (%s / %s)", username, admin_email)
 
 
 # =============================================================================
@@ -150,8 +232,11 @@ app = create_app()
     summary="Health check",
     description="Verify API is running and responsive.",
 )
-def health_check() -> HealthResponse:
-    """Health check endpoint (no authentication required).
+def health_check(_user: AdminUser) -> HealthResponse:
+    """Health check endpoint (admin only).
+
+    Args:
+        _user: Authenticated admin user.
 
     Returns:
         API health status with version and component details.
@@ -224,22 +309,19 @@ def _check_embeddings() -> EmbeddingsComponentHealth:
 @app.post(
     "/api/v1/auth/token",
     tags=["Authentication"],
-    summary="Get access token",
-    description="Authenticate and receive JWT token.",
+    summary="Get user access token",
+    description="Authenticate chatbot user with username and password.",
     dependencies=[Depends(check_rate_limit)],
 )
 def login(
-    request: TokenRequest,
+    request: UserTokenRequest,
     jwt_service: Annotated[JWTService, Depends(get_jwt_service)],
     db: Annotated[Session, Depends(get_db)],
 ) -> TokenResponse:
-    """Authenticate user and return JWT token.
-
-    Checks database users first, then falls back to demo users
-    for backward compatibility.
+    """Authenticate chatbot user and return JWT token.
 
     Args:
-        request: Login credentials.
+        request: Login credentials (username + password).
         jwt_service: JWT service for token generation.
         db: Database session.
 
@@ -249,20 +331,10 @@ def login(
     Raises:
         HTTPException: 401 if credentials invalid.
     """
-    # Check database users
     repo = UserRepository(db)
     user = repo.get_by_username(request.username)
-    if user and verify_password(request.password, user.password_hash):
-        token = jwt_service.create_token(subject=request.username)
-        return TokenResponse(
-            access_token=token,
-            expires_in=jwt_service.expire_seconds,
-        )
-
-    # Fallback to demo users
-    demo_users = settings.security.demo_users
-    if demo_users.get(request.username) == request.password:
-        token = jwt_service.create_token(subject=request.username)
+    if user and user.role != "admin" and verify_password(request.password, user.password_hash):
+        token = jwt_service.create_token(subject=user.username, role=user.role)
         return TokenResponse(
             access_token=token,
             expires_in=jwt_service.expire_seconds,
@@ -271,6 +343,47 @@ def login(
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid username or password",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@app.post(
+    "/api/v1/auth/admin/token",
+    tags=["Authentication"],
+    summary="Get admin access token",
+    description="Authenticate admin with email and password.",
+    dependencies=[Depends(check_rate_limit)],
+)
+def admin_login(
+    request: AdminTokenRequest,
+    jwt_service: Annotated[JWTService, Depends(get_jwt_service)],
+    db: Annotated[Session, Depends(get_db)],
+) -> TokenResponse:
+    """Authenticate admin and return JWT token.
+
+    Args:
+        request: Login credentials (email + password).
+        jwt_service: JWT service for token generation.
+        db: Database session.
+
+    Returns:
+        JWT access token.
+
+    Raises:
+        HTTPException: 401 if credentials invalid.
+    """
+    repo = UserRepository(db)
+    user = repo.get_by_email(request.email)
+    if user and user.role == "admin" and verify_password(request.password, user.password_hash):
+        token = jwt_service.create_token(subject=user.username, role=user.role)
+        return TokenResponse(
+            access_token=token,
+            expires_in=jwt_service.expire_seconds,
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid email or password",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -304,12 +417,6 @@ def register(
     Raises:
         HTTPException: 409 if username or email already taken.
     """
-    if request.username in settings.security.demo_users:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username already taken",
-        )
-
     repo = UserRepository(db)
 
     if repo.username_exists(request.username):
@@ -324,10 +431,12 @@ def register(
             detail="Email already taken",
         )
 
+    role = "admin" if settings.security.is_admin_email(request.email) else "user"
     user = User(
         username=request.username,
         email=request.email,
         password_hash=hash_password(request.password),
+        role=role,
     )
     repo.create(user)
 

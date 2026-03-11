@@ -10,6 +10,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
@@ -19,10 +20,18 @@ import pytest
 from httpx import AsyncClient
 
 from tests.integration.conftest import (
+    TEST_DEMO_EMAIL,
+    TEST_DEMO_PASS,
+    TEST_DEMO_USER,
+    TEST_SHORT_PASS,
+    TEST_WRONG_PASS,
     make_chat_result,
     make_mock_router,
     make_mock_session_manager,
 )
+
+_JWT_SECRET = os.environ["JWT_SECRET_KEY"]
+_WRONG_JWT_SECRET = "wrong-secret-key-at-least-32-chars-long!"  # noqa: S105
 
 # ============================================================================
 # Login tests
@@ -33,10 +42,23 @@ class TestLogin:
     """POST /api/v1/auth/token — credential validation."""
 
     @staticmethod
+    async def _register_demo_user(client: AsyncClient) -> None:
+        """Register the demo user in the DB for login tests."""
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": TEST_DEMO_USER,
+                "email": TEST_DEMO_EMAIL,
+                "password": TEST_DEMO_PASS,
+            },
+        )
+
+    @staticmethod
     async def test_login_valid_credentials(client: AsyncClient) -> None:
+        await TestLogin._register_demo_user(client)
         resp = await client.post(
             "/api/v1/auth/token",
-            json={"username": "testuser", "password": "testpass123"},
+            json={"username": TEST_DEMO_USER, "password": TEST_DEMO_PASS},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -46,25 +68,26 @@ class TestLogin:
 
     @staticmethod
     async def test_login_invalid_password(client: AsyncClient) -> None:
+        await TestLogin._register_demo_user(client)
         resp = await client.post(
             "/api/v1/auth/token",
-            json={"username": "testuser", "password": "wrongpassword"},
+            json={"username": TEST_DEMO_USER, "password": TEST_WRONG_PASS},
         )
         assert resp.status_code == 401
 
     @staticmethod
-    async def test_login_unknown_user(client: AsyncClient) -> None:
+    async def test_login_unknown_username(client: AsyncClient) -> None:
         resp = await client.post(
             "/api/v1/auth/token",
-            json={"username": "nonexistent", "password": "testpass123"},
+            json={"username": "unknownuser", "password": TEST_DEMO_PASS},
         )
         assert resp.status_code == 401
 
     @staticmethod
-    async def test_login_short_username(client: AsyncClient) -> None:
+    async def test_login_invalid_username_format(client: AsyncClient) -> None:
         resp = await client.post(
             "/api/v1/auth/token",
-            json={"username": "ab", "password": "testpass123"},
+            json={"username": "@!", "password": TEST_DEMO_PASS},
         )
         assert resp.status_code == 422
 
@@ -72,7 +95,7 @@ class TestLogin:
     async def test_login_short_password(client: AsyncClient) -> None:
         resp = await client.post(
             "/api/v1/auth/token",
-            json={"username": "testuser", "password": "short"},
+            json={"username": TEST_DEMO_USER, "password": TEST_SHORT_PASS},
         )
         assert resp.status_code == 422
 
@@ -112,13 +135,12 @@ class TestTokenAccess:
 
     @staticmethod
     async def test_expired_token_returns_401(client: AsyncClient) -> None:
-        secret = "test-secret-key-do-not-use-in-production-minimum-32-chars"
         expired_payload = {
             "sub": "testuser",
             "iat": datetime.now(UTC) - timedelta(hours=2),
             "exp": datetime.now(UTC) - timedelta(hours=1),
         }
-        expired_token = jwt.encode(expired_payload, secret, algorithm="HS256")
+        expired_token = jwt.encode(expired_payload, _JWT_SECRET, algorithm="HS256")
 
         resp = await client.post(
             "/api/v1/chat",
@@ -136,7 +158,7 @@ class TestTokenAccess:
             "iat": datetime.now(UTC),
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
-        bad_token = jwt.encode(wrong_payload, "wrong-secret-key-at-least-32-chars-long!", algorithm="HS256")
+        bad_token = jwt.encode(wrong_payload, _WRONG_JWT_SECRET, algorithm="HS256")
 
         resp = await client.post(
             "/api/v1/chat",
@@ -165,10 +187,13 @@ class TestTokenRenewal:
             patch("src.api.routers.chat.get_intent_router", return_value=mock_router),
             patch("src.api.routers.chat.get_session_manager", return_value=mock_session),
         ):
+            # Register user first
+            await TestLogin._register_demo_user(client)
+
             # First login
             resp1 = await client.post(
                 "/api/v1/auth/token",
-                json={"username": "testuser", "password": "testpass123"},
+                json={"username": TEST_DEMO_USER, "password": TEST_DEMO_PASS},
             )
             assert resp1.status_code == 200
             token1 = resp1.json()["access_token"]
@@ -176,7 +201,7 @@ class TestTokenRenewal:
             # Second login (renewal)
             resp2 = await client.post(
                 "/api/v1/auth/token",
-                json={"username": "testuser", "password": "testpass123"},
+                json={"username": TEST_DEMO_USER, "password": TEST_DEMO_PASS},
             )
             assert resp2.status_code == 200
             token2 = resp2.json()["access_token"]

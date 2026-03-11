@@ -72,7 +72,6 @@ def _parse_session_id(session_id: str | None) -> UUID | None:
 
 @router.post(
     "",
-    response_model=ChatResponse,
     summary="Chat with HorrorBot",
     description="Send a message and get a synchronous response.",
 )
