@@ -47,6 +47,7 @@ test.describe('Films — Recherche, pagination, détail', () => {
         localStorage.setItem('horrorbot_token', 'fake-jwt-for-e2e')
         localStorage.setItem('horrorbot_token_expiry', expiry)
         localStorage.setItem('horrorbot_username', 'testuser')
+        localStorage.setItem('horrorbot_role', 'admin')
       },
       { expiry: futureExpiry },
     )
