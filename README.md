@@ -17,7 +17,7 @@
 | **E1** | ✅ Complet | 5 sources (TMDB, RT, Kaggle, IMDB, Spark), PostgreSQL + pgvector |
 | **E2** | ✅ Complet | Veille, benchmark, paramétrage Qwen2.5-7B-Instruct via llama.cpp |
 | **E3** | ✅ Complet | API REST, monitoring, MLOps — code complet, rédaction terminée |
-| **E4** | 📅 Planifié | Frontend Vue.js/Next.js |
+| **E4** | ✅ Complet | Frontend Vue.js 3 + Tailwind CSS, auth user/admin, tests E2E Playwright |
 | **E5** | 📅 Planifié | Monitoring applicatif |
 
 ### Caractéristiques implémentées
@@ -30,7 +30,11 @@
 - ✅ **Pipeline RAG** : Retriever pgvector + prompt builder + LLM (Qwen2.5-7B-Instruct)
 - ✅ **Chatbot conversationnel** : Endpoints `/chat` + `/chat/stream` SSE, sessions multi-turn, routage par intent
 - ✅ **API REST sécurisée** : FastAPI + JWT + rate limiting + CORS
+- ✅ **Authentification** : Flux séparés user/admin, bcrypt, rôles (user/admin)
+- ✅ **Frontend SPA** : Vue.js 3.5 + TypeScript + Tailwind CSS + Pinia + Vue Router
+- ✅ **Tests E2E** : Playwright (auth, chat, films, accessibilité axe-core, Lighthouse)
 - ✅ **Monitoring** : Prometheus + Grafana (21 métriques, 3 dashboards)
+- ✅ **CI/CD** : 3 workflows GitHub Actions (CI, Frontend CD Render, MLOps)
 - ✅ **Configuration centralisée** : Pydantic Settings avec validation
 - ✅ **Checkpoints** : Reprise automatique après interruption
 - ✅ **100% open-source** : Aucun service payant
@@ -67,7 +71,10 @@
                    └───────┬────────┘
                            │
                    ┌───────▼────────┐
-                   │  Frontend      │  ← E4 (planifié)
+                   │  Frontend      │  ← E4
+                   │  Vue.js 3 SPA  │
+                   │  • Tailwind    │
+                   │  • Pinia       │
                    └────────────────┘
 ```
 
@@ -76,7 +83,8 @@
 ### Prérequis
 
 - **Python 3.12+**
-- **[uv](https://docs.astral.sh/uv/)** (gestionnaire de dépendances)
+- **[uv](https://docs.astral.sh/uv/)** (gestionnaire de dépendances Python)
+- **Node.js 22+** + **npm** (frontend Vue.js)
 - **Docker & Docker Compose**
 - **Git**
 
@@ -182,8 +190,8 @@ uv run uvicorn src.api.main:app --reload
 # Documentation Swagger : http://localhost:8000/api/docs
 
 # Lancer le frontend (dans un autre terminal)
-uv run python -m http.server 8080 --directory src/integration/
-# Accès chatbot : http://localhost:8080
+cd src/frontend && npm install && npm run dev
+# Accès chatbot : http://localhost:5173
 ```
 
 ## 📁 Structure du projet
@@ -198,8 +206,8 @@ chatbot-horror-movies/
 │   │   └── database.py       # DatabaseSettings
 │   ├── etl/
 │   │   ├── pipeline.py       # Orchestrateur ETL
-│   │   ├── aggregator.py     # Agrégation et validation
-│   │   └── extractors/       # Extracteurs par source
+│   │   ├── aggregation/      # Agrégation, déduplication, scoring
+│   │   └── extractors/       # Extracteurs par source (TMDB, RT, CSV, SQLite, Spark)
 │   ├── services/
 │   │   ├── llm/              # LLMService (wrapper llama-cpp-python)
 │   │   ├── intent/           # IntentClassifier + IntentRouter + prompts
@@ -207,19 +215,29 @@ chatbot-horror-movies/
 │   │   ├── rag/              # DocumentRetriever, RAGPromptBuilder, RAGPipeline
 │   │   └── embedding/        # EmbeddingService (sentence-transformers)
 │   ├── database/
-│   │   ├── models.py         # SQLAlchemy + pgvector
-│   │   └── repositories/     # Repositories (films, RAG)
+│   │   ├── models/           # SQLAlchemy + pgvector
+│   │   │   ├── auth/         # User (rôles user/admin)
+│   │   │   ├── tmdb/         # Film, Genre, Keyword, Credit, etc.
+│   │   │   └── audit/        # ETLRun, RetentionLog, RGPDRegistry
+│   │   └── repositories/     # Repositories (films, RAG, users)
 │   ├── api/
 │   │   ├── main.py           # FastAPI app factory
 │   │   ├── routers/          # Endpoints (films, auth, chat)
 │   │   ├── schemas.py        # Modèles Pydantic
+│   │   ├── services/         # JWTService, PasswordService
 │   │   └── dependencies/     # JWT auth, rate limiting
-│   └── monitoring/
-│       ├── metrics.py        # Métriques Prometheus
-│       └── middleware.py      # PrometheusMiddleware + /metrics
+│   ├── monitoring/
+│   │   ├── metrics.py        # Métriques Prometheus
+│   │   └── middleware.py      # PrometheusMiddleware + /metrics
+│   └── frontend/             # Vue.js 3 SPA (E4)
+│       ├── src/              # Composants Vue, API client, router, stores
+│       ├── e2e/              # Tests Playwright (auth, chat, films, a11y)
+│       ├── vite.config.ts    # Vite (dev proxy → backend :8000)
+│       └── package.json      # Dépendances Node.js
 ├── tests/                    # Tests pytest (seuil CI ≥ 50%)
-├── docs/                     # Documentation technique
+├── docs/                     # API.md, DEPLOYMENT.md, FRONTEND.md, MONITORING.md, SECURITY.md
 ├── docker/                   # Config Prometheus, Grafana, init-db
+├── .github/workflows/        # CI (ci.yml), Frontend CD (frontend-cd.yml), MLOps (mlops.yml)
 ├── docker-compose.yml        # PostgreSQL + pgvector + monitoring
 ├── pyproject.toml            # Dépendances et configuration (uv)
 ├── uv.lock                   # Lock file reproductible
@@ -229,6 +247,8 @@ chatbot-horror-movies/
 
 ## 🧪 Tests
 
+### Backend (pytest)
+
 ```bash
 # Lancer tous les tests
 uv run pytest tests/ -v
@@ -237,13 +257,26 @@ uv run pytest tests/ -v
 uv run pytest tests/ -v --cov=src --cov-report=html
 ```
 
+### Frontend (Vitest + Playwright)
+
+```bash
+cd src/frontend
+
+# Tests unitaires
+npm run test:unit
+
+# Tests E2E (nécessite le backend + frontend en cours)
+npx playwright install
+npm run test:e2e
+```
+
 ## 📊 Statistiques actuelles
 
 | Métrique | Valeur |
 |----------|--------|
 | **Sources de données** | 5 (TMDB API, Rotten Tomatoes, Kaggle CSV, IMDB SQLite, Spark) |
-| **Fichiers Python** | 149 (~23 500 lignes) |
-| **Couverture tests** | ≥ 50% (seuil CI) |
+| **Couverture tests backend** | ≥ 50% (seuil CI) |
+| **Tests E2E frontend** | Playwright (auth, chat, films, accessibilité, Lighthouse) |
 | **Temps extraction** | ~2-3h pour 1950-2025 |
 
 ## 🛠️ Stack technique
@@ -253,8 +286,18 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - **Python 3.12** avec typage strict
 - **FastAPI** + **Uvicorn** (API REST async)
 - **Pydantic 2** pour validation et settings
-- **SQLAlchemy 2** ORM
+- **SQLAlchemy 2** ORM + **Alembic** (migrations)
 - **PostgreSQL 16** + **pgvector** 0.5
+- **bcrypt** + **PyJWT** (authentification, rôles user/admin)
+
+### Frontend (E4)
+
+- **Vue.js 3.5** + **TypeScript 5.9**
+- **Vite 7** (bundler, dev proxy vers backend)
+- **Tailwind CSS 4** (styling utility-first)
+- **Pinia 3** (state management) + **Vue Router 4**
+- **Axios** (HTTP client)
+- **Playwright** (tests E2E) + **axe-core** (accessibilité) + **Lighthouse** (performance)
 
 ### IA
 
@@ -277,8 +320,9 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 
 ### Qualité
 
-- **pytest** + **pytest-cov** + **pytest-benchmark**
-- **Ruff** (linting + formatting), **Vulture** (dead code)
+- **pytest** + **pytest-cov** + **pytest-benchmark** + **pytest-asyncio**
+- **Vitest** (tests unitaires frontend) + **Playwright** (E2E)
+- **Ruff** (linting + formatting), **Vulture** (dead code), **ESLint** (frontend)
 - **structlog** pour logging JSON
 
 ## 🗺️ Roadmap
@@ -290,11 +334,14 @@ uv run pytest tests/ -v --cov=src --cov-report=html
 - [x] Intégration LLM Qwen2.5-7B-Instruct via llama.cpp
 - [x] Intent Classifier DeBERTa-v3 zero-shot
 - [x] Monitoring Prometheus/Grafana (3 dashboards)
-- [x] CI/CD GitHub Actions (5 jobs)
+- [x] CI/CD GitHub Actions — 3 workflows (CI, Frontend CD, MLOps)
 - [x] Pipeline RAG complet (retriever → prompt → LLM) (E3)
 - [x] Endpoints chat + streaming SSE (E3)
 - [x] Pipeline MLOps GitHub Actions (6 jobs : validation, évaluation, rapport, livraison) (E3)
-- [ ] Frontend Vue.js (E4)
+- [x] Frontend Vue.js 3 SPA + Tailwind CSS + Pinia (E4)
+- [x] Authentification user/admin séparée avec bcrypt + JWT (E4)
+- [x] Tests E2E Playwright + accessibilité axe-core + Lighthouse (E4)
+- [x] Déploiement frontend sur Render (E4)
 - [ ] Monitoring applicatif avancé (E5)
 
 ## 📄 Licence

@@ -4,6 +4,7 @@
 
 - **Docker** et **Docker Compose** v2+
 - **Python 3.12** avec **uv** (gestionnaire de dépendances)
+- **Node.js 22+** + **npm** (frontend Vue.js)
 - **16 Go RAM** minimum (32 Go recommandé pour CPU-only)
 - **GPU (optionnel)** : NVIDIA GTX 1660 Ti ou supérieur (6 Go+ VRAM)
 
@@ -78,28 +79,40 @@ uv run uvicorn src.api.main:app --reload --port 8000
 
 ```bash
 # Dans un autre terminal
-uv run python -m http.server 8080 --directory src/integration/
+cd src/frontend
+npm install
+npm run dev
 ```
 
-Interface chatbot : <http://localhost:8080>
+Interface chatbot : <http://localhost:5173>
+
+Le dev server Vite proxy automatiquement `/api` vers le backend (`localhost:8000`).
 
 Endpoints disponibles :
 
-- API : http://localhost:8000/api/docs
-- Métriques Prometheus : http://localhost:8000/metrics
-- Health check : http://localhost:8000/api/v1/health
-- Chat synchrone : POST http://localhost:8000/api/v1/chat
-- Chat streaming : POST http://localhost:8000/api/v1/chat/stream
+- Frontend chatbot : <http://localhost:5173>
+- API Swagger : <http://localhost:8000/api/docs>
+- Métriques Prometheus : <http://localhost:8000/metrics>
+- Health check (admin) : `GET /api/v1/health` (nécessite un token admin)
+- Chat synchrone : `POST /api/v1/chat`
+- Chat streaming : `POST /api/v1/chat/stream`
 
 ## Déploiement Production (Render)
 
-### Configuration Render
+### Backend API
 
 - **Service Type** : Web Service
 - **Runtime** : Docker ou Python 3.12
 - **Plan** : Starter (7$/mois, 512 Mo RAM minimum)
 - **Build Command** : `uv sync --group ml`
 - **Start Command** : `uvicorn src.api.main:app --host 0.0.0.0 --port $PORT`
+
+### Frontend Vue.js
+
+- **Service Type** : Static Site
+- **Build Command** : `cd src/frontend && npm ci && npm run build`
+- **Publish Directory** : `src/frontend/dist`
+- **Déploiement automatique** : via le workflow `.github/workflows/frontend-cd.yml` (déclenché après CI success sur `main`)
 
 ### Variables d'environnement Render
 
@@ -112,6 +125,9 @@ Configurer via le dashboard Render :
 | `LLM_MODEL_PATH` | Chemin vers le fichier GGUF |
 | `LLM_N_GPU_LAYERS` | `0` (CPU only sur Render) |
 | `ENVIRONMENT` | `production` |
+| `ADMIN_ALLOWED_EMAILS` | Emails admin (séparés par virgule) |
+| `ADMIN_DEFAULT_PASSWORD` | Mot de passe initial du compte admin |
+| `CORS_ORIGINS` | URL du frontend Render (ex: `https://horrorbot.onrender.com`) |
 
 ### Contraintes Render
 
@@ -123,26 +139,37 @@ Configurer via le dashboard Render :
 ## Vérification du déploiement
 
 ```bash
-# Health check
-curl http://localhost:8000/api/v1/health
+# 1. Inscription d'un utilisateur
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "demo", "email": "demo@example.com", "password": "demopass1234"}'
 
-# Métriques Prometheus
-curl http://localhost:8000/metrics
-
-# Authentification
+# 2. Login utilisateur (chatbot)
 curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"username": "demo", "password": "demopass1234"}'
 
-# Chat synchrone (remplacer <token> par le access_token obtenu)
+# 3. Chat synchrone (remplacer <token> par le access_token obtenu)
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"message": "Recommande-moi un film comme Hereditary"}'
 
-# Chat streaming SSE
+# 4. Chat streaming SSE
 curl -N -X POST http://localhost:8000/api/v1/chat/stream \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"message": "Pourquoi le found footage est efficace ?"}'
+
+# 5. Login admin (nécessite ADMIN_ALLOWED_EMAILS configuré)
+curl -X POST http://localhost:8000/api/v1/auth/admin/token \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "adminpassword"}'
+
+# 6. Health check (admin uniquement)
+curl http://localhost:8000/api/v1/health \
+  -H "Authorization: Bearer <admin_token>"
+
+# 7. Métriques Prometheus (pas d'auth requise)
+curl http://localhost:8000/metrics
 ```

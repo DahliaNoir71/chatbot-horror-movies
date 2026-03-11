@@ -24,9 +24,10 @@ FastAPI génère automatiquement la documentation OpenAPI 3.0 :
 
 ```
 GET /api/v1/health
+Authorization: Bearer <admin_token>
 ```
 
-Pas d'authentification requise.
+**Authentification admin requise** (rôle `admin`). Retourne 403 si l'utilisateur n'est pas admin.
 
 **Réponse** :
 
@@ -43,13 +44,13 @@ Pas d'authentification requise.
 }
 ```
 
-### Authentification
+### Authentification — Login utilisateur
 
 ```
 POST /api/v1/auth/token
 ```
 
-Rate limited. Retourne un JWT Bearer token.
+Rate limited. Authentifie un utilisateur chatbot (rôle `user`) avec username + password.
 
 **Request** :
 
@@ -70,12 +71,67 @@ Rate limited. Retourne un JWT Bearer token.
 }
 ```
 
+### Authentification — Login admin
+
+```
+POST /api/v1/auth/admin/token
+```
+
+Rate limited. Authentifie un administrateur (rôle `admin`) avec email + password.
+
+**Request** :
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "securepassword"
+}
+```
+
+**Réponse** : identique à `/auth/token`.
+
+### Inscription
+
+```
+POST /api/v1/auth/register
+```
+
+Rate limited. Crée un nouveau compte utilisateur. Le rôle (`user` ou `admin`) est attribué automatiquement selon l'email (cf. `ADMIN_ALLOWED_EMAILS`).
+
+**Request** :
+
+```json
+{
+  "username": "newuser",
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+```
+
+**Réponse** (201) :
+
+```json
+{
+  "username": "newuser",
+  "email": "user@example.com",
+  "message": "User registered successfully"
+}
+```
+
+| Code | Description |
+|------|-------------|
+| 201 | Inscription réussie |
+| 409 | Username ou email déjà pris |
+| 422 | Validation échouée (password < 8 chars, email invalide, etc.) |
+
 ### Films — Liste paginée
 
 ```
 GET /api/v1/films?page=1&size=20
-Authorization: Bearer <token>
+Authorization: Bearer <admin_token>
 ```
+
+**Rôle admin requis.** Retourne 403 pour les utilisateurs non-admin.
 
 **Réponse** :
 
@@ -105,15 +161,19 @@ Authorization: Bearer <token>
 
 ```
 GET /api/v1/films/{film_id}
-Authorization: Bearer <token>
+Authorization: Bearer <admin_token>
 ```
+
+**Rôle admin requis.**
 
 ### Films — Recherche sémantique
 
 ```
 POST /api/v1/films/search
-Authorization: Bearer <token>
+Authorization: Bearer <admin_token>
 ```
+
+**Rôle admin requis.**
 
 **Request** :
 
@@ -232,25 +292,37 @@ GET /metrics
 
 Pas d'authentification requise. Retourne les métriques au format Prometheus text exposition.
 
-## Authentification
+## Authentification et rôles
 
-Tous les endpoints `/api/v1/films/*` et `/api/v1/chat/*` nécessitent un token JWT dans le header `Authorization: Bearer <token>`.
+L'API utilise un système **RBAC** (Role-Based Access Control) avec deux rôles :
+
+| Rôle | Endpoints accessibles |
+| ---- | --------------------- |
+| `user` | `/api/v1/chat`, `/api/v1/chat/stream` |
+| `admin` | Tous les endpoints (`/health`, `/films/*`, `/chat/*`) |
+
+- **Login user** : `POST /api/v1/auth/token` (username + password)
+- **Login admin** : `POST /api/v1/auth/admin/token` (email + password)
+- **Inscription** : `POST /api/v1/auth/register` (rôle attribué selon `ADMIN_ALLOWED_EMAILS`)
 
 Les tokens expirent après 30 minutes (configurable via `JWT_EXPIRE_MINUTES`).
 
 ## Rate Limiting
 
-- `/api/v1/auth/token` : limité par IP (configurable via `RATE_LIMIT_PER_MINUTE`)
-- Limite par défaut : 100 requêtes/minute, 1000 requêtes/heure
+- `/api/v1/auth/token`, `/api/v1/auth/admin/token`, `/api/v1/auth/register` : limités par IP
+- Limite par défaut : 100 requêtes/minute, 1000 requêtes/heure (configurable via `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_HOUR`)
 
 ## Codes d'erreur
 
 | Code | Description |
 |------|-------------|
 | 200 | Succès |
+| 201 | Inscription réussie |
 | 400 | Paramètre invalide (ex: session_id non UUID) |
 | 401 | Token JWT invalide ou expiré |
+| 403 | Accès refusé (rôle insuffisant, ex: user sur endpoint admin) |
 | 404 | Film non trouvé |
+| 409 | Conflit (username ou email déjà pris) |
 | 422 | Erreur de validation des paramètres |
 | 429 | Rate limit atteint |
 | 500 | Erreur serveur |
