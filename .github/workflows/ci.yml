@@ -313,14 +313,183 @@ jobs:
           retention-days: 7
 
   # ============================================
-  # JOB 6 : Validation finale
+  # JOB 6 : Gitleaks — Détection de secrets
+  # ============================================
+  # Scanne le code source à la recherche de secrets (clés API, mots de passe, tokens)
+  # Sur PR : scanne uniquement le diff (commits entre base et HEAD)
+  # Sur push : scanne l'historique complet du dépôt
+  security-gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # Récupère le code source avec l'historique complet pour le scan
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Créer le répertoire de rapports
+        run: mkdir -p security-reports
+
+      # Sur PR : scanne uniquement les commits entre la base et le HEAD
+      - name: Run Gitleaks (PR — diff only)
+        if: github.event_name == 'pull_request'
+        uses: docker://zricethezav/gitleaks:latest
+        with:
+          args: detect --source="." --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" --report-format=json --report-path=security-reports/gitleaks-report.json --verbose
+
+      # Sur push : scanne l'historique complet
+      - name: Run Gitleaks (push — full history)
+        if: github.event_name == 'push'
+        uses: docker://zricethezav/gitleaks:latest
+        with:
+          args: detect --source="." --report-format=json --report-path=security-reports/gitleaks-report.json --verbose
+
+      # Sauvegarde le rapport JSON pour consultation ultérieure
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: security-reports/gitleaks-report.json
+          retention-days: 7
+
+  # ============================================
+  # JOB 7 : Hadolint — Linting des Dockerfiles
+  # ============================================
+  # Analyse statique des Dockerfiles pour détecter les mauvaises pratiques
+  # Warning only : n'échoue pas le pipeline (continue-on-error)
+  security-hadolint:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Créer le répertoire de rapports
+        run: mkdir -p security-reports
+
+      # Lint du Dockerfile API (FastAPI)
+      - name: Hadolint — docker/api/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/api/Dockerfile
+          format: json
+          output-file: security-reports/hadolint-api.json
+          no-fail: true
+
+      # Lint du Dockerfile Frontend (Vue.js → nginx)
+      - name: Hadolint — docker/frontend/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/frontend/Dockerfile
+          format: json
+          output-file: security-reports/hadolint-frontend.json
+          no-fail: true
+
+      # Fusionne les deux rapports JSON en un seul fichier
+      - name: Fusionner les rapports Hadolint
+        if: always()
+        run: |
+          jq -s 'add' \
+            security-reports/hadolint-api.json \
+            security-reports/hadolint-frontend.json \
+            > security-reports/hadolint-report.json || true
+
+      # Sauvegarde le rapport combiné
+      - name: Upload Hadolint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hadolint-report
+          path: security-reports/hadolint-report.json
+          retention-days: 7
+
+  # ============================================
+  # JOB 8 : Docker Build + Trivy — Scan d'images
+  # ============================================
+  # Construit les images Docker sans les pousser, puis les scanne
+  # avec Trivy pour détecter les vulnérabilités CRITICAL et HIGH
+  # S'exécute uniquement sur PR vers main et push sur main
+  security-docker-trivy:
+    runs-on: ubuntu-latest
+
+    # Uniquement sur PR vers main ou push sur main
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: horrorbot-api
+            dockerfile: docker/api/Dockerfile
+            label: api
+          - image: horrorbot-frontend
+            dockerfile: docker/frontend/Dockerfile
+            label: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Configure Docker Buildx pour le build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Construit l'image Docker sans la pousser (load dans le daemon local)
+      - name: Build Docker image — ${{ matrix.label }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:ci-scan
+
+      - name: Créer le répertoire de rapports
+        run: mkdir -p security-reports
+
+      # Scan Trivy — rapport table (lisible dans les logs CI)
+      - name: Trivy scan (table) — ${{ matrix.label }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.image }}:ci-scan
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+
+      # Scan Trivy — rapport JSON (artifact pour analyse ultérieure)
+      - name: Trivy scan (JSON) — ${{ matrix.label }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ matrix.image }}:ci-scan
+          format: json
+          severity: CRITICAL,HIGH
+          output: security-reports/trivy-${{ matrix.label }}-report.json
+          exit-code: '0'
+
+      # Sauvegarde le rapport Trivy JSON
+      - name: Upload Trivy report — ${{ matrix.label }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-${{ matrix.label }}
+          path: security-reports/trivy-${{ matrix.label }}-report.json
+          retention-days: 7
+
+  # ============================================
+  # JOB 9 : Validation finale
   # ============================================
   # Job récapitulatif qui s'exécute seulement si tous les jobs précédents réussissent
   build-success:
     runs-on: ubuntu-latest
 
     # Attend la fin de tous les autres jobs
-    needs: [tests, frontend-tests, security-bandit, security-dependencies, security-owasp]
+    needs: [tests, frontend-tests, security-bandit, security-dependencies, security-owasp, security-gitleaks, security-hadolint, security-docker-trivy]
 
     # S'exécute uniquement si tous les jobs précédents ont réussi
     if: success()
