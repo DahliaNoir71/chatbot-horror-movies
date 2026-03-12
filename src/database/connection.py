@@ -4,10 +4,11 @@ Provides both synchronous and asynchronous database sessions
 with proper connection pooling and lifecycle management.
 """
 
+import time
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
 
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
+from src.monitoring.metrics import DB_CONNECTION_POOL_SIZE, DB_QUERY_DURATION
 from src.settings import settings
 
 
@@ -59,6 +61,8 @@ class DatabaseConnection:
         self._async_engine = self._create_async_engine()
         self._sync_session_factory = self._create_sync_session_factory()
         self._async_session_factory = self._create_async_session_factory()
+        self._register_metrics_events(self._sync_engine)
+        self._register_metrics_events(self._async_engine.sync_engine)
         DatabaseConnection._initialized = True
 
     @staticmethod
@@ -93,6 +97,36 @@ class DatabaseConnection:
             pool_pre_ping=True,
             echo=settings.debug,
         )
+
+    @staticmethod
+    def _register_metrics_events(engine: Engine) -> None:
+        """Register SQLAlchemy event listeners for Prometheus DB metrics."""
+
+        @event.listens_for(engine, "before_cursor_execute")
+        def _before_cursor_execute(conn, _cursor, _statement, _params, _context, _executemany):
+            conn.info["query_start_time"] = time.perf_counter()
+
+        @event.listens_for(engine, "after_cursor_execute")
+        def _after_cursor_execute(conn, _cursor, statement, _params, _context, _executemany):
+            start = conn.info.pop("query_start_time", None)
+            if start is None:
+                return
+            duration = time.perf_counter() - start
+            token = statement.strip().split(None, 1)[0].lower() if statement else "other"
+            operation = token if token in ("select", "insert", "update", "delete") else "other"
+            DB_QUERY_DURATION.labels(operation=operation).observe(duration)
+
+        @event.listens_for(engine.pool, "checkout")
+        def _on_checkout(_dbapi_conn, _conn_record, _conn_proxy):
+            pool = engine.pool
+            DB_CONNECTION_POOL_SIZE.labels(state="active").set(pool.checkedout())
+            DB_CONNECTION_POOL_SIZE.labels(state="idle").set(pool.checkedin())
+
+        @event.listens_for(engine.pool, "checkin")
+        def _on_checkin(_dbapi_conn, _conn_record):
+            pool = engine.pool
+            DB_CONNECTION_POOL_SIZE.labels(state="active").set(pool.checkedout())
+            DB_CONNECTION_POOL_SIZE.labels(state="idle").set(pool.checkedin())
 
     def _create_sync_session_factory(self) -> sessionmaker[Session]:
         """Create synchronous session factory.

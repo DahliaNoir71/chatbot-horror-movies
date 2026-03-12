@@ -147,3 +147,20 @@ SESSION_MESSAGE_COUNT = Histogram(
     "Number of messages per session at time of interaction",
     buckets=[1, 2, 5, 10, 20, 50],
 )
+
+# =============================================================================
+# DATABASE METRICS
+# =============================================================================
+
+DB_QUERY_DURATION = Histogram(
+    "horrorbot_db_query_duration_seconds",
+    "Database query latency in seconds",
+    ["operation"],  # select, insert, update, delete, other
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+)
+
+DB_CONNECTION_POOL_SIZE = Gauge(
+    "horrorbot_db_connection_pool_size",
+    "Database connection pool size by state",
+    ["state"],  # active, idle
+)

@@ -7,6 +7,8 @@ from src.monitoring.metrics import (
     CLASSIFIER_CONFIDENCE,
     CLASSIFIER_REQUEST_DURATION,
     CLASSIFIER_REQUESTS_TOTAL,
+    DB_CONNECTION_POOL_SIZE,
+    DB_QUERY_DURATION,
     EMBEDDING_REQUEST_DURATION,
     LLM_PROMPT_TOKENS,
     LLM_REQUEST_DURATION,
@@ -78,6 +80,18 @@ class TestSystemMetrics:
         assert isinstance(MODEL_INFO, Info)
 
 
+class TestDatabaseMetrics:
+    """Tests for database metric objects."""
+
+    @staticmethod
+    def test_db_query_duration_is_histogram() -> None:
+        assert isinstance(DB_QUERY_DURATION, Histogram)
+
+    @staticmethod
+    def test_db_connection_pool_size_is_gauge() -> None:
+        assert isinstance(DB_CONNECTION_POOL_SIZE, Gauge)
+
+
 class TestMetricNames:
     """Tests that all metric names follow the horrorbot_ prefix convention."""
 
@@ -93,6 +107,8 @@ class TestMetricNames:
         CLASSIFIER_CONFIDENCE,
         EMBEDDING_REQUEST_DURATION,
         MODEL_MEMORY_BYTES,
+        DB_QUERY_DURATION,
+        DB_CONNECTION_POOL_SIZE,
     ])
     def test_metric_has_horrorbot_prefix(metric) -> None:
         """All metrics start with 'horrorbot_'."""
