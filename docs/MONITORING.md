@@ -8,7 +8,7 @@ FastAPI (/metrics) → Prometheus (scrape 15s) → Grafana (dashboards)
 
 - **FastAPI** expose les métriques via `PrometheusMiddleware` et l'endpoint `/metrics`
 - **Prometheus** scrape les métriques toutes les 15 secondes
-- **Grafana** visualise via 3 dashboards préconfigurés
+- **Grafana** visualise via 4 dashboards préconfigurés
 
 ## Démarrage du stack monitoring
 
@@ -134,9 +134,9 @@ docker-compose --profile monitoring-test down -v  # -v supprime les volumes de t
 
 ## Dashboards Grafana
 
-Trois dashboards JSON sont provisionnés automatiquement dans `docker/grafana/dashboards/` :
+Quatre dashboards JSON sont provisionnés automatiquement dans `docker/grafana/dashboards/` :
 
-### LLM Dashboard (`llm.json`)
+### LLM Dashboard (`llm.json`) — uid: `horrorbot-llm`
 
 - Latence inférence P95 / P50
 - Tokens par seconde (gauge temps réel)
@@ -144,21 +144,37 @@ Trois dashboards JSON sont provisionnés automatiquement dans `docker/grafana/da
 - Requêtes par statut (success / error / timeout)
 - Débit tokens générés vs prompt
 
-### RAG Dashboard (`rag.json`)
+### RAG Dashboard (`rag.json`) — uid: `horrorbot-rag`
 
 - Latence intent classifier P95 / P50
 - Distribution des scores de confiance
 - Répartition des classifications par intent
 - Latence encodage embeddings P95 / P50
 - Mémoire par modèle (LLM / classifier / embedding)
+- Latence retrieval RAG P95 / P50
+- Documents récupérés (médiane)
+- Score de similarité top-1 (médiane)
 
-### API Dashboard (`api.json`)
+### API Dashboard (`api.json`) — uid: `horrorbot-api`
 
 - Requêtes par endpoint (rate/s)
 - Taux d'erreur par code HTTP
 - Latence P95 par endpoint
 - Taux d'erreur 5xx (%)
 - Total requêtes sur 1h
+- Sessions chat actives
+- Taux d'erreur 4xx (%)
+- Requêtes chat par intent
+- Latence E2E chat P95 par intent
+- Erreurs chat par type
+
+### Infrastructure Dashboard (`infrastructure.json`) — uid: `horrorbot-infra`
+
+- Uptime API (UP / DOWN)
+- Pool connexions DB (active / idle, stacked)
+- Messages par session (médiane)
+- Latence queries DB P95 par opération
+- Débit queries DB par opération
 
 ## Seuils d'alerte recommandés
 
