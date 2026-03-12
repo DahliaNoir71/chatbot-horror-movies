@@ -455,19 +455,22 @@ jobs:
         run: mkdir -p security-reports
 
       # Scan Trivy — rapport table (lisible dans les logs CI)
+      # Secret scanning désactivé : Gitleaks (Job 6) s'en charge déjà
       - name: Trivy scan (table) — ${{ matrix.label }}
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
+          scanners: vuln
           format: table
           severity: CRITICAL,HIGH
           exit-code: '0'
 
       # Scan Trivy — rapport JSON (artifact pour analyse ultérieure)
       - name: Trivy scan (JSON) — ${{ matrix.label }}
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
+          scanners: vuln
           format: json
           severity: CRITICAL,HIGH
           output: security-reports/trivy-${{ matrix.label }}-report.json
