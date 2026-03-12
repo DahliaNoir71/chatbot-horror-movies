@@ -1,0 +1,76 @@
+groups:
+  - name: horrorbot_alerts
+    rules:
+      - alert: APIDown
+        expr: up{job="horrorbot-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HorrorBot API is down"
+          description: "API target has been unreachable for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: >
+          rate(horrorbot_http_requests_total{status=~"5.."}[5m])
+          / rate(horrorbot_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx error rate above 5%"
+
+      - alert: HighLatency
+        expr: >
+          histogram_quantile(0.95,
+            rate(horrorbot_http_request_duration_seconds_bucket[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP p95 latency above 2s"
+
+      - alert: LLMSlowInference
+        expr: >
+          histogram_quantile(0.95,
+            rate(horrorbot_llm_request_duration_seconds_bucket[5m])
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM p95 inference above 30s"
+
+      - alert: LLMInferenceTimeout
+        expr: >
+          histogram_quantile(0.99,
+            rate(horrorbot_llm_request_duration_seconds_bucket[5m])
+          ) > 60
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM p99 inference above 60s — potential timeout"
+
+      - alert: RAGRetrievalSlow
+        expr: >
+          histogram_quantile(0.95,
+            rate(horrorbot_rag_retrieval_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG retrieval p95 latency above 500ms"
+
+      - alert: DatabaseConnectionExhausted
+        expr: >
+          horrorbot_db_connection_pool_size{state="active"}
+          / (horrorbot_db_connection_pool_size{state="active"}
+             + horrorbot_db_connection_pool_size{state="idle"}) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool >90% utilized"
