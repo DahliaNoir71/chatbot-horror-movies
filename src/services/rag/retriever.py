@@ -178,6 +178,10 @@ class DocumentRetriever:
         """
         session = self._get_session()
         try:
+            # Force sequential scan (disable index usage)
+            session.execute(text("SET LOCAL enable_indexscan = off"))
+            session.execute(text("SET LOCAL enable_bitmapscan = off"))
+
             sql = text(
                 "SELECT * FROM search_similar_documents("
                 "(:query_embedding)::vector, :match_count, :threshold, :source_type"
