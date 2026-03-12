@@ -57,7 +57,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging()
     _verify_database_connection()
     _ensure_schema_up_to_date()
-    _seed_admin_account()
     _preload_models()
     yield
 
@@ -101,52 +100,6 @@ def _ensure_schema_up_to_date() -> None:
                 conn.execute(text(ddl))
                 conn.commit()
                 logger.info("Added column %s.%s", table, column)
-
-
-def _seed_admin_account() -> None:
-    """Create default admin account if none exists in DB."""
-    import logging
-
-    logger = logging.getLogger("horrorbot.admin")
-
-    admin_emails = settings.security.admin_allowed_emails
-    if not admin_emails:
-        return
-
-    engine = get_engine()
-    from sqlalchemy.orm import Session as SASession
-
-    with SASession(engine) as db:
-        repo = UserRepository(db)
-        admin_email = admin_emails[0]
-
-        existing = repo.get_by_email(admin_email)
-        if existing:
-            changed = False
-            if existing.role != "admin":
-                existing.role = "admin"
-                changed = True
-            if not verify_password(
-                settings.security.admin_default_password, existing.password_hash
-            ):
-                existing.password_hash = hash_password(settings.security.admin_default_password)
-                changed = True
-            if changed:
-                db.commit()
-                logger.info("Admin account updated (%s)", admin_email)
-            else:
-                logger.info("Admin account already exists (%s)", admin_email)
-            return
-
-        username = admin_email.split("@")[0]
-        admin_user = User(
-            username=username,
-            email=admin_email,
-            password_hash=hash_password(settings.security.admin_default_password),
-            role="admin",
-        )
-        repo.create(admin_user)
-        logger.info("Admin account created (%s / %s)", username, admin_email)
 
 
 def _preload_models() -> None:

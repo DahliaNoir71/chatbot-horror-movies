@@ -19,6 +19,7 @@ function cspPlugin(): Plugin {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         "connect-src 'self'",
+        "frame-src 'self' http://localhost:3000",
         "font-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",

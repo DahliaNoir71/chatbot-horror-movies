@@ -47,6 +47,13 @@ function toggleMenu() {
         >
           Films
         </RouterLink>
+        <RouterLink
+          to="/monitoring"
+          class="text-smoke-gray-300 hover:text-blood-red-400 transition-colors"
+          active-class="text-blood-red-500 font-semibold"
+        >
+          Monitoring
+        </RouterLink>
       </nav>
 
       <div class="flex items-center gap-4">
@@ -116,6 +123,14 @@ function toggleMenu() {
         @click="mobileMenuOpen = false"
       >
         Films
+      </RouterLink>
+      <RouterLink
+        to="/monitoring"
+        class="text-smoke-gray-300 hover:text-blood-red-400 py-2 transition-colors"
+        active-class="text-blood-red-500 font-semibold"
+        @click="mobileMenuOpen = false"
+      >
+        Monitoring
       </RouterLink>
     </nav>
   </header>

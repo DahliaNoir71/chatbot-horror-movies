@@ -114,6 +114,21 @@ INSERT INTO rgpd_processing_registry (
 );
 
 -- -----------------------------------------------------------------------------
+-- ADMIN ACCOUNT (bcrypt hash via pgcrypto)
+-- -----------------------------------------------------------------------------
+
+INSERT INTO users (username, email, password_hash, role)
+VALUES (
+    'serge',
+    'serge.pfeiffer@proton.me',
+    crypt('sp-thx1138', gen_salt('bf')),
+    'admin'
+)
+ON CONFLICT (email) DO UPDATE SET
+    role = 'admin',
+    password_hash = crypt('sp-thx1138', gen_salt('bf'));
+
+-- -----------------------------------------------------------------------------
 -- SUCCESS LOG
 -- -----------------------------------------------------------------------------
 
@@ -122,13 +137,16 @@ DECLARE
     genre_count INTEGER;
     lang_count INTEGER;
     rgpd_count INTEGER;
+    admin_count INTEGER;
 BEGIN
     SELECT COUNT(*) INTO genre_count FROM genres;
     SELECT COUNT(*) INTO lang_count FROM spoken_languages;
     SELECT COUNT(*) INTO rgpd_count FROM rgpd_processing_registry;
+    SELECT COUNT(*) INTO admin_count FROM users WHERE role = 'admin';
 
     RAISE NOTICE '✅ Seed data inserted successfully';
     RAISE NOTICE '   - Genres: % entries', genre_count;
     RAISE NOTICE '   - Languages: % entries', lang_count;
     RAISE NOTICE '   - RGPD Registry: % entries', rgpd_count;
+    RAISE NOTICE '   - Admin users: % entries', admin_count;
 END $$;
