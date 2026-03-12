@@ -46,7 +46,7 @@ jobs:
     steps:
       # Récupère le code source du repository
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Installe uv avec cache basé sur uv.lock
       - name: Install uv
@@ -78,7 +78,7 @@ jobs:
       # Upload optionnel vers Codecov pour visualisation
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: reports/coverage.xml
           fail_ci_if_error: false
@@ -87,7 +87,7 @@ jobs:
       # Conserve les rapports de test comme artifacts (7 jours)
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-reports
           path: reports/
@@ -106,10 +106,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -161,7 +161,7 @@ jobs:
       # Conserve le rapport Playwright en cas d'échec
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           path: src/frontend/playwright-report/
@@ -176,7 +176,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -192,7 +192,7 @@ jobs:
       # Sauvegarde le rapport JSON pour consultation ultérieure
       - name: Upload Bandit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: bandit-report
           path: security-reports/bandit-report.json
@@ -207,7 +207,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -238,7 +238,7 @@ jobs:
       # Conserve les rapports des deux outils
       - name: Upload security reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dependency-security-reports
           path: security-reports/
@@ -263,7 +263,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Exécute OWASP Dependency-Check avec exclusions des dossiers inutiles
       - name: Run OWASP Dependency-Check
@@ -307,7 +307,7 @@ jobs:
       # Conserve les rapports HTML, JSON et XML pour consultation
       - name: Upload OWASP reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: owasp-dependency-check
           path: security-reports/dependency-check/
@@ -326,7 +326,7 @@ jobs:
     steps:
       # Récupère le code source avec l'historique complet pour le scan
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -350,7 +350,7 @@ jobs:
       # Sauvegarde le rapport JSON pour consultation ultérieure
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: gitleaks-report
           path: security-reports/gitleaks-report.json
@@ -367,7 +367,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Créer le répertoire de rapports
         run: mkdir -p security-reports
@@ -402,7 +402,7 @@ jobs:
       # Sauvegarde le rapport combiné
       - name: Upload Hadolint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: hadolint-report
           path: security-reports/hadolint-report.json
@@ -435,7 +435,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Configure Docker Buildx pour le build
       - name: Set up Docker Buildx
@@ -476,7 +476,7 @@ jobs:
       # Sauvegarde le rapport Trivy JSON
       - name: Upload Trivy report — ${{ matrix.label }}
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: trivy-report-${{ matrix.label }}
           path: security-reports/trivy-${{ matrix.label }}-report.json
