@@ -1,0 +1,46 @@
+# =============================================================================
+# HORRORBOT API - Dockerfile
+# =============================================================================
+# FastAPI backend with ML models (LLM, embeddings, classifier)
+#
+# Build:  docker compose build api
+# Run:    docker compose up -d api
+# GPU:    docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# =============================================================================
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# ── System dependencies ──────────────────────────────────────────────────────
+# libpq-dev: psycopg2, build-essential+cmake: llama-cpp-python fallback build,
+# curl: healthcheck
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libpq-dev \
+        build-essential \
+        cmake \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Install uv ──────────────────────────────────────────────────────────────
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# ── Dependencies (cached layer) ─────────────────────────────────────────────
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --group ml-api
+
+# ── Application code ─────────────────────────────────────────────────────────
+COPY src/ src/
+
+# ── Runtime config ───────────────────────────────────────────────────────────
+# CPU-only by default (override with docker-compose.gpu.yml)
+ENV LLM_N_GPU_LAYERS=0
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=30 --start-period=120s \
+    CMD curl -f http://localhost:8000/api/docs || exit 1
+
+CMD ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

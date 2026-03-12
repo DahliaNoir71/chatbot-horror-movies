@@ -101,21 +101,22 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 
-# --- Dépendances ML lourdes (local/production uniquement, PAS en CI) ---
-ml = [
-    # ML & Deep Learning
+# --- Dépendances ML pour l'API Docker (LLM, embeddings, classifier) ---
+ml-api = [
     "torch>=2.9.0,<3.0",
     "transformers==4.57.3",
     "sentence-transformers==5.2.0",
     "tokenizers==0.22.1",
     "safetensors==0.7.0",
-
-    # LLM (local inference)
     "llama-cpp-python==0.3.4",
-
-    # Hugging Face
     "huggingface-hub==0.36.0",
     "hf-xet==1.2.0",
+]
+
+# --- Dépendances ML lourdes complètes (local uniquement, PAS en CI/Docker) ---
+ml = [
+    # Inclut ml-api
+    {include-group = "ml-api"},
 
     # Scientific Computing (heavy)
     "scipy==1.16.3",

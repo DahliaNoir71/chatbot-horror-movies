@@ -34,7 +34,7 @@
 - ✅ **Frontend SPA** : Vue.js 3.5 + TypeScript + Tailwind CSS + Pinia + Vue Router
 - ✅ **Tests E2E** : Playwright (auth, chat, films, accessibilité axe-core, Lighthouse)
 - ✅ **Monitoring** : Prometheus + Grafana (21 métriques, 3 dashboards)
-- ✅ **CI/CD** : 3 workflows GitHub Actions (CI, Frontend CD Render, MLOps)
+- ✅ **CI/CD** : 2 workflows GitHub Actions (CI, MLOps)
 - ✅ **Configuration centralisée** : Pydantic Settings avec validation
 - ✅ **Checkpoints** : Reprise automatique après interruption
 - ✅ **100% open-source** : Aucun service payant
@@ -237,7 +237,7 @@ chatbot-horror-movies/
 ├── tests/                    # Tests pytest (seuil CI ≥ 50%)
 ├── docs/                     # API.md, DEPLOYMENT.md, FRONTEND.md, MONITORING.md, SECURITY.md
 ├── docker/                   # Config Prometheus, Grafana, init-db
-├── .github/workflows/        # CI (ci.yml), Frontend CD (frontend-cd.yml), MLOps (mlops.yml)
+├── .github/workflows/        # CI (ci.yml), MLOps (mlops.yml)
 ├── docker-compose.yml        # PostgreSQL + pgvector + monitoring
 ├── pyproject.toml            # Dépendances et configuration (uv)
 ├── uv.lock                   # Lock file reproductible
@@ -334,14 +334,14 @@ npm run test:e2e
 - [x] Intégration LLM Qwen2.5-7B-Instruct via llama.cpp
 - [x] Intent Classifier DeBERTa-v3 zero-shot
 - [x] Monitoring Prometheus/Grafana (3 dashboards)
-- [x] CI/CD GitHub Actions — 3 workflows (CI, Frontend CD, MLOps)
+- [x] CI/CD GitHub Actions — 2 workflows (CI, MLOps)
 - [x] Pipeline RAG complet (retriever → prompt → LLM) (E3)
 - [x] Endpoints chat + streaming SSE (E3)
 - [x] Pipeline MLOps GitHub Actions (6 jobs : validation, évaluation, rapport, livraison) (E3)
 - [x] Frontend Vue.js 3 SPA + Tailwind CSS + Pinia (E4)
 - [x] Authentification user/admin séparée avec bcrypt + JWT (E4)
 - [x] Tests E2E Playwright + accessibilité axe-core + Lighthouse (E4)
-- [x] Déploiement frontend sur Render (E4)
+- [x] Déploiement Docker Compose (API + Frontend + Monitoring)
 - [ ] Monitoring applicatif avancé (E5)
 
 ## 📄 Licence

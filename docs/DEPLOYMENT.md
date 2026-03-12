@@ -97,45 +97,6 @@ Endpoints disponibles :
 - Chat synchrone : `POST /api/v1/chat`
 - Chat streaming : `POST /api/v1/chat/stream`
 
-## Déploiement Production (Render)
-
-### Backend API
-
-- **Service Type** : Web Service
-- **Runtime** : Docker ou Python 3.12
-- **Plan** : Starter (7$/mois, 512 Mo RAM minimum)
-- **Build Command** : `uv sync --group ml`
-- **Start Command** : `uvicorn src.api.main:app --host 0.0.0.0 --port $PORT`
-
-### Frontend Vue.js
-
-- **Service Type** : Static Site
-- **Build Command** : `cd src/frontend && npm ci && npm run build`
-- **Publish Directory** : `src/frontend/dist`
-- **Déploiement automatique** : via le workflow `.github/workflows/frontend-cd.yml` (déclenché après CI success sur `main`)
-
-### Variables d'environnement Render
-
-Configurer via le dashboard Render :
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | URL PostgreSQL Render |
-| `JWT_SECRET_KEY` | Clé secrète ≥32 chars |
-| `LLM_MODEL_PATH` | Chemin vers le fichier GGUF |
-| `LLM_N_GPU_LAYERS` | `0` (CPU only sur Render) |
-| `ENVIRONMENT` | `production` |
-| `ADMIN_ALLOWED_EMAILS` | Emails admin (séparés par virgule) |
-| `ADMIN_DEFAULT_PASSWORD` | Mot de passe initial du compte admin |
-| `CORS_ORIGINS` | URL du frontend Render (ex: `https://horrorbot.onrender.com`) |
-
-### Contraintes Render
-
-- **RAM limitée** : utiliser obligatoirement un modèle quantifié Q4_K_M
-- **Pas de GPU** : configurer `LLM_N_GPU_LAYERS=0`
-- **Spin-down** : le free tier met en veille après 15 min d'inactivité
-- **Cold start** : le chargement du modèle LLM prend ~30s au premier démarrage
-
 ## Vérification du déploiement
 
 ```bash

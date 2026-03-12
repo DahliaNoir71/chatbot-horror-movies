@@ -1,0 +1,40 @@
+# =============================================================================
+# HORRORBOT - Docker Build Context Exclusions
+# =============================================================================
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+htmlcov/
+.pytest_cache/
+.coverage
+
+# Node
+node_modules/
+src/frontend/node_modules/
+
+# Large files (volume-mounted at runtime)
+models/
+data/
+downloads/
+
+# Logs
+logs/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment (loaded via env_file, not baked in — root only)
+/.env
+/.env.test

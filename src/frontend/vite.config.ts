@@ -18,7 +18,7 @@ function cspPlugin(): Plugin {
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
-        "connect-src 'self' https://horrorbot-api.onrender.com",
+        "connect-src 'self'",
         "font-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",

@@ -1,0 +1,17 @@
+# =============================================================================
+# Grafana Contact Points Provisioning — HorrorBot
+# =============================================================================
+# Defines the default email receiver used by notification policies.
+# In dev context, alerts are visible in Grafana UI only (no SMTP configured).
+# =============================================================================
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: grafana-default-email
+    receivers:
+      - uid: grafana-default-email
+        type: email
+        settings:
+          addresses: admin@horrorbot.dev

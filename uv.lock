@@ -1348,6 +1348,17 @@ ml = [
     { name = "torch" },
     { name = "transformers" },
 ]
+ml-api = [
+    { name = "hf-xet" },
+    { name = "huggingface-hub" },
+    { name = "llama-cpp-python", version = "0.3.4", source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cu124" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "llama-cpp-python", version = "0.3.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "safetensors" },
+    { name = "sentence-transformers" },
+    { name = "tokenizers" },
+    { name = "torch" },
+    { name = "transformers" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1429,6 +1440,18 @@ ml = [
     { name = "scikit-learn", specifier = "==1.8.0" },
     { name = "scipy", specifier = "==1.16.3" },
     { name = "selenium", specifier = "==4.38.0" },
+    { name = "sentence-transformers", specifier = "==5.2.0" },
+    { name = "tokenizers", specifier = "==0.22.1" },
+    { name = "torch", specifier = ">=2.9.0,<3.0", index = "https://download.pytorch.org/whl/cu126" },
+    { name = "transformers", specifier = "==4.57.3" },
+]
+ml-api = [
+    { name = "hf-xet", specifier = "==1.2.0" },
+    { name = "huggingface-hub", specifier = "==0.36.0" },
+    { name = "llama-cpp-python", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==0.3.4" },
+    { name = "llama-cpp-python", marker = "sys_platform == 'linux'", specifier = "==0.3.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
+    { name = "llama-cpp-python", marker = "sys_platform == 'win32'", specifier = "==0.3.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
+    { name = "safetensors", specifier = "==0.7.0" },
     { name = "sentence-transformers", specifier = "==5.2.0" },
     { name = "tokenizers", specifier = "==0.22.1" },
     { name = "torch", specifier = ">=2.9.0,<3.0", index = "https://download.pytorch.org/whl/cu126" },

@@ -142,7 +142,7 @@ Headers autorisés : Authorization, Content-Type
 
 - `.env` est dans `.gitignore` — ne jamais le committer
 - `.env.example` contient des placeholders, pas de vrais secrets
-- En production (Render), utiliser les variables d'environnement du dashboard
+- En Docker, les secrets sont injectés via `env_file: .env` dans `docker-compose.yml`
 - La fonction `get_masked_settings()` masque les secrets dans les logs
 
 ## CI/CD — Scans de sécurité

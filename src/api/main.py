@@ -56,6 +56,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     _verify_database_connection()
     _ensure_schema_up_to_date()
     _seed_admin_account()
+    _preload_models()
     yield
 
 
@@ -144,6 +145,31 @@ def _seed_admin_account() -> None:
         )
         repo.create(admin_user)
         logger.info("Admin account created (%s / %s)", username, admin_email)
+
+
+def _preload_models() -> None:
+    """Pre-load AI models so they're ready for first request."""
+    import logging
+
+    logger = logging.getLogger("horrorbot.warmup")
+
+    try:
+        from src.services.embedding.embedding_service import get_embedding_service
+
+        logger.info("Pre-loading embedding model...")
+        _ = get_embedding_service().model
+        logger.info("Embedding model loaded.")
+    except Exception:
+        logger.warning("Failed to pre-load embedding model", exc_info=True)
+
+    try:
+        from src.services.llm.llm_service import get_llm_service
+
+        logger.info("Pre-loading LLM...")
+        _ = get_llm_service().llm
+        logger.info("LLM loaded.")
+    except Exception:
+        logger.warning("Failed to pre-load LLM", exc_info=True)
 
 
 # =============================================================================
@@ -267,7 +293,7 @@ def _check_llm() -> LLMComponentHealth:
         from src.services.llm.llm_service import get_llm_service
 
         service = get_llm_service()
-        loaded = service._model is not None
+        loaded = service._llm is not None
         memory_mb = None
         if loaded:
             import psutil

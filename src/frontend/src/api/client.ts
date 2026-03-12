@@ -1,15 +1,6 @@
 import axios from 'axios'
 import { redirectToLogin } from './auth-redirect'
 
-if (import.meta.env.PROD) {
-  const url = import.meta.env.VITE_API_URL
-  if (url && !url.startsWith('https://')) {
-    throw new Error(
-      `[Security] VITE_API_URL must use HTTPS in production. Got: ${url}`
-    )
-  }
-}
-
 const TOKEN_KEY = 'horrorbot_token'
 
 const apiClient = axios.create({

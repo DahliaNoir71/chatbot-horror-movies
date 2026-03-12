@@ -1,17 +1,19 @@
 # =============================================================================
 # HORRORBOT - Docker Compose Configuration
 # =============================================================================
-# PostgreSQL with pgvector extension for RAG embeddings
+# Full-stack: PostgreSQL + FastAPI + Vue.js + Monitoring + pgAdmin
 #
 # Usage:
-#   docker-compose up -d                              # Start core services (db)
-#   docker-compose --profile monitoring up -d         # Start Prometheus + Grafana
-#   docker-compose --profile monitoring-test up -d    # Start monitoring sandbox (G17)
-#   docker-compose --profile tools up -d              # Start pgAdmin
-#   docker-compose down                               # Stop services
-#   docker-compose logs -f db                         # View database logs
-#   docker-compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB
+#   docker compose up -d && docker compose logs -f ready # Start + show URLs
+#   docker compose --profile monitoring-test up -d       # + monitoring sandbox
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d  # GPU
+#   docker compose down                                  # Stop services
+#   docker compose logs -f api                           # View API logs
+#   docker compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB
 #
+# Startup order (via depends_on + healthcheck):
+#   db → api → frontend, prometheus → grafana
+#   db → pgadmin
 # =============================================================================
 
 services:
@@ -84,17 +86,66 @@ services:
       - horrorbot-network
 
   # ---------------------------------------------------------------------------
-  # pgAdmin (optional - for database management UI)
+  # FastAPI Backend (API + AI models)
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: horrorbot-api
+    restart: unless-stopped
+
+    env_file: .env
+
+    environment:
+      # Override host settings for Docker network
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      # AI models (not baked into image — too large)
+      - ./models:/app/models
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # Vue.js Frontend (nginx + static build)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: horrorbot-frontend
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # pgAdmin (database management UI)
   # ---------------------------------------------------------------------------
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: horrorbot-pgadmin
     restart: unless-stopped
-    profiles:
-      - tools  # Only starts with: docker-compose --profile tools up -d
 
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@horrorbot.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-serge.pfeiffer@proton.me}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
@@ -113,14 +164,12 @@ services:
       - horrorbot-network
 
   # ---------------------------------------------------------------------------
-  # Prometheus (monitoring - metrics collection)
+  # Prometheus (metrics collection)
   # ---------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:latest
     container_name: horrorbot-prometheus
     restart: unless-stopped
-    profiles:
-      - monitoring  # Only starts with: docker-compose --profile monitoring up -d
 
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -129,18 +178,20 @@ services:
     ports:
       - "9090:9090"
 
+    depends_on:
+      api:
+        condition: service_healthy
+
     networks:
       - horrorbot-network
 
   # ---------------------------------------------------------------------------
-  # Grafana (monitoring - dashboards & visualization)
+  # Grafana (dashboards & visualization)
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
     container_name: horrorbot-grafana
     restart: unless-stopped
-    profiles:
-      - monitoring  # Only starts with: docker-compose --profile monitoring up -d
 
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
@@ -169,7 +220,7 @@ services:
     container_name: horrorbot-prometheus-test
     restart: unless-stopped
     profiles:
-      - monitoring-test  # docker-compose --profile monitoring-test up -d
+      - monitoring-test  # docker compose --profile monitoring-test up -d
 
     volumes:
       - ./docker/prometheus/prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
@@ -206,6 +257,47 @@ services:
 
     depends_on:
       - prometheus-test
+
+    networks:
+      - horrorbot-network
+
+  # ---------------------------------------------------------------------------
+  # Ready banner (one-shot — prints URLs when all services are up)
+  # ---------------------------------------------------------------------------
+  # Usage: docker compose up -d && docker compose logs -f ready
+  ready:
+    image: alpine:latest
+    container_name: horrorbot-ready
+    restart: "no"
+
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+      grafana:
+        condition: service_started
+      pgadmin:
+        condition: service_started
+
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo ""
+        echo "============================================="
+        echo "  HORRORBOT — All services are running!"
+        echo "============================================="
+        echo ""
+        echo "  Frontend:   http://localhost:8080"
+        echo "  API Docs:   http://localhost:8000/api/docs"
+        echo "  Grafana:    http://localhost:3000"
+        echo "  Prometheus: http://localhost:9090"
+        echo "  pgAdmin:    http://localhost:5050"
+        echo ""
+        echo "============================================="
+        echo ""
 
     networks:
       - horrorbot-network
