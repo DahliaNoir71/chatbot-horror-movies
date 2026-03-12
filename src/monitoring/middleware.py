@@ -5,7 +5,9 @@ for Prometheus scraping. Part of C8 (Monitoring du service).
 """
 
 import time
+import uuid
 
+import structlog
 from prometheus_client import Counter, Histogram, make_asgi_app
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -33,12 +35,23 @@ HTTP_REQUEST_DURATION = Histogram(
 # MIDDLEWARE
 # =============================================================================
 
+_EXCLUDED_PATHS = frozenset({"/metrics", "/api/docs", "/api/redoc", "/api/openapi.json"})
+
+_log = structlog.get_logger("horrorbot.http")
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
-    """Records HTTP request metrics for Prometheus.
+    """Records HTTP request metrics and structured logs for each request.
 
-    Measures request duration and counts requests by method, path, and status.
-    Skips recording for the /metrics endpoint itself.
+    For every non-excluded request:
+    - Measures duration and records Prometheus histogram/counter metrics.
+    - Generates a ``request_id`` (UUID4), binds it to structlog context
+      variables, and returns it in the ``X-Request-ID`` response header.
+    - Emits a structured log at INFO (2xx), WARNING (4xx), or ERROR (5xx).
+    - Normalises parameterised paths (e.g. ``/films/42`` → ``/films/{film_id}``)
+      to prevent metric cardinality explosion.
+
+    Skips ``/metrics``, ``/api/docs``, ``/api/redoc``, and ``/api/openapi.json``.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -51,20 +64,45 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         Returns:
             HTTP response from downstream handler.
         """
-        if request.url.path == "/metrics":
+        if request.url.path.rstrip("/") in _EXCLUDED_PATHS:
             return await call_next(request)
 
         method = request.method
-        path = request.url.path
+        request_id = str(uuid.uuid4())
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
         start = time.perf_counter()
 
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        finally:
+            structlog.contextvars.clear_contextvars()
 
         duration = time.perf_counter() - start
-        status = str(response.status_code)
+        status_code = response.status_code
 
-        HTTP_REQUESTS_TOTAL.labels(method=method, path=path, status=status).inc()
-        HTTP_REQUEST_DURATION.labels(method=method, path=path).observe(duration)
+        # Normalise parameterised paths via FastAPI route resolution
+        route = request.scope.get("route")
+        normalized = route.path if route and hasattr(route, "path") else request.url.path
+
+        HTTP_REQUESTS_TOTAL.labels(method=method, path=normalized, status=str(status_code)).inc()
+        HTTP_REQUEST_DURATION.labels(method=method, path=normalized).observe(duration)
+
+        response.headers["X-Request-ID"] = request_id
+
+        # Conditional structured logging by status code
+        log_data = {
+            "method": method,
+            "path": normalized,
+            "status": status_code,
+            "duration_ms": round(duration * 1000, 1),
+        }
+        if status_code >= 500:
+            _log.error("server_error", **log_data)
+        elif status_code >= 400:
+            _log.warning("client_error", **log_data)
+        else:
+            _log.info("request_completed", **log_data)
 
         return response
 

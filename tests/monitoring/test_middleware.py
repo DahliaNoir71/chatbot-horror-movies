@@ -1,5 +1,8 @@
 """Tests for Prometheus metrics middleware."""
 
+from unittest.mock import MagicMock, patch
+from uuid import UUID
+
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -27,6 +30,14 @@ def app():
     @test_app.get("/api/v1/error")
     def error():
         raise HTTPException(status_code=500, detail="test error")
+
+    @test_app.get("/api/v1/items/{item_id}")
+    def get_item(item_id: int):
+        return {"id": item_id}
+
+    @test_app.get("/api/v1/missing")
+    def missing():
+        raise HTTPException(status_code=404, detail="not found")
 
     return test_app
 
@@ -131,3 +142,120 @@ class TestMetricDefinitions:
     def test_http_request_duration_has_horrorbot_prefix() -> None:
         """HTTP_REQUEST_DURATION follows the horrorbot_ naming convention."""
         assert HTTP_REQUEST_DURATION._name.startswith("horrorbot_")
+
+
+class TestPathExclusion:
+    """Tests for excluded paths (not recorded in metrics)."""
+
+    @staticmethod
+    def test_docs_endpoint_not_recorded(app) -> None:
+        """Requests to /api/docs are excluded from HTTP metrics."""
+        app.docs_url = "/api/docs"
+        client = TestClient(app)
+        client.get("/api/docs")
+        response = client.get("/metrics")
+        lines = [
+            line
+            for line in response.text.splitlines()
+            if line.startswith("horrorbot_http_requests_total{")
+        ]
+        for line in lines:
+            assert 'path="/api/docs"' not in line
+
+    @staticmethod
+    def test_openapi_endpoint_not_recorded(app) -> None:
+        """Requests to /api/openapi.json are excluded from HTTP metrics."""
+        client = TestClient(app)
+        client.get("/api/openapi.json")
+        response = client.get("/metrics")
+        lines = [
+            line
+            for line in response.text.splitlines()
+            if line.startswith("horrorbot_http_requests_total{")
+        ]
+        for line in lines:
+            assert 'path="/api/openapi.json"' not in line
+
+
+class TestPathNormalization:
+    """Tests for parameterised path normalisation."""
+
+    @staticmethod
+    def test_parameterized_path_normalized(client) -> None:
+        """A parameterised route is recorded with the template, not the value."""
+        client.get("/api/v1/items/42")
+        response = client.get("/metrics")
+        body = response.text
+        # The template path should appear, not the literal /42
+        assert 'path="/api/v1/items/{item_id}"' in body
+        assert 'path="/api/v1/items/42"' not in body
+
+
+class TestRequestId:
+    """Tests for X-Request-ID header injection."""
+
+    @staticmethod
+    def test_response_has_request_id_header(client) -> None:
+        """Every non-excluded response includes a valid UUID X-Request-ID."""
+        response = client.get("/api/v1/health")
+        request_id = response.headers.get("X-Request-ID")
+        assert request_id is not None
+        UUID(request_id)  # raises ValueError if not a valid UUID
+
+    @staticmethod
+    def test_each_request_gets_unique_id(client) -> None:
+        """Two requests receive distinct request IDs."""
+        r1 = client.get("/api/v1/health")
+        r2 = client.get("/api/v1/health")
+        assert r1.headers["X-Request-ID"] != r2.headers["X-Request-ID"]
+
+    @staticmethod
+    def test_excluded_path_has_no_request_id(client) -> None:
+        """Excluded paths do not receive an X-Request-ID header."""
+        response = client.get("/metrics")
+        assert "X-Request-ID" not in response.headers
+
+
+class TestConditionalLogging:
+    """Tests for structured logging by status code."""
+
+    @staticmethod
+    def test_2xx_logs_info(client) -> None:
+        """A 200 response emits an INFO log with expected fields."""
+        with patch("src.monitoring.middleware._log") as mock_log:
+            client.get("/api/v1/health")
+            mock_log.info.assert_called_once()
+            _event, kwargs = mock_log.info.call_args
+            assert _event[0] == "request_completed"
+            assert kwargs["method"] == "GET"
+            assert kwargs["status"] == 200
+            assert "duration_ms" in kwargs
+
+    @staticmethod
+    def test_4xx_logs_warning(client) -> None:
+        """A 404 response emits a WARNING log."""
+        with patch("src.monitoring.middleware._log") as mock_log:
+            client.get("/api/v1/missing")
+            mock_log.warning.assert_called_once()
+            _event, kwargs = mock_log.warning.call_args
+            assert _event[0] == "client_error"
+            assert kwargs["status"] == 404
+
+    @staticmethod
+    def test_5xx_logs_error(client) -> None:
+        """A 500 response emits an ERROR log."""
+        with patch("src.monitoring.middleware._log") as mock_log:
+            client.get("/api/v1/error")
+            mock_log.error.assert_called_once()
+            _event, kwargs = mock_log.error.call_args
+            assert _event[0] == "server_error"
+            assert kwargs["status"] == 500
+
+    @staticmethod
+    def test_excluded_path_not_logged(client) -> None:
+        """Excluded paths do not produce any structured log."""
+        with patch("src.monitoring.middleware._log") as mock_log:
+            client.get("/metrics")
+            mock_log.info.assert_not_called()
+            mock_log.warning.assert_not_called()
+            mock_log.error.assert_not_called()
