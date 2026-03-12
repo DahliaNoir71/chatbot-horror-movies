@@ -33,6 +33,7 @@ from src.api.services.jwt_service import JWTService, get_jwt_service
 from src.api.services.password_service import hash_password, verify_password
 from src.database.models.auth.user import User
 from src.database.repositories.auth.user import UserRepository
+from src.monitoring.logging_config import configure_logging
 from src.monitoring.middleware import PrometheusMiddleware, mount_metrics
 from src.settings import settings
 
@@ -53,6 +54,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     Yields:
         None after startup tasks complete.
     """
+    configure_logging()
     _verify_database_connection()
     _ensure_schema_up_to_date()
     _seed_admin_account()
