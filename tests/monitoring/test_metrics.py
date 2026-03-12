@@ -4,6 +4,10 @@ import pytest
 from prometheus_client import Counter, Gauge, Histogram, Info
 
 from src.monitoring.metrics import (
+    ACTIVE_SESSIONS,
+    CHAT_ERRORS_TOTAL,
+    CHAT_REQUEST_DURATION,
+    CHAT_REQUESTS_TOTAL,
     CLASSIFIER_CONFIDENCE,
     CLASSIFIER_REQUEST_DURATION,
     CLASSIFIER_REQUESTS_TOTAL,
@@ -17,6 +21,10 @@ from src.monitoring.metrics import (
     LLM_TOKENS_PER_SECOND,
     MODEL_INFO,
     MODEL_MEMORY_BYTES,
+    RAG_DOCUMENTS_RETRIEVED,
+    RAG_RETRIEVAL_DURATION,
+    RAG_TOP_SIMILARITY,
+    SESSION_MESSAGE_COUNT,
 )
 
 
@@ -80,6 +88,50 @@ class TestSystemMetrics:
         assert isinstance(MODEL_INFO, Info)
 
 
+class TestRAGMetrics:
+    """Tests for RAG retrieval metric objects."""
+
+    @staticmethod
+    def test_rag_retrieval_duration_is_histogram() -> None:
+        assert isinstance(RAG_RETRIEVAL_DURATION, Histogram)
+
+    @staticmethod
+    def test_rag_documents_retrieved_is_histogram() -> None:
+        assert isinstance(RAG_DOCUMENTS_RETRIEVED, Histogram)
+
+    @staticmethod
+    def test_rag_top_similarity_is_histogram() -> None:
+        assert isinstance(RAG_TOP_SIMILARITY, Histogram)
+
+
+class TestChatMetrics:
+    """Tests for chat endpoint metric objects."""
+
+    @staticmethod
+    def test_chat_requests_total_is_counter() -> None:
+        assert isinstance(CHAT_REQUESTS_TOTAL, Counter)
+
+    @staticmethod
+    def test_chat_request_duration_is_histogram() -> None:
+        assert isinstance(CHAT_REQUEST_DURATION, Histogram)
+
+    @staticmethod
+    def test_chat_errors_total_is_counter() -> None:
+        assert isinstance(CHAT_ERRORS_TOTAL, Counter)
+
+
+class TestSessionMetrics:
+    """Tests for session metric objects."""
+
+    @staticmethod
+    def test_active_sessions_is_gauge() -> None:
+        assert isinstance(ACTIVE_SESSIONS, Gauge)
+
+    @staticmethod
+    def test_session_message_count_is_histogram() -> None:
+        assert isinstance(SESSION_MESSAGE_COUNT, Histogram)
+
+
 class TestDatabaseMetrics:
     """Tests for database metric objects."""
 
@@ -107,6 +159,14 @@ class TestMetricNames:
         CLASSIFIER_CONFIDENCE,
         EMBEDDING_REQUEST_DURATION,
         MODEL_MEMORY_BYTES,
+        RAG_RETRIEVAL_DURATION,
+        RAG_DOCUMENTS_RETRIEVED,
+        RAG_TOP_SIMILARITY,
+        CHAT_REQUESTS_TOTAL,
+        CHAT_REQUEST_DURATION,
+        CHAT_ERRORS_TOTAL,
+        ACTIVE_SESSIONS,
+        SESSION_MESSAGE_COUNT,
         DB_QUERY_DURATION,
         DB_CONNECTION_POOL_SIZE,
     ])
