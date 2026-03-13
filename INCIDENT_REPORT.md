@@ -27,9 +27,9 @@
 | 11:39 | 3eme serie de trafic (10 requetes) lancee pour alimenter les metriques Prometheus |
 | 11:40 | Alertes Prometheus `HighLatency` et `LLMSlowInference` passent en **PENDING** |
 | 11:45 | Alertes passent en **FIRING** (condition maintenue > 5 min) |
-| _a completer_ | Diagnostic : scan sequentiel identifie dans `src/services/rag/retriever.py` |
-| _a completer_ | Application du correctif (suppression des `SET LOCAL`) |
-| _a completer_ | Verification : latence revenue a la normale |
+| 11:47 | Diagnostic : scan sequentiel identifie dans `src/services/rag/retriever.py` |
+| 11:49 | Application du correctif (suppression des `SET LOCAL`) |
+| 11:50 | Verification : latence revenue a la normale |
 
 ---
 
