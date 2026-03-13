@@ -84,7 +84,7 @@ def send_chat(
         f"{base_url}/api/v1/chat",
         json={"message": message},
         headers={"Authorization": f"Bearer {token}"},
-        timeout=60.0,
+        timeout=120.0,
     )
     duration_ms = (time.perf_counter() - start) * 1000
     return resp.status_code, duration_ms
@@ -102,7 +102,7 @@ def main() -> None:
     print(f"  URL: {args.base_url} | Requetes: {args.count}")
     print(f"{'='*60}\n")
 
-    with httpx.Client() as client:
+    with httpx.Client(timeout=httpx.Timeout(120.0)) as client:
         register_user(client, args.base_url)
         token = get_token(client, args.base_url)
 
