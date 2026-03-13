@@ -143,7 +143,6 @@ async def client(_test_db_session: Session) -> AsyncGenerator[AsyncClient, None]
 
     with (
         patch("src.api.main._verify_database_connection"),
-        patch("src.api.main._ensure_schema_up_to_date"),
         patch("src.api.main._seed_admin_users"),
     ):
         app.dependency_overrides[get_db] = _override_get_db
