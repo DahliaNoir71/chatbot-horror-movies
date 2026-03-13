@@ -35,7 +35,7 @@ class IntentClassifier:
     Attributes:
         _model_name: HuggingFace model identifier.
         _confidence_threshold: Minimum confidence to accept a classification.
-        _device: Inference device (cpu, cuda, auto).
+        _device: Inference device (cpu).
         _pipeline: Lazy-loaded classification pipeline.
     """
 
@@ -79,18 +79,12 @@ class IntentClassifier:
             self._logger.info("Classifier loaded successfully")
         return self._pipeline
 
-    def _resolve_device(self) -> int | str:
+    def _resolve_device(self) -> str:
         """Resolve device string to transformers-compatible value.
 
         Returns:
-            0 for CUDA GPU, "cpu" for CPU.
+            "cpu" for CPU inference.
         """
-        if self._device == "auto":
-            import torch
-
-            return 0 if torch.cuda.is_available() else "cpu"
-        if self._device == "cuda":
-            return 0
         return "cpu"
 
     def classify(self, text: str) -> dict:

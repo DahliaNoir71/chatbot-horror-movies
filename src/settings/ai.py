@@ -26,7 +26,7 @@ class LLMSettings(BaseSettings):
         max_tokens: Maximum tokens to generate per response.
         temperature: Sampling temperature (0.0 = deterministic, 2.0 = creative).
         timeout_seconds: Inference timeout.
-        n_gpu_layers: Layers to offload to GPU (-1 = all, 0 = CPU only).
+        n_gpu_layers: Number of layers offloaded (0 = CPU only).
     """
 
     model_path: str = Field(alias="LLM_MODEL_PATH")
@@ -94,12 +94,12 @@ class ClassifierSettings(BaseSettings):
     Attributes:
         model_name: HuggingFace model name for zero-shot classification.
         confidence_threshold: Minimum confidence to accept a classification.
-        device: Inference device (cpu, cuda, auto).
+        device: Inference device (cpu).
     """
 
     model_name: str = Field(alias="CLASSIFIER_MODEL_NAME")
     confidence_threshold: float = Field(alias="CLASSIFIER_CONFIDENCE_THRESHOLD")
-    device: str = Field(alias="CLASSIFIER_DEVICE")
+    device: str = Field(default="cpu", alias="CLASSIFIER_DEVICE")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -120,10 +120,9 @@ class ClassifierSettings(BaseSettings):
     @classmethod
     def validate_device(cls, v: str) -> str:
         """Validate device is a recognized option."""
-        valid_devices = {"cpu", "cuda", "auto"}
         v_lower = v.lower()
-        if v_lower not in valid_devices:
-            raise ValueError(f"CLASSIFIER_DEVICE must be one of {valid_devices}")
+        if v_lower not in {"cpu"}:
+            raise ValueError("CLASSIFIER_DEVICE must be 'cpu'")
         return v_lower
 
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { askStream } from '../chat.api'
-import { TOKEN_KEY } from '../client'
+import { getTokenKey } from '../client'
 import { redirectToLogin } from '../auth-redirect'
 
 vi.mock('../auth-redirect', () => ({
@@ -120,7 +120,7 @@ describe('askStream', () => {
 
   describe('fetch configuration', () => {
     it('sends Authorization header when token exists', async () => {
-      localStorage.setItem(TOKEN_KEY, 'my-jwt')
+      localStorage.setItem(getTokenKey(), 'my-jwt')
       mockFetchSSE([])
 
       await askStream({ message: 'hi' }, vi.fn())
@@ -160,7 +160,7 @@ describe('askStream', () => {
     })
 
     it('clears token and redirects on 401', async () => {
-      localStorage.setItem(TOKEN_KEY, 'expired-token')
+      localStorage.setItem(getTokenKey(), 'expired-token')
 
       vi.mocked(fetch).mockResolvedValue({
         ok: false,
@@ -170,7 +170,7 @@ describe('askStream', () => {
       await expect(askStream({ message: 'hi' }, vi.fn())).rejects.toThrow(
         'Stream request failed: 401'
       )
-      expect(localStorage.getItem(TOKEN_KEY)).toBeNull()
+      expect(localStorage.getItem(getTokenKey())).toBeNull()
       expect(redirectToLogin).toHaveBeenCalled()
     })
 

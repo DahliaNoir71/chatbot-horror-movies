@@ -67,8 +67,7 @@ dependencies = [
     "Jinja2==3.1.6",
     "orjson==3.11.5",
 
-    # --- YouTube & APIs ---
-    "youtube-transcript-api==1.2.3",
+    # --- APIs ---
     "kaggle==1.8.2",
 
     # --- Monitoring ---
@@ -108,7 +107,7 @@ ml-api = [
     "sentence-transformers==5.2.0",
     "tokenizers==0.22.1",
     "safetensors==0.7.0",
-    "llama-cpp-python==0.3.4",
+    "llama-cpp-python>=0.3.0,<0.4",
     "huggingface-hub==0.36.0",
     "hf-xet==1.2.0",
 ]
@@ -139,24 +138,24 @@ ml = [
 # Installer dev par défaut (pas ml, trop lourd)
 default-groups = ["dev"]
 
-# Index PyTorch CUDA
+# Index PyTorch CPU-only (évite les dépendances nvidia-* transitives)
 [[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
-# Index llama-cpp-python CUDA wheels
+# Index llama-cpp-python CPU pre-built wheels
 [[tool.uv.index]]
-name = "llama-cpp-python-cu124"
-url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+name = "llama-cpp-python-cpu"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 explicit = true
 
-# Router packages vers les index CUDA
+# Route packages vers les index CPU
 [tool.uv.sources]
-torch = { index = "pytorch-cu126" }
+torch = { index = "pytorch-cpu" }
 llama-cpp-python = [
-    { index = "llama-cpp-python-cu124", marker = "sys_platform == 'linux'" },
-    { index = "llama-cpp-python-cu124", marker = "sys_platform == 'win32'" },
+    { index = "llama-cpp-python-cpu", marker = "sys_platform == 'linux'" },
+    { index = "llama-cpp-python-cpu", marker = "sys_platform == 'win32'" },
 ]
 
 # =============================================================================

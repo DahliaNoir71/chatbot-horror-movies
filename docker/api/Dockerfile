@@ -5,7 +5,7 @@
 #
 # Build:  docker compose build api
 # Run:    docker compose up -d api
-# GPU:    docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Logs:   docker compose logs -f api
 # =============================================================================
 
 FROM python:3.12-slim
@@ -34,7 +34,7 @@ RUN uv sync --frozen --group ml-api
 COPY src/ src/
 
 # ── Runtime config ───────────────────────────────────────────────────────────
-# CPU-only by default (override with docker-compose.gpu.yml)
+# CPU-only inference
 ENV LLM_N_GPU_LAYERS=0
 ENV PYTHONUNBUFFERED=1
 

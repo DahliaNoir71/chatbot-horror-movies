@@ -13,7 +13,7 @@ from src.database.models.audit import (
     ETLRun,
     RGPDProcessingRegistry,
 )
-from src.database.models.auth import User
+from src.database.models.auth import AdminUser, ChatbotUser
 from src.database.models.base import Base, ExtractedAtMixin
 
 # Rotten Tomatoes models
@@ -38,7 +38,8 @@ __all__ = [
     "Base",
     "ExtractedAtMixin",
     # Auth
-    "User",
+    "AdminUser",
+    "ChatbotUser",
     # TMDB
     "Film",
     "Genre",

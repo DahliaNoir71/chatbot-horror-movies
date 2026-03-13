@@ -43,9 +43,7 @@ class EmbeddingService:
     def model(self) -> SentenceTransformer:
         """Lazy-load and return the transformer model."""
         if self._model is None:
-            import torch
-
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cpu"
             self._logger.info(f"Loading model: {self._model_name} on {device}")
             self._model = SentenceTransformer(self._model_name, device=device)
             self._logger.info("Model loaded successfully")
