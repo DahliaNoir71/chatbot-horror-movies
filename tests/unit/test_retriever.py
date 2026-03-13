@@ -3,7 +3,7 @@
 Guards against index-disabling SQL statements (SET LOCAL enable_indexscan/
 enable_bitmapscan = off) that caused the 2026-03-13 performance incident.
 
-See: INCIDENT_REPORT.md
+See: incidents/INCIDENT_REPORT.md
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ class TestRetrieverIndexGuard:
         for sql in executed_sql:
             assert "enable_indexscan" not in sql.lower(), (
                 f"Regression detected: '{sql}' disables index scan. "
-                "See INCIDENT_REPORT.md (2026-03-13)."
+                "See incidents/INCIDENT_REPORT.md (2026-03-13)."
             )
 
     @staticmethod
@@ -96,7 +96,7 @@ class TestRetrieverIndexGuard:
         for sql in executed_sql:
             assert "enable_bitmapscan" not in sql.lower(), (
                 f"Regression detected: '{sql}' disables bitmap scan. "
-                "See INCIDENT_REPORT.md (2026-03-13)."
+                "See incidents/INCIDENT_REPORT.md (2026-03-13)."
             )
 
     @staticmethod

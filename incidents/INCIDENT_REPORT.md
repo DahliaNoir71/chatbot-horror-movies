@@ -120,23 +120,23 @@
 
 ### Dashboard Grafana — API Overview / Chat Latency (pendant l'incident)
 
-![API Latency Spike](screenshots/incident/grafana-api-latency-spike.png)
+![API Latency Spike](screenshots/grafana-api-latency-spike.png)
 
 ### Dashboard Grafana — RAG Performance (pendant l'incident)
 
-![RAG Dashboard](screenshots/incident/grafana-rag-performance.png)
+![RAG Dashboard](screenshots/grafana-rag-performance.png)
 
 ### Prometheus Alerts (alertes declenchees)
 
-![Prometheus Alert](screenshots/incident/prometheus-alert-firing.png)
+![Prometheus Alert](screenshots/prometheus-alert-firing.png)
 
 ### Logs structlog (requetes lentes)
 
-![Structured Logs](screenshots/incident/structlog-slow-requests.png)
+![Structured Logs](screenshots/structlog-slow-requests.png)
 
 ### Dashboard Grafana — Apres correctif
 
-![Latency Fixed](screenshots/incident/grafana-latency-fixed.png)
+![Latency Fixed](screenshots/grafana-latency-fixed.png)
 
 ---
 
