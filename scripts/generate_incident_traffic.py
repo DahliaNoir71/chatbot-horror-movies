@@ -84,7 +84,7 @@ def send_chat(
         f"{base_url}/api/v1/chat",
         json={"message": message},
         headers={"Authorization": f"Bearer {token}"},
-        timeout=120.0,
+        timeout=300.0,
     )
     duration_ms = (time.perf_counter() - start) * 1000
     return resp.status_code, duration_ms
