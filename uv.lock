@@ -1295,6 +1295,7 @@ dev = [
 ml = [
     { name = "hf-xet" },
     { name = "huggingface-hub" },
+    { name = "imdb-sqlite" },
     { name = "llama-cpp-python", version = "0.3.2", source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cpu" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "llama-cpp-python", version = "0.3.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "patchright" },
@@ -1392,6 +1393,7 @@ dev = [
 ml = [
     { name = "hf-xet", specifier = "==1.2.0" },
     { name = "huggingface-hub", specifier = "==0.36.0" },
+    { name = "imdb-sqlite", specifier = ">=2.0.0,<3.0" },
     { name = "llama-cpp-python", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=0.3.0,<0.4" },
     { name = "llama-cpp-python", marker = "sys_platform == 'linux'", specifier = ">=0.3.0,<0.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cpu" },
     { name = "llama-cpp-python", marker = "sys_platform == 'win32'", specifier = ">=0.3.0,<0.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cpu" },
@@ -1516,6 +1518,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/6f/6d/0703ccc57f3a7233505399edb88de3cbd678da106337b9fcde432b65ed60/idna-3.11.tar.gz", hash = "sha256:795dafcc9c04ed0c1fb032c2aa73654d8e8c5023a7df64a53f39190ada629902", size = 194582, upload-time = "2025-10-12T14:55:20.501Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0e/61/66938bbb5fc52dbdf84594873d5b51fb1f7c7794e9c0f5bd885f30bc507b/idna-3.11-py3-none-any.whl", hash = "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea", size = 71008, upload-time = "2025-10-12T14:55:18.883Z" },
+]
+
+[[package]]
+name = "imdb-sqlite"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e6/dd/9966d94699cbca5ece56e0ca7c9aecca0fa822ee685a16f794fc22793685/imdb_sqlite-2.1.0.tar.gz", hash = "sha256:45cba44abf766fef8cc7ca98739b16cd619f1fb28f446e6bc7aca1ad5bd9ec88", size = 20909, upload-time = "2026-02-05T20:36:40.632Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/e9/a9b0d55ffc5cd42682dfe3f97545a7c2ed75b3769fbbcd624892d63769b4/imdb_sqlite-2.1.0-py3-none-any.whl", hash = "sha256:0ec180a61322e7e02afbd9be388dad2c077a0ef43144552056a14e4c59ef0400", size = 17868, upload-time = "2026-02-05T20:36:39.596Z" },
 ]
 
 [[package]]

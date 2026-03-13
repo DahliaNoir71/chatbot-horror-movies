@@ -111,6 +111,8 @@ class KagglePipeline:
         if csv_path is None:
             raise ValueError("CSV path not configured")
 
+        self._ensure_csv_downloaded(csv_path)
+
         session = self._get_session()
         extractor = CSVExtractor()
         normalizer = KaggleNormalizer()
@@ -190,6 +192,51 @@ class KagglePipeline:
     # -------------------------------------------------------------------------
     # Configuration
     # -------------------------------------------------------------------------
+
+    def _ensure_csv_downloaded(self, csv_path: Path) -> None:
+        """Download Kaggle dataset if CSV file is missing.
+
+        Args:
+            csv_path: Expected path to CSV file.
+
+        Raises:
+            RuntimeError: If download fails or credentials are missing.
+        """
+        if csv_path.exists():
+            self._logger.info(f"CSV already present: {csv_path}")
+            return
+
+        from src.settings.sources.kaggle import KaggleSettings
+
+        kaggle_settings = KaggleSettings()
+        if not kaggle_settings.is_configured:
+            raise RuntimeError(
+                "Kaggle credentials not configured. Set KAGGLE_USERNAME and KAGGLE_KEY in .env"
+            )
+
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        self._logger.info(f"Downloading Kaggle dataset: {kaggle_settings.dataset_slug}")
+
+        import os
+
+        os.environ["KAGGLE_USERNAME"] = kaggle_settings.username
+        os.environ["KAGGLE_KEY"] = kaggle_settings.key
+
+        from kaggle.api.kaggle_api_extended import KaggleApi
+
+        api = KaggleApi()
+        api.authenticate()
+        api.dataset_download_files(
+            dataset=kaggle_settings.dataset_slug,
+            path=str(csv_path.parent),
+            unzip=True,
+            quiet=False,
+        )
+
+        if not csv_path.exists():
+            raise RuntimeError(f"Download completed but CSV not found at {csv_path}")
+
+        self._logger.info(f"CSV downloaded: {csv_path}")
 
     def _resolve_csv_path(self) -> Path | None:
         """Resolve CSV path from config or settings.

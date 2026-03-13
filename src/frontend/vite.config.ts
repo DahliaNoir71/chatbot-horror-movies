@@ -17,7 +17,7 @@ function cspPlugin(): Plugin {
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data:",
+        "img-src 'self' data: https://image.tmdb.org",
         "connect-src 'self'",
         "frame-src 'self' http://localhost:3000",
         "font-src 'self'",

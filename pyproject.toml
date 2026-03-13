@@ -129,6 +129,9 @@ ml = [
     # Spark (heavy)
     "pyspark==4.0.1",
     "py4j==0.10.9.9",
+
+    # IMDB SQLite generator (downloads TSV datasets)
+    "imdb-sqlite>=2.0.0,<3.0",
 ]
 
 # =============================================================================

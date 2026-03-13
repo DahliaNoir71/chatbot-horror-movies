@@ -58,7 +58,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     configure_logging()
     _verify_database_connection()
-    _ensure_schema_up_to_date()
     _seed_admin_users()
     _preload_models()
     yield
@@ -71,58 +70,6 @@ def _verify_database_connection() -> None:
     engine = get_engine()
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-
-
-def _ensure_schema_up_to_date() -> None:
-    """Apply lightweight schema migrations for user table separation.
-
-    Handles migration from the old single ``users`` table to separate
-    ``admin_users`` and ``chatbot_users`` tables.
-    """
-    import logging
-
-    from sqlalchemy import text
-
-    logger = logging.getLogger("horrorbot.schema")
-    engine = get_engine()
-
-    def _table_exists(conn, table_name: str) -> bool:
-        result = conn.execute(
-            text("SELECT 1 FROM information_schema.tables WHERE table_name = :table"),
-            {"table": table_name},
-        )
-        return result.first() is not None
-
-    with engine.connect() as conn:
-        # Migration: rename old 'users' table to 'chatbot_users'
-        if _table_exists(conn, "users") and not _table_exists(conn, "chatbot_users"):
-            conn.execute(text("ALTER TABLE users RENAME TO chatbot_users"))
-            logger.info("Renamed table users -> chatbot_users")
-
-            # Drop the 'role' column (no longer needed)
-            conn.execute(text("ALTER TABLE chatbot_users DROP COLUMN IF EXISTS role"))
-            logger.info("Dropped column chatbot_users.role")
-            conn.commit()
-
-        # Create admin_users table if it doesn't exist
-        if not _table_exists(conn, "admin_users"):
-            conn.execute(
-                text(
-                    "CREATE TABLE admin_users ("
-                    "  id SERIAL PRIMARY KEY,"
-                    "  email VARCHAR(255) NOT NULL UNIQUE,"
-                    "  password_hash VARCHAR(255) NOT NULL,"
-                    "  is_active BOOLEAN DEFAULT TRUE,"
-                    "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
-                    "  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
-                    ")"
-                )
-            )
-            conn.execute(
-                text("CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users (email)")
-            )
-            conn.commit()
-            logger.info("Created table admin_users")
 
 
 def _seed_admin_users() -> None:
