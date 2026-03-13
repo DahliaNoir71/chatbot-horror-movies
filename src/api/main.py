@@ -31,8 +31,10 @@ from src.api.schemas import (
 )
 from src.api.services.jwt_service import JWTService, get_jwt_service
 from src.api.services.password_service import hash_password, verify_password
-from src.database.models.auth.user import User
-from src.database.repositories.auth.user import UserRepository
+from src.database.models.auth.admin_user import AdminUser as AdminUserModel
+from src.database.models.auth.chatbot_user import ChatbotUser
+from src.database.repositories.auth.admin_user import AdminUserRepository
+from src.database.repositories.auth.chatbot_user import ChatbotUserRepository
 from src.monitoring.logging_config import configure_logging
 from src.monitoring.middleware import PrometheusMiddleware, mount_metrics
 from src.settings import settings
@@ -56,7 +58,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     configure_logging()
     _verify_database_connection()
-    _ensure_schema_up_to_date()
+    _seed_admin_users()
     _preload_models()
     yield
 
@@ -70,36 +72,27 @@ def _verify_database_connection() -> None:
         conn.execute(text("SELECT 1"))
 
 
-def _ensure_schema_up_to_date() -> None:
-    """Apply lightweight schema migrations for columns added after initial deploy."""
+def _seed_admin_users() -> None:
+    """Seed admin users from settings on startup."""
     import logging
 
-    from sqlalchemy import text
+    from src.api.database import get_session_factory
 
-    logger = logging.getLogger("horrorbot.schema")
-    engine = get_engine()
-
-    migrations = [
-        (
-            "users",
-            "role",
-            "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'",
-        ),
-    ]
-
-    with engine.connect() as conn:
-        for table, column, ddl in migrations:
-            result = conn.execute(
-                text(
-                    "SELECT 1 FROM information_schema.columns "
-                    "WHERE table_name = :table AND column_name = :column"
-                ),
-                {"table": table, "column": column},
-            )
-            if not result.first():
-                conn.execute(text(ddl))
-                conn.commit()
-                logger.info("Added column %s.%s", table, column)
+    logger = logging.getLogger("horrorbot.seed")
+    session = get_session_factory()()
+    try:
+        repo = AdminUserRepository(session)
+        for email in settings.security.admin_allowed_emails:
+            if not repo.email_exists(email):
+                admin = AdminUserModel(
+                    email=email,
+                    password_hash=hash_password(settings.security.admin_default_password),
+                )
+                repo.create(admin)
+                logger.info("Seeded admin user: %s", email)
+        session.commit()
+    finally:
+        session.close()
 
 
 def _preload_models() -> None:
@@ -312,10 +305,10 @@ def login(
     Raises:
         HTTPException: 401 if credentials invalid.
     """
-    repo = UserRepository(db)
+    repo = ChatbotUserRepository(db)
     user = repo.get_by_username(request.username)
-    if user and user.role != "admin" and verify_password(request.password, user.password_hash):
-        token = jwt_service.create_token(subject=user.username, role=user.role)
+    if user and verify_password(request.password, user.password_hash):
+        token = jwt_service.create_token(subject=user.username, role="user")
         return TokenResponse(
             access_token=token,
             expires_in=jwt_service.expire_seconds,
@@ -353,10 +346,10 @@ def admin_login(
     Raises:
         HTTPException: 401 if credentials invalid.
     """
-    repo = UserRepository(db)
+    repo = AdminUserRepository(db)
     user = repo.get_by_email(request.email)
-    if user and user.role == "admin" and verify_password(request.password, user.password_hash):
-        token = jwt_service.create_token(subject=user.username, role=user.role)
+    if user and verify_password(request.password, user.password_hash):
+        token = jwt_service.create_token(subject=user.email, role="admin")
         return TokenResponse(
             access_token=token,
             expires_in=jwt_service.expire_seconds,
@@ -378,8 +371,8 @@ def admin_login(
     "/api/v1/auth/register",
     status_code=status.HTTP_201_CREATED,
     tags=["Authentication"],
-    summary="Register new user",
-    description="Create a new user account.",
+    summary="Register new chatbot user",
+    description="Create a new chatbot user account.",
     dependencies=[Depends(check_rate_limit)],
 )
 def register(
@@ -398,7 +391,7 @@ def register(
     Raises:
         HTTPException: 409 if username or email already taken.
     """
-    repo = UserRepository(db)
+    repo = ChatbotUserRepository(db)
 
     if repo.username_exists(request.username):
         raise HTTPException(
@@ -412,12 +405,10 @@ def register(
             detail="Email already taken",
         )
 
-    role = "admin" if settings.security.is_admin_email(request.email) else "user"
-    user = User(
+    user = ChatbotUser(
         username=request.username,
         email=request.email,
         password_hash=hash_password(request.password),
-        role=role,
     )
     repo.create(user)
 

@@ -1,4 +1,4 @@
-import apiClient, { TOKEN_KEY } from './client'
+import apiClient, { getTokenKey } from './client'
 import { redirectToLogin } from './auth-redirect'
 import type { ChatRequest, ChatResponse, StreamEvent } from '@/types'
 
@@ -11,7 +11,7 @@ export async function askStream(
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(getTokenKey())
   const response = await fetch(`${import.meta.env.VITE_API_URL}/chat/stream`, {
     method: 'POST',
     headers: {
@@ -24,7 +24,7 @@ export async function askStream(
 
   if (!response.ok) {
     if (response.status === 401) {
-      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(getTokenKey())
       redirectToLogin()
     }
     throw new Error(`Stream request failed: ${response.status}`)

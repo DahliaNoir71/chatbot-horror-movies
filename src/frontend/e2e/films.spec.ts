@@ -36,7 +36,7 @@ const MOCK_FILM_DETAIL = {
 
 test.describe('Films — Recherche, pagination, détail', () => {
   test.beforeEach(async ({ page }) => {
-    await setupAuth(page)
+    await setupAuth(page, 'admin')
 
     // Override the default films mock from setupAuth with detailed routing
     await page.unrouteAll()
@@ -44,10 +44,10 @@ test.describe('Films — Recherche, pagination, détail', () => {
     const futureExpiry = String(Date.now() + 3_600_000)
     await page.addInitScript(
       ({ expiry }) => {
-        localStorage.setItem('horrorbot_token', 'fake-jwt-for-e2e')
-        localStorage.setItem('horrorbot_token_expiry', expiry)
-        localStorage.setItem('horrorbot_username', 'testuser')
-        localStorage.setItem('horrorbot_role', 'admin')
+        localStorage.setItem('horrorbot_admin_token', 'fake-jwt-for-e2e')
+        localStorage.setItem('horrorbot_admin_token_expiry', expiry)
+        localStorage.setItem('horrorbot_admin_username', 'testuser')
+        localStorage.setItem('horrorbot_admin_role', 'admin')
       },
       { expiry: futureExpiry },
     )

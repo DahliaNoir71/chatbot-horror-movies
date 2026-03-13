@@ -1,0 +1,43 @@
+"""Chatbot user model for authentication.
+
+Stores chatbot user credentials with bcrypt-hashed passwords.
+"""
+
+from sqlalchemy import Boolean, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from src.database.models.base import Base, TimestampMixin
+
+
+class ChatbotUser(Base, TimestampMixin):
+    """Chatbot user account for authentication.
+
+    Attributes:
+        id: Primary key.
+        username: Unique username (3-50 chars).
+        email: Unique email address.
+        password_hash: Bcrypt-hashed password.
+        is_active: Whether the account is active.
+    """
+
+    __tablename__ = "chatbot_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    email: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return f"<ChatbotUser(id={self.id}, username='{self.username}')>"

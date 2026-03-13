@@ -25,7 +25,7 @@ class LLMService:
         _context_length: Context window size in tokens.
         _max_tokens: Default maximum tokens per response.
         _temperature: Default sampling temperature.
-        _n_gpu_layers: GPU layers for offloading.
+        _n_gpu_layers: Layers offloaded (0 = CPU only).
         _timeout: Inference timeout in seconds.
         _llm: Lazy-loaded Llama model instance.
     """
@@ -46,7 +46,7 @@ class LLMService:
             context_length: Override context length from settings.
             max_tokens: Override max tokens from settings.
             temperature: Override temperature from settings.
-            n_gpu_layers: Override GPU layers from settings.
+            n_gpu_layers: Override layers from settings (0 = CPU only).
             timeout_seconds: Override timeout from settings.
         """
         llm_settings = settings.llm

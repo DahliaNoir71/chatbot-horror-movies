@@ -4,12 +4,26 @@ import {
   loginUser as apiLoginUser,
   loginAdmin as apiLoginAdmin,
 } from '@/api/auth.api'
-import { TOKEN_KEY } from '@/api/client'
+import { getTokenKey } from '@/api/client'
 import type { UserLoginRequest, AdminLoginRequest, User } from '@/types'
 
-const TOKEN_EXPIRY_KEY = 'horrorbot_token_expiry'
-const USERNAME_KEY = 'horrorbot_username'
-const ROLE_KEY = 'horrorbot_role'
+let storagePrefix = 'horrorbot'
+
+export function setStoragePrefix(prefix: string): void {
+  storagePrefix = prefix
+}
+
+function tokenExpiryKey(): string {
+  return `${storagePrefix}_token_expiry`
+}
+
+function usernameKey(): string {
+  return `${storagePrefix}_username`
+}
+
+function roleKey(): string {
+  return `${storagePrefix}_role`
+}
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
   const parts = token.split('.')
@@ -46,10 +60,10 @@ export const useAuthStore = defineStore('auth', () => {
     const username = (payload.sub as string) || ''
     user.value = { username, role }
 
-    localStorage.setItem(TOKEN_KEY, response.access_token)
-    localStorage.setItem(TOKEN_EXPIRY_KEY, String(tokenExpiry.value))
-    localStorage.setItem(USERNAME_KEY, username)
-    localStorage.setItem(ROLE_KEY, role)
+    localStorage.setItem(getTokenKey(), response.access_token)
+    localStorage.setItem(tokenExpiryKey(), String(tokenExpiry.value))
+    localStorage.setItem(usernameKey(), username)
+    localStorage.setItem(roleKey(), role)
   }
 
   async function login(credentials: UserLoginRequest): Promise<void> {
@@ -66,26 +80,26 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     tokenExpiry.value = null
     user.value = null
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(TOKEN_EXPIRY_KEY)
-    localStorage.removeItem(USERNAME_KEY)
-    localStorage.removeItem(ROLE_KEY)
+    localStorage.removeItem(getTokenKey())
+    localStorage.removeItem(tokenExpiryKey())
+    localStorage.removeItem(usernameKey())
+    localStorage.removeItem(roleKey())
   }
 
   function initFromStorage(): void {
-    const storedToken = localStorage.getItem(TOKEN_KEY)
-    const storedExpiry = localStorage.getItem(TOKEN_EXPIRY_KEY)
-    const storedUsername = localStorage.getItem(USERNAME_KEY)
-    const storedRole = localStorage.getItem(ROLE_KEY)
+    const storedToken = localStorage.getItem(getTokenKey())
+    const storedExpiry = localStorage.getItem(tokenExpiryKey())
+    const storedUsername = localStorage.getItem(usernameKey())
+    const storedRole = localStorage.getItem(roleKey())
 
     if (!storedToken || !storedExpiry) return
 
     const expiry = Number(storedExpiry)
     if (Date.now() >= expiry - 60_000) {
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(TOKEN_EXPIRY_KEY)
-      localStorage.removeItem(USERNAME_KEY)
-      localStorage.removeItem(ROLE_KEY)
+      localStorage.removeItem(getTokenKey())
+      localStorage.removeItem(tokenExpiryKey())
+      localStorage.removeItem(usernameKey())
+      localStorage.removeItem(roleKey())
       return
     }
 

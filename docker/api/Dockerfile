@@ -5,7 +5,7 @@
 #
 # Build:  docker compose build api
 # Run:    docker compose up -d api
-# GPU:    docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Logs:   docker compose logs -f api
 # =============================================================================
 
 FROM python:3.12-slim
@@ -21,6 +21,8 @@ RUN apt-get update && \
         build-essential \
         cmake \
         curl \
+        musl \
+    && ln -sf /usr/lib/x86_64-linux-musl/libc.so /usr/lib/libc.musl-x86_64.so.1 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Install uv ──────────────────────────────────────────────────────────────
@@ -34,13 +36,13 @@ RUN uv sync --frozen --group ml-api
 COPY src/ src/
 
 # ── Runtime config ───────────────────────────────────────────────────────────
-# CPU-only by default (override with docker-compose.gpu.yml)
+# CPU-only inference
 ENV LLM_N_GPU_LAYERS=0
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=10s --timeout=5s --retries=30 --start-period=120s \
+HEALTHCHECK --interval=10s --timeout=5s --retries=30 --start-period=480s \
     CMD curl -f http://localhost:8000/api/docs || exit 1
 
 CMD ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

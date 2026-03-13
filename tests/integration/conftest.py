@@ -46,7 +46,6 @@ TEST_SESSION_ID = uuid4()
 TEST_DEMO_USER = "testuser"
 TEST_DEMO_EMAIL = "testuser@example.com"
 TEST_DEMO_PASS = "testpass123"  # noqa: S105
-TEST_ADMIN_USER = "adminuser"
 TEST_ADMIN_EMAIL = "serge.pfeiffer@proton.me"
 TEST_ADMIN_PASS = "adminpass123"  # noqa: S105
 TEST_REGISTER_PASS = "securepass123"  # noqa: S105
@@ -102,15 +101,17 @@ def make_mock_session_manager():
 
 @pytest.fixture
 def _test_db_session() -> Generator[Session, None, None]:
-    """Create an in-memory SQLite database with the users table for testing."""
-    from src.database.models.auth.user import User
+    """Create an in-memory SQLite database with auth tables for testing."""
+    from src.database.models.auth.admin_user import AdminUser
+    from src.database.models.auth.chatbot_user import ChatbotUser
 
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[User.__table__])
+    tables = [AdminUser.__table__, ChatbotUser.__table__]
+    Base.metadata.create_all(bind=engine, tables=tables)
     session_factory = sessionmaker(
         bind=engine, autocommit=False, autoflush=False, expire_on_commit=False,
     )
@@ -119,7 +120,7 @@ def _test_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine, tables=[User.__table__])
+        Base.metadata.drop_all(bind=engine, tables=tables)
         engine.dispose()
 
 
@@ -142,7 +143,7 @@ async def client(_test_db_session: Session) -> AsyncGenerator[AsyncClient, None]
 
     with (
         patch("src.api.main._verify_database_connection"),
-        patch("src.api.main._ensure_schema_up_to_date"),
+        patch("src.api.main._seed_admin_users"),
     ):
         app.dependency_overrides[get_db] = _override_get_db
         app.dependency_overrides[check_rate_limit] = lambda: None
@@ -176,18 +177,22 @@ async def auth_headers(client: AsyncClient) -> dict[str, str]:
 
 
 @pytest.fixture
-async def admin_auth_headers(client: AsyncClient) -> dict[str, str]:
-    """Register an admin user and return Authorization headers with admin role."""
-    # Register with admin-allowed email
-    reg_resp = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "username": TEST_ADMIN_USER,
-            "email": TEST_ADMIN_EMAIL,
-            "password": TEST_ADMIN_PASS,
-        },
-    )
-    assert reg_resp.status_code == 201, f"Admin register failed: {reg_resp.text}"
+async def admin_auth_headers(
+    client: AsyncClient, _test_db_session: Session,
+) -> dict[str, str]:
+    """Seed an admin user in DB and return Authorization headers with admin role."""
+    from src.api.services.password_service import hash_password
+    from src.database.models.auth.admin_user import AdminUser
+    from src.database.repositories.auth.admin_user import AdminUserRepository
+
+    repo = AdminUserRepository(_test_db_session)
+    if not repo.email_exists(TEST_ADMIN_EMAIL):
+        admin = AdminUser(
+            email=TEST_ADMIN_EMAIL,
+            password_hash=hash_password(TEST_ADMIN_PASS),
+        )
+        repo.create(admin)
+        _test_db_session.commit()
 
     # Login to get admin JWT via admin endpoint
     resp = await client.post(

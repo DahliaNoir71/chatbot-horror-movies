@@ -22,7 +22,7 @@ from src.database.repositories.audit import (
     ETLStatsData,
     RetentionDetailsData,
 )
-from src.database.repositories.auth import UserRepository
+from src.database.repositories.auth import AdminUserRepository, ChatbotUserRepository
 from src.database.repositories.base import BaseRepository
 
 # Rotten Tomatoes repositories
@@ -45,7 +45,8 @@ __all__ = [
     # Base
     "BaseRepository",
     # Auth
-    "UserRepository",
+    "AdminUserRepository",
+    "ChatbotUserRepository",
     # TMDB
     "FilmRepository",
     "GenreRepository",

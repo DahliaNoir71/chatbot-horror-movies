@@ -116,7 +116,12 @@ class IMDBPipeline:
             batch_size: Records per batch.
         """
         db_path = self._resolve_db_path()
-        if db_path is None or not db_path.exists():
+        if db_path is None:
+            raise FileNotFoundError("IMDB database path not configured")
+
+        self._ensure_db_available(db_path)
+
+        if not db_path.exists():
             raise FileNotFoundError(f"IMDB database not found: {db_path}")
 
         extractor = SQLiteExtractor(
@@ -235,6 +240,57 @@ class IMDBPipeline:
     # -------------------------------------------------------------------------
     # Configuration
     # -------------------------------------------------------------------------
+
+    def _ensure_db_available(self, db_path: Path) -> None:
+        """Generate IMDB SQLite database if missing.
+
+        Downloads official IMDB TSV datasets and converts
+        them to SQLite using the imdb-sqlite package.
+
+        Args:
+            db_path: Expected path to SQLite database.
+
+        Raises:
+            RuntimeError: If generation fails.
+        """
+        if db_path.exists():
+            self._logger.info(f"IMDB database already present: {db_path}")
+            return
+
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_dir = db_path.parent / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        self._logger.info("Generating IMDB SQLite database (downloading TSV datasets)...")
+        self._logger.info("This may take 10-30 minutes on first run.")
+
+        import subprocess
+
+        try:
+            subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "imdb-sqlite",
+                    "--db",
+                    str(db_path),
+                    "--cache-dir",
+                    str(cache_dir),
+                    "--only",
+                    "titles,ratings",
+                ],
+                check=True,
+                timeout=3600,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError("IMDB database generation timed out (1h)") from e
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"IMDB database generation failed: {e}") from e
+
+        if not db_path.exists():
+            raise RuntimeError(f"Generation completed but database not found at {db_path}")
+
+        self._logger.info(f"IMDB database generated: {db_path}")
 
     def _resolve_db_path(self) -> Path | None:
         """Resolve database path from config or settings.

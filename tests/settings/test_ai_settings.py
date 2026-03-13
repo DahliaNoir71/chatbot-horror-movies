@@ -46,7 +46,7 @@ def llm_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_MAX_TOKENS", "512")
     monkeypatch.setenv("LLM_TEMPERATURE", "0.7")
     monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "60")
-    monkeypatch.setenv("LLM_N_GPU_LAYERS", "-1")
+    monkeypatch.setenv("LLM_N_GPU_LAYERS", "0")
 
 
 @pytest.mark.usefixtures("clean_env")
@@ -136,7 +136,7 @@ def classifier_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set required Classifier environment variables."""
     monkeypatch.setenv("CLASSIFIER_MODEL_NAME", "MoritzLaurer/DeBERTa-v3-base-zeroshot-v2.0")
     monkeypatch.setenv("CLASSIFIER_CONFIDENCE_THRESHOLD", "0.4")
-    monkeypatch.setenv("CLASSIFIER_DEVICE", "auto")
+    monkeypatch.setenv("CLASSIFIER_DEVICE", "cpu")
 
 
 @pytest.mark.usefixtures("clean_env")
@@ -186,10 +186,10 @@ class TestClassifierSettings:
         monkeypatch: pytest.MonkeyPatch, classifier_env_vars: None
     ) -> None:
         """Valid device values are accepted and lowercased."""
-        for device in ["cpu", "cuda", "auto", "CPU", "CUDA", "Auto"]:
+        for device in ["cpu", "CPU"]:
             monkeypatch.setenv("CLASSIFIER_DEVICE", device)
             s = ClassifierSettings(_env_file=None)
-            assert s.device in {"cpu", "cuda", "auto"}
+            assert s.device == "cpu"
 
     @staticmethod
     def test_device_invalid(monkeypatch: pytest.MonkeyPatch, classifier_env_vars: None) -> None:

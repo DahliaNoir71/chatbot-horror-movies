@@ -1,9 +1,8 @@
-"""Integration tests for admin access control (Phase 16).
+"""Integration tests for admin access control.
 
 Tests cover:
-- Admin role assigned to allowlisted email at registration
-- Regular user role assigned to non-allowlisted email
-- JWT includes role claim
+- Admin user seeded in DB can login and gets admin role in JWT
+- Chatbot user gets user role in JWT
 - Admin-only endpoints return 403 for regular users
 - Admin-only endpoints succeed for admin users
 """
@@ -15,36 +14,26 @@ import os
 import jwt as pyjwt
 from httpx import AsyncClient
 
-from tests.integration.conftest import TEST_ADMIN_EMAIL, TEST_ADMIN_USER, TEST_REGISTER_PASS
+from tests.integration.conftest import TEST_ADMIN_EMAIL, TEST_ADMIN_PASS, TEST_REGISTER_PASS
 
 _JWT_SECRET = os.environ["JWT_SECRET_KEY"]
 _JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 
 
 class TestAdminRoleAssignment:
-    """Role is assigned based on email allowlist at registration."""
+    """Role is assigned based on the user table (admin_users vs chatbot_users)."""
 
     @staticmethod
-    async def test_admin_email_gets_admin_role(client: AsyncClient) -> None:
-        await client.post(
-            "/api/v1/auth/register",
-            json={
-                "username": TEST_ADMIN_USER,
-                "email": TEST_ADMIN_EMAIL,
-                "password": TEST_REGISTER_PASS,
-            },
-        )
-        resp = await client.post(
-            "/api/v1/auth/admin/token",
-            json={"email": TEST_ADMIN_EMAIL, "password": TEST_REGISTER_PASS},
-        )
-        assert resp.status_code == 200
-        token = resp.json()["access_token"]
+    async def test_admin_login_gets_admin_role(
+        client: AsyncClient,
+        admin_auth_headers: dict[str, str],
+    ) -> None:
+        token = admin_auth_headers["Authorization"].removeprefix("Bearer ")
         payload = pyjwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
         assert payload["role"] == "admin"
 
     @staticmethod
-    async def test_regular_email_gets_user_role(client: AsyncClient) -> None:
+    async def test_regular_user_gets_user_role(client: AsyncClient) -> None:
         await client.post(
             "/api/v1/auth/register",
             json={
@@ -61,6 +50,16 @@ class TestAdminRoleAssignment:
         token = resp.json()["access_token"]
         payload = pyjwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
         assert payload["role"] == "user"
+
+    @staticmethod
+    async def test_admin_login_sub_is_email(
+        client: AsyncClient,
+        admin_auth_headers: dict[str, str],
+    ) -> None:
+        """Admin JWT sub claim should be the email, not a username."""
+        token = admin_auth_headers["Authorization"].removeprefix("Bearer ")
+        payload = pyjwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
+        assert payload["sub"] == TEST_ADMIN_EMAIL
 
 
 class TestAdminEndpointAccess:

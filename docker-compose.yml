@@ -6,7 +6,7 @@
 # Usage:
 #   docker compose up -d && docker compose logs -f ready # Start + show URLs
 #   docker compose --profile monitoring-test up -d       # + monitoring sandbox
-#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d  # GPU
+#   docker compose up -d                                                  # Start
 #   docker compose down                                  # Stop services
 #   docker compose logs -f api                           # View API logs
 #   docker compose exec db psql -U horrorbot_user -d horrorbot  # Connect to DB

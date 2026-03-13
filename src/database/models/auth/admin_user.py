@@ -1,6 +1,6 @@
-"""User model for authentication.
+"""Admin user model for authentication.
 
-Stores user credentials with bcrypt-hashed passwords.
+Stores admin credentials with bcrypt-hashed passwords.
 """
 
 from sqlalchemy import Boolean, Integer, String
@@ -9,26 +9,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.database.models.base import Base, TimestampMixin
 
 
-class User(Base, TimestampMixin):
-    """User account for authentication.
+class AdminUser(Base, TimestampMixin):
+    """Admin account for authentication.
 
     Attributes:
         id: Primary key.
-        username: Unique username (3-50 chars).
-        email: Unique email address.
+        email: Unique email address (used as login identifier).
         password_hash: Bcrypt-hashed password.
         is_active: Whether the account is active.
     """
 
-    __tablename__ = "users"
+    __tablename__ = "admin_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    username: Mapped[str] = mapped_column(
-        String(50),
-        unique=True,
-        nullable=False,
-        index=True,
-    )
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
@@ -36,14 +29,8 @@ class User(Base, TimestampMixin):
         index=True,
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default="user",
-        server_default="user",
-    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"<User(id={self.id}, username='{self.username}')>"
+        return f"<AdminUser(id={self.id}, email='{self.email}')>"

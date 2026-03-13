@@ -1,17 +1,30 @@
 import type { Page } from '@playwright/test'
 
+/**
+ * Storage key prefixes per app entry point.
+ * Must match main-chatbot.ts / main-admin.ts calls to
+ * setStoragePrefix() and setTokenKey().
+ */
+const APP_KEYS = {
+  chatbot: { token: 'horrorbot_chat_token', prefix: 'horrorbot_chat' },
+  admin: { token: 'horrorbot_admin_token', prefix: 'horrorbot_admin' },
+} as const
+
+export type AppName = keyof typeof APP_KEYS
+
 /** Inject auth tokens + mock API so authenticated pages load without backend. */
-export async function setupAuth(page: Page) {
+export async function setupAuth(page: Page, app: AppName = 'chatbot') {
   const futureExpiry = String(Date.now() + 3_600_000) // +1h
+  const { token: tokenKey, prefix } = APP_KEYS[app]
 
   await page.addInitScript(
-    ({ expiry }) => {
-      localStorage.setItem('horrorbot_token', 'fake-jwt-for-e2e')
-      localStorage.setItem('horrorbot_token_expiry', expiry)
-      localStorage.setItem('horrorbot_username', 'testuser')
-      localStorage.setItem('horrorbot_role', 'admin')
+    ({ tokenKey, prefix, expiry }) => {
+      localStorage.setItem(tokenKey, 'fake-jwt-for-e2e')
+      localStorage.setItem(`${prefix}_token_expiry`, expiry)
+      localStorage.setItem(`${prefix}_username`, 'testuser')
+      localStorage.setItem(`${prefix}_role`, 'admin')
     },
-    { expiry: futureExpiry },
+    { tokenKey, prefix, expiry: futureExpiry },
   )
 
   await page.route('**/api/v1/**', (route) => {

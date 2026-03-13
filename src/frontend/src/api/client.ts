@@ -1,7 +1,15 @@
 import axios from 'axios'
 import { redirectToLogin } from './auth-redirect'
 
-const TOKEN_KEY = 'horrorbot_token'
+let tokenKey = 'horrorbot_token'
+
+export function setTokenKey(key: string): void {
+  tokenKey = key
+}
+
+export function getTokenKey(): string {
+  return tokenKey
+}
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -10,7 +18,7 @@ const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(tokenKey)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -23,7 +31,7 @@ apiClient.interceptors.response.use(
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       const url = error.config?.url ?? ''
       if (!url.startsWith('/auth/')) {
-        localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem(tokenKey)
         redirectToLogin()
       }
     }
@@ -31,5 +39,4 @@ apiClient.interceptors.response.use(
   }
 )
 
-export { TOKEN_KEY }
 export default apiClient

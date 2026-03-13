@@ -194,23 +194,38 @@ CREATE INDEX idx_rt_scores_tomatometer ON rt_scores (tomatometer_score);
 
 
 -- -----------------------------------------------------------------------------
--- USERS (Authentication)
+-- ADMIN USERS (Authentication - admin accounts)
 -- -----------------------------------------------------------------------------
 
-CREATE TABLE users
+CREATE TABLE admin_users
 (
     id            SERIAL PRIMARY KEY,
-    username      VARCHAR(50)  NOT NULL UNIQUE,
     email         VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role          VARCHAR(20)  NOT NULL DEFAULT 'user',
     is_active     BOOLEAN               DEFAULT TRUE,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_username ON users (username);
-CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX idx_admin_users_email ON admin_users (email);
+
+-- -----------------------------------------------------------------------------
+-- CHATBOT USERS (Authentication - chatbot accounts)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE chatbot_users
+(
+    id            SERIAL PRIMARY KEY,
+    username      VARCHAR(50)  NOT NULL UNIQUE,
+    email         VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    is_active     BOOLEAN               DEFAULT TRUE,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_chatbot_users_username ON chatbot_users (username);
+CREATE INDEX idx_chatbot_users_email ON chatbot_users (email);
 
 -- -----------------------------------------------------------------------------
 -- AUDIT & COMPLIANCE (RGPD)
@@ -286,7 +301,7 @@ DO
 $$
     BEGIN
         RAISE NOTICE '✅ horrorbot schema created successfully';
-        RAISE NOTICE '   - 18 tables created';
+        RAISE NOTICE '   - 19 tables created';
         RAISE NOTICE '   - Indexes and constraints applied';
     END
 $$;
