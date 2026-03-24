@@ -1,6 +1,6 @@
 """AI service configuration settings.
 
-LLM, intent classifier, and embedding settings for E2 (C8).
+LLM, intent classifier, embedding, and reranker settings.
 """
 
 from pathlib import Path
@@ -168,4 +168,38 @@ class EmbeddingSettings(BaseSettings):
         """Validate batch size is positive."""
         if v <= 0:
             raise ValueError("EMBEDDING_BATCH_SIZE must be > 0")
+        return v
+
+
+# =============================================================================
+# RERANKER SETTINGS
+# =============================================================================
+
+
+class RerankerSettings(BaseSettings):
+    """Cross-encoder reranker configuration.
+
+    Attributes:
+        model_name: HuggingFace cross-encoder model name.
+        top_k: Number of documents to keep after reranking.
+        min_score: Minimum reranker score to accept a document.
+    """
+
+    model_name: str = Field(alias="RERANKER_MODEL_NAME")
+    top_k: int = Field(alias="RERANKER_TOP_K")
+    min_score: float = Field(alias="RERANKER_MIN_SCORE")
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    @field_validator("top_k")
+    @classmethod
+    def validate_top_k(cls, v: int) -> int:
+        """Validate top_k is positive."""
+        if v <= 0:
+            raise ValueError("RERANKER_TOP_K must be > 0")
         return v

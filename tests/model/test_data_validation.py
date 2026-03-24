@@ -184,8 +184,8 @@ class TestFixtureDataIntegrity:
 
     @staticmethod
     def test_mock_llm_responses_has_all_intents(mock_llm_responses):
-        """mock_llm_responses.json covers the 3 LLM-using intents."""
-        required = {"horror_recommendation", "horror_discussion", "horror_trivia"}
+        """mock_llm_responses.json covers the LLM-using intent."""
+        required = {"needs_database"}
         for intent in required:
             assert intent in mock_llm_responses, f"Missing response for '{intent}'"
             assert "text" in mock_llm_responses[intent]
@@ -227,9 +227,9 @@ class TestChatDataStructures:
     @staticmethod
     def test_rag_result_has_text_and_intent():
         """RAGResult stores text and intent."""
-        result = RAGResult(text="response text", intent="horror_recommendation")
+        result = RAGResult(text="response text", intent="needs_database")
         assert result.text == "response text"
-        assert result.intent == "horror_recommendation"
+        assert result.intent == "needs_database"
         assert isinstance(result.documents, list)
         assert isinstance(result.usage, dict)
 
@@ -239,12 +239,12 @@ class TestChatDataStructures:
         sid = uuid4()
         result = ChatResult(
             text="Bonjour !",
-            intent="greeting",
+            intent="conversational",
             confidence=0.95,
             session_id=sid,
         )
         assert result.text == "Bonjour !"
-        assert result.intent == "greeting"
+        assert result.intent == "conversational"
         assert result.confidence == approx(0.95)
         assert result.session_id == sid
         assert isinstance(result.usage, dict)

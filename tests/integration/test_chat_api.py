@@ -26,11 +26,11 @@ from tests.integration.conftest import (
 # ============================================================================
 
 _INTENT_CASES = [
-    ("greeting", "Bienvenue dans le monde de l'horreur !", "Bonjour"),
-    ("horror_recommendation", "Je vous recommande The Conjuring (2013).", "Recommande-moi un film d'horreur"),
-    ("horror_discussion", "Le genre horreur explore nos peurs.", "Pourquoi les gens aiment les films d'horreur ?"),
-    ("film_details", "The Shining (1980) - Note : 8.4/10.", "Parle-moi de The Shining"),
-    ("out_of_scope", "Je suis specialise dans les films d'horreur.", "Quelle est la capitale de la France ?"),
+    ("conversational", "Bienvenue dans le monde de l'horreur !", "Bonjour"),
+    ("needs_database", "Je vous recommande The Conjuring (2013).", "Recommande-moi un film d'horreur"),
+    ("needs_database", "Le genre horreur explore nos peurs.", "Pourquoi les gens aiment les films d'horreur ?"),
+    ("needs_database", "The Shining (1980) - Note : 8.4/10.", "Parle-moi de The Shining"),
+    ("off_topic", "Je suis specialise dans les films d'horreur.", "Quelle est la capitale de la France ?"),
 ]
 
 

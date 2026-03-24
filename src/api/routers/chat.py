@@ -6,14 +6,11 @@ intent classification, RAG retrieval, and multi-turn sessions.
 
 import json
 import time
-from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.database import get_db
 from src.api.dependencies.auth import CurrentUser
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.api.schemas import ChatRequest, ChatResponse, StreamChunk
@@ -78,14 +75,12 @@ def _parse_session_id(session_id: str | None) -> UUID | None:
 def chat(
     request: ChatRequest,
     user: CurrentUser,
-    db: Annotated[Session, Depends(get_db)],
 ) -> ChatResponse:
     """Synchronous chat endpoint.
 
     Args:
         request: Chat request with message and optional session_id.
         user: Authenticated user from JWT.
-        db: Database session for film_details queries.
 
     Returns:
         ChatResponse with bot reply and metadata.
@@ -99,7 +94,6 @@ def chat(
             user_message=request.message,
             session_id=session_id,
             user_id=user.sub,
-            db_session=db,
         )
         duration = time.perf_counter() - start
 
@@ -140,14 +134,12 @@ def chat(
 def chat_stream(
     request: ChatRequest,
     user: CurrentUser,
-    db: Annotated[Session, Depends(get_db)],
 ) -> EventSourceResponse:
     """Streaming chat endpoint via Server-Sent Events.
 
     Args:
         request: Chat request with message and optional session_id.
         user: Authenticated user from JWT.
-        db: Database session for film_details queries.
 
     Returns:
         EventSourceResponse streaming JSON chunks.
@@ -161,7 +153,6 @@ def chat_stream(
             user_message=request.message,
             session_id=session_id,
             user_id=user.sub,
-            db_session=db,
         )
 
         CHAT_REQUESTS_TOTAL.labels(intent=intent, mode="stream").inc()

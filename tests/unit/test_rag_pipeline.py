@@ -1,12 +1,13 @@
 """T3 — Unit tests for RAGPipeline orchestration logic.
 
 Tests the RAG pipeline coordination with fully mocked dependencies:
-retriever, LLM service, and prompt builder. Focuses on:
+retriever, reranker, LLM service, and prompt builder. Focuses on:
 - Call sequencing and argument passing
 - Timing measurements (mocked perf_counter)
 - Prometheus metrics recording (_record_llm_metrics)
 - Result assembly (RAGResult fields)
 - Error metric increments on failure
+- Reranker integration between retrieval and prompt building
 
 Run:
     pytest tests/unit/test_rag_pipeline.py -v
@@ -27,13 +28,23 @@ from src.services.rag.retriever import RetrievedDocument
 # ---------------------------------------------------------------------------
 
 
+def _make_reranker_mock(passthrough: bool = True) -> MagicMock:
+    """Create a mock reranker. If passthrough, returns documents unchanged."""
+    mock = MagicMock()
+    if passthrough:
+        mock.rerank.side_effect = lambda query, docs: docs
+    return mock
+
+
 def _make_pipeline(
     retriever: MagicMock | None = None,
+    reranker: MagicMock | None = None,
     llm_service: MagicMock | None = None,
 ) -> RAGPipeline:
     """Build a RAGPipeline with mocked dependencies."""
     return RAGPipeline(
         retriever=retriever or MagicMock(),
+        reranker=reranker or _make_reranker_mock(),
         llm_service=llm_service or MagicMock(),
     )
 
@@ -56,7 +67,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film d'horreur",
             history=[],
         )
@@ -76,13 +87,13 @@ class TestRAGPipelineExecute:
 
         history = [{"role": "user", "content": "Salut"}]
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             history=history,
         )
 
         mock_build.assert_called_once_with(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             documents=sample_documents,
             history=history,
@@ -104,7 +115,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             history=[],
         )
@@ -124,7 +135,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         result = pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -140,13 +151,13 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         result = pipeline.execute(
-            intent="horror_trivia",
+            intent="needs_database",
             user_message="Qui a realise L'Exorciste ?",
             history=[],
         )
 
         assert isinstance(result, RAGResult)
-        assert result.intent == "horror_trivia"
+        assert result.intent == "needs_database"
         assert result.text == mock_llm_service.generate_chat.return_value["text"]
         assert result.documents == sample_documents
         assert result.usage == mock_llm_service.generate_chat.return_value.get("usage", {})
@@ -161,13 +172,37 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         result = pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Film tres obscur",
             history=[],
         )
 
         assert result.text is not None
         assert len(result.documents) == 0
+
+    @staticmethod
+    def test_execute_calls_reranker_after_retrieval(
+        sample_documents, mock_llm_service
+    ):
+        """Reranker is called with user message and retrieved documents."""
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = sample_documents
+        mock_reranker = _make_reranker_mock()
+        pipeline = _make_pipeline(
+            retriever=mock_retriever,
+            reranker=mock_reranker,
+            llm_service=mock_llm_service,
+        )
+
+        pipeline.execute(
+            intent="needs_database",
+            user_message="Recommande un film",
+            history=[],
+        )
+
+        mock_reranker.rerank.assert_called_once_with(
+            "Recommande un film", sample_documents
+        )
 
     @staticmethod
     @patch("src.services.rag.pipeline.LLM_REQUESTS_TOTAL")
@@ -179,7 +214,7 @@ class TestRAGPipelineExecute:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(intent="horror_recommendation", user_message="Test", history=[])
+        pipeline.execute(intent="needs_database", user_message="Test", history=[])
 
         mock_metric.labels.assert_called_with(status="success")
         mock_metric.labels(status="success").inc.assert_called_once()
@@ -197,7 +232,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm)
 
         with pytest.raises(RuntimeError, match="OOM"):
-            pipeline.execute(intent="horror_recommendation", user_message="Test", history=[])
+            pipeline.execute(intent="needs_database", user_message="Test", history=[])
 
         mock_metric.labels.assert_called_with(status="error")
         mock_metric.labels(status="error").inc.assert_called_once()
@@ -219,7 +254,7 @@ class TestRAGPipelineStream:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             history=[],
         )
@@ -234,7 +269,7 @@ class TestRAGPipelineStream:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         token_stream, documents = pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -257,7 +292,7 @@ class TestRAGPipelineStream:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -273,7 +308,7 @@ class TestRAGPipelineStream:
 
         with pytest.raises(ConnectionError, match="DB down"):
             pipeline.execute_stream(
-                intent="horror_recommendation",
+                intent="needs_database",
                 user_message="Test",
                 history=[],
             )

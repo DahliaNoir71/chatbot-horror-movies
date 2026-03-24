@@ -60,6 +60,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Download embedding model only",
     )
+    parser.add_argument(
+        "--reranker",
+        action="store_true",
+        help="Download reranker model only",
+    )
     return parser.parse_args()
 
 
@@ -99,6 +104,7 @@ def check_models() -> dict[str, bool]:
         "llm": is_llm_present(),
         "classifier": is_hf_model_cached(settings.classifier.model_name),
         "embedding": is_hf_model_cached(f"sentence-transformers/{settings.embedding.model_name}"),
+        "reranker": is_hf_model_cached(settings.reranker.model_name),
     }
 
 
@@ -187,6 +193,29 @@ def download_embedding() -> bool:
     return True
 
 
+def download_reranker() -> bool:
+    """Pre-download the reranker cross-encoder model to HuggingFace cache.
+
+    Returns:
+        True if download succeeded.
+    """
+    repo_id = settings.reranker.model_name
+
+    if is_hf_model_cached(repo_id):
+        print(f"   Already cached: {repo_id}")
+        return True
+
+    print(f"   Downloading {repo_id}...")
+
+    try:
+        snapshot_download(repo_id=repo_id)
+    except (RepositoryNotFoundError, GatedRepoError) as e:
+        print(f"   Download failed: {e}")
+        return False
+
+    return True
+
+
 # =========================================================================
 # Display
 # =========================================================================
@@ -200,6 +229,7 @@ def _print_banner() -> None:
     print(f"   LLM:        {settings.llm.model_path}")
     print(f"   Classifier:  {settings.classifier.model_name}")
     print(f"   Embedding:   {settings.embedding.model_name}")
+    print(f"   Reranker:    {settings.reranker.model_name}")
     print("=" * 55)
 
 
@@ -213,6 +243,7 @@ def _print_status(status: dict[str, bool]) -> None:
         "llm": f"LLM ({settings.llm.model_path})",
         "classifier": f"Classifier ({settings.classifier.model_name})",
         "embedding": f"Embedding ({settings.embedding.model_name})",
+        "reranker": f"Reranker ({settings.reranker.model_name})",
     }
 
     print("\n  Model Status:")
@@ -245,7 +276,7 @@ def _download_selected(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure).
     """
     # If no specific flag, download all
-    download_all = not (args.llm or args.classifier or args.embedding)
+    download_all = not (args.llm or args.classifier or args.embedding or args.reranker)
 
     results = []
 
@@ -260,6 +291,10 @@ def _download_selected(args: argparse.Namespace) -> int:
     if download_all or args.embedding:
         print("\n  Embedding Model:")
         results.append(download_embedding())
+
+    if download_all or args.reranker:
+        print("\n  Reranker Model:")
+        results.append(download_reranker())
 
     if all(results):
         print("\n  Model initialization complete!")

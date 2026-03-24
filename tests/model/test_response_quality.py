@@ -63,42 +63,46 @@ class TestResponseStructure:
     @staticmethod
     def test_greeting_response_is_in_french():
         """Greeting template response is in French."""
-        text = get_template_response("greeting")
+        text = get_template_response("conversational", "Bonjour")
         assert text is not None
         assert "Bonjour" in text or "bonjour" in text
 
     @staticmethod
     def test_greeting_mentions_capabilities():
         """Greeting response describes what HorrorBot can do."""
-        text = get_template_response("greeting")
+        text = get_template_response("conversational", "Bonjour")
         assert "recommander" in text.lower() or "films" in text.lower()
 
     @staticmethod
     def test_farewell_is_polite():
         """Farewell template is polite and mentions horror."""
-        text = get_template_response("farewell")
+        text = get_template_response("conversational", "Au revoir")
         assert text is not None
         assert "revoir" in text.lower() or "merci" in text.lower()
 
     @staticmethod
-    def test_out_of_scope_redirects():
-        """Out-of-scope template redirects to horror topics."""
-        text = get_template_response("out_of_scope")
+    def test_off_topic_redirects():
+        """Off-topic template redirects to horror topics."""
+        text = get_template_response("off_topic")
         assert text is not None
         assert "horreur" in text.lower() or "horror" in text.lower()
 
     @staticmethod
     def test_all_template_responses_non_empty():
         """All template responses are non-empty strings."""
-        for intent in ["greeting", "farewell", "out_of_scope"]:
-            text = get_template_response(intent)
+        for intent, msg in [
+            ("conversational", "Bonjour"),
+            ("conversational", "Au revoir"),
+            ("off_topic", ""),
+        ]:
+            text = get_template_response(intent, msg)
             assert text is not None
             assert len(text.strip()) > 20, f"Template for '{intent}' is too short"
 
     @staticmethod
     def test_mock_recommendation_contains_film_title(mock_llm_responses):
         """Mock recommendation response mentions a film title."""
-        text = mock_llm_responses["horror_recommendation"]["text"]
+        text = mock_llm_responses["needs_database"]["text"]
         # Should reference at least one known horror film
         assert any(
             title in text
@@ -108,7 +112,7 @@ class TestResponseStructure:
     @staticmethod
     def test_mock_recommendation_contains_year(mock_llm_responses):
         """Mock recommendation mentions a year."""
-        text = mock_llm_responses["horror_recommendation"]["text"]
+        text = mock_llm_responses["needs_database"]["text"]
         import re
 
         years = re.findall(r"\b(19|20)\d{2}\b", text)
@@ -117,7 +121,7 @@ class TestResponseStructure:
     @staticmethod
     def test_mock_trivia_contains_factual_info(mock_llm_responses):
         """Mock trivia response contains factual keywords."""
-        text = mock_llm_responses["horror_trivia"]["text"]
+        text = mock_llm_responses["needs_database"]["text"]
         assert any(
             kw in text.lower()
             for kw in ["réalisé", "directed", "1973", "friedkin", "william"]
@@ -126,7 +130,7 @@ class TestResponseStructure:
     @staticmethod
     def test_mock_discussion_is_substantive(mock_llm_responses):
         """Mock discussion response is substantive (> 50 chars)."""
-        text = mock_llm_responses["horror_discussion"]["text"]
+        text = mock_llm_responses["needs_database"]["text"]
         assert len(text) > 50, f"Discussion too short ({len(text)} chars): {text}"
 
 
@@ -143,7 +147,7 @@ class TestPromptQuality:
     def test_rag_prompt_includes_context_documents(sample_rag_documents):
         """RAG prompt includes retrieved document content."""
         messages = RAGPromptBuilder.build(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             documents=sample_rag_documents,
         )
@@ -154,27 +158,26 @@ class TestPromptQuality:
 
     @staticmethod
     def test_rag_prompt_system_is_intent_specific():
-        """System prompt varies by intent."""
-        rec_messages = RAGPromptBuilder.build(
-            intent="horror_recommendation", user_message="test"
+        """System prompt contains strict RAG rules for factual grounding."""
+        messages = RAGPromptBuilder.build(
+            intent="needs_database", user_message="test"
         )
-        disc_messages = RAGPromptBuilder.build(
-            intent="horror_discussion", user_message="test"
-        )
+        system_prompt = messages[0]["content"]
 
-        assert rec_messages[0]["content"] != disc_messages[0]["content"]
+        assert "REGLES STRICTES" in system_prompt
+        assert "EXCLUSIVEMENT" in system_prompt
 
     @staticmethod
     def test_recommendation_prompt_mentions_recommendation():
         """Recommendation system prompt mentions recommendation role."""
-        prompt = get_system_prompt("horror_recommendation", has_context=True)
+        prompt = get_system_prompt("needs_database")
         assert "recommand" in prompt.lower() or "suggest" in prompt.lower()
 
     @staticmethod
     def test_trivia_prompt_mentions_facts():
-        """Trivia system prompt mentions factual precision."""
-        prompt = get_system_prompt("horror_trivia", has_context=True)
-        assert "précis" in prompt.lower() or "expert" in prompt.lower()
+        """System prompt enforces factual precision via strict rules."""
+        prompt = get_system_prompt("needs_database")
+        assert "exclusivement" in prompt.lower() or "autorite" in prompt.lower()
 
     @staticmethod
     def test_history_preserved_in_prompt():
@@ -185,7 +188,7 @@ class TestPromptQuality:
         ]
 
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Autre question",
             history=history,
         )
@@ -198,13 +201,13 @@ class TestPromptQuality:
     def test_no_context_variant_used_when_empty():
         """When no documents, the no_context system prompt variant is used."""
         messages = RAGPromptBuilder.build(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             documents=None,
         )
 
         system_prompt = messages[0]["content"]
-        no_context_prompt = get_system_prompt("horror_recommendation", has_context=False)
+        no_context_prompt = get_system_prompt("needs_database")
         assert system_prompt == no_context_prompt
 
     @staticmethod
@@ -230,9 +233,7 @@ class TestResponseKeywords:
     def test_mock_responses_cover_expected_keywords(mock_llm_responses):
         """Each mock LLM response contains at least one of its domain keywords."""
         domain_keywords = {
-            "horror_recommendation": ["film", "horreur", "horror", "recommand"],
-            "horror_discussion": ["horreur", "horror", "cinéma", "film"],
-            "horror_trivia": ["film", "réalisé", "année", "directed"],
+            "needs_database": ["film", "horreur", "horror", "recommand", "cinéma", "réalisé", "année", "directed"],
         }
 
         for intent, keywords in domain_keywords.items():

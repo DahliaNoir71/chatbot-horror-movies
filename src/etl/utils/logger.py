@@ -1,6 +1,7 @@
 """ETL logging configuration with file and console handlers."""
 
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -10,9 +11,14 @@ _LOG_DATE_FORMAT = "%H:%M:%S"
 _LOGGERS_CACHE: dict[str, logging.Logger] = {}
 
 
+def _get_log_level_from_env() -> int:
+    """Read LOG_LEVEL from environment variable."""
+    return getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+
+
 def setup_logger(
     name: str,
-    level: int = logging.INFO,
+    level: int | None = None,
     log_dir: Path | None = None,
 ) -> logging.Logger:
     """Configure and return a logger with file and console handlers.
@@ -27,6 +33,9 @@ def setup_logger(
     """
     if name in _LOGGERS_CACHE:
         return _LOGGERS_CACHE[name]
+
+    if level is None:
+        level = _get_log_level_from_env()
 
     logger = logging.getLogger(name)
     logger.setLevel(level)

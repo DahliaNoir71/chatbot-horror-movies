@@ -256,6 +256,9 @@ class RAGImporter:
     ) -> RAGDocument | None:
         """Create document from film overview.
 
+        Content is enriched with title, year, genres, and tagline
+        to improve embedding quality and retrieval relevance.
+
         Args:
             film: Film dictionary.
             tmdb_id: TMDB identifier.
@@ -268,8 +271,18 @@ class RAGImporter:
         if not overview or not overview.strip():
             return None
 
+        title = film.get("title", "")
+        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
+        genres = ", ".join(film.get("genres", []))
+
+        content = f"{title} ({year}) - Genres: {genres}\n{overview.strip()}"
+
+        tagline = film.get("tagline")
+        if tagline and tagline.strip():
+            content += f"\nTagline: {tagline.strip()}"
+
         return RAGDocument(
-            content=overview.strip(),
+            content=content,
             source_type="film_overview",
             source_id=tmdb_id,
             metadata=metadata,
@@ -283,6 +296,9 @@ class RAGImporter:
     ) -> RAGDocument | None:
         """Create document from critics consensus.
 
+        Content is enriched with title and year to improve
+        embedding quality and retrieval relevance.
+
         Args:
             film: Film dictionary.
             tmdb_id: TMDB identifier.
@@ -295,8 +311,13 @@ class RAGImporter:
         if not consensus or not consensus.strip():
             return None
 
+        title = film.get("title", "")
+        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
+
+        content = f"{title} ({year}) - Critique: {consensus.strip()}"
+
         return RAGDocument(
-            content=consensus.strip(),
+            content=content,
             source_type="critics_consensus",
             source_id=tmdb_id,
             metadata=metadata,

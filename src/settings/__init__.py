@@ -21,7 +21,7 @@ from typing import Any
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.settings.ai import ClassifierSettings, EmbeddingSettings, LLMSettings
+from src.settings.ai import ClassifierSettings, EmbeddingSettings, LLMSettings, RerankerSettings
 from src.settings.api import APISettings, CORSSettings, SecuritySettings
 from src.settings.base import ETLSettings, LoggingSettings, PathsSettings
 from src.settings.database import DatabaseSettings
@@ -55,6 +55,7 @@ __all__ = [
     "LLMSettings",
     "ClassifierSettings",
     "EmbeddingSettings",
+    "RerankerSettings",
     # Utilities
     "get_masked_settings",
     "print_sources_status",
@@ -99,6 +100,7 @@ class Settings(BaseSettings):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     classifier: ClassifierSettings = Field(default_factory=ClassifierSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    reranker: RerankerSettings = Field(default_factory=RerankerSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",

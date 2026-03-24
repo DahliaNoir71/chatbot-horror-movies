@@ -114,9 +114,9 @@ class SessionManager:
             session = Session(session_id=new_id, user_id=user_id)
             self._sessions[new_id] = session
             self._logger.debug(
-                "session_created",
-                session_id=str(new_id),
-                user_id=user_id,
+                "session_created (session_id=%s, user_id=%s)",
+                new_id,
+                user_id,
             )
             return session
 

@@ -97,8 +97,8 @@ CREATE INDEX idx_rag_queries_session ON rag_queries(session_id);
 -- Function: Search similar documents by embedding
 CREATE OR REPLACE FUNCTION search_similar_documents(
     query_embedding vector(384),
-    match_count INTEGER DEFAULT 5,
-    similarity_threshold NUMERIC DEFAULT 0.7,
+    match_count INTEGER DEFAULT 20,
+    similarity_threshold NUMERIC DEFAULT 0.3,
     filter_source_type VARCHAR DEFAULT NULL
 )
 RETURNS TABLE (

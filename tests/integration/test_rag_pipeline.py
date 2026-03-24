@@ -32,7 +32,7 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test that execute() returns a valid RAGResult."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend me a scary movie",
             history=[],
         )
@@ -40,7 +40,7 @@ class TestRAGPipelineExecute:
         assert isinstance(result, RAGResult)
         assert result.text is not None
         assert len(result.text) > 0
-        assert result.intent == "horror_recommendation"
+        assert result.intent == "needs_database"
 
     @staticmethod
     def test_rag_execute_horror_recommendation_intent(
@@ -48,12 +48,12 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test RAG execution with horror_recommendation intent."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="What's a good horror film?",
             history=[],
         )
 
-        assert result.intent == "horror_recommendation"
+        assert result.intent == "needs_database"
         assert result.text is not None
         assert isinstance(result.documents, list)
         assert len(result.documents) > 0
@@ -64,12 +64,12 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test RAG execution with horror_trivia intent."""
         result = rag_pipeline.execute(
-            intent="horror_trivia",
+            intent="needs_database",
             user_message="Tell me about horror movie history",
             history=[],
         )
 
-        assert result.intent == "horror_trivia"
+        assert result.intent == "needs_database"
         assert result.text is not None
 
     @staticmethod
@@ -78,7 +78,7 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test that retrieved documents are included in result."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend horror",
             history=[],
         )
@@ -97,7 +97,7 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test that LLM usage stats are recorded in result."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend a movie",
             history=[],
         )
@@ -114,7 +114,7 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test that retrieval and generation timings are recorded."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend a movie",
             history=[],
         )
@@ -133,7 +133,7 @@ class TestRAGPipelineExecute:
         ]
 
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Tell me more",
             history=history,
         )
@@ -148,7 +148,7 @@ class TestRAGPipelineExecute:
     ) -> None:
         """Test RAG execution with empty conversation history."""
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend a movie",
             history=[],
         )
@@ -167,7 +167,7 @@ class TestRAGPipelineExecute:
         rag_pipeline._retriever.retrieve.return_value = []
 
         result = rag_pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Very obscure query with no matches",
             history=[],
         )
@@ -184,7 +184,7 @@ class TestRAGPipelineExecute:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test query",
             history=[],
         )
@@ -203,7 +203,7 @@ class TestRAGPipelineExecute:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test query",
             history=[],
         )
@@ -229,7 +229,7 @@ class TestRAGPipelineStream:
     ) -> None:
         """Test that execute_stream returns (iterator, documents) tuple."""
         token_stream, documents = rag_pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend a movie",
             history=[],
         )
@@ -244,7 +244,7 @@ class TestRAGPipelineStream:
     ) -> None:
         """Test that token stream can be iterated."""
         token_stream, _ = rag_pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommend a movie",
             history=[],
         )
@@ -263,7 +263,7 @@ class TestRAGPipelineStream:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         token_stream, documents = pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test query",
             history=[],
         )
@@ -283,7 +283,7 @@ class TestRAGPipelineStream:
         ]
 
         token_stream, documents = rag_pipeline.execute_stream(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Follow-up question",
             history=history,
         )
@@ -310,7 +310,7 @@ class TestRAGPipelineIntegration:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -327,7 +327,7 @@ class TestRAGPipelineIntegration:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -344,7 +344,7 @@ class TestRAGPipelineIntegration:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test query",
             history=[],
         )
@@ -372,13 +372,13 @@ class TestRAGPipelineIntegration:
 
         # Execute with different intents
         pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
 
         pipeline.execute(
-            intent="horror_trivia",
+            intent="needs_database",
             user_message="Test",
             history=[],
         )
@@ -406,7 +406,7 @@ class TestRAGPipelineErrorHandling:
 
         with pytest.raises(RuntimeError, match="LLM failure"):
             pipeline.execute(
-                intent="horror_recommendation",
+                intent="needs_database",
                 user_message="Test",
                 history=[],
             )
@@ -421,7 +421,7 @@ class TestRAGPipelineErrorHandling:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         result = pipeline.execute(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Obscure query",
             history=[],
         )
@@ -441,7 +441,7 @@ class TestRAGPipelineErrorHandling:
 
         with pytest.raises(RuntimeError, match="Stream failure"):
             token_stream, _ = pipeline.execute_stream(
-                intent="horror_recommendation",
+                intent="needs_database",
                 user_message="Test",
                 history=[],
             )

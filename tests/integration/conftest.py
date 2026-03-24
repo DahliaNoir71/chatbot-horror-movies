@@ -60,7 +60,7 @@ TEST_OTHER_PASS = "otherpass456"  # noqa: S105
 
 def make_chat_result(
     text: str = "Bienvenue dans le monde de l'horreur !",
-    intent: str = "greeting",
+    intent: str = "conversational",
     confidence: float = 0.95,
     session_id=None,
 ) -> ChatResult:

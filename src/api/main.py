@@ -111,6 +111,24 @@ def _preload_models() -> None:
         logger.warning("Failed to pre-load embedding model", exc_info=True)
 
     try:
+        from src.services.intent.classifier import get_intent_classifier
+
+        logger.info("Pre-loading intent classifier...")
+        _ = get_intent_classifier().pipeline
+        logger.info("Intent classifier loaded.")
+    except Exception:
+        logger.warning("Failed to pre-load intent classifier", exc_info=True)
+
+    try:
+        from src.services.rag.reranker import get_reranker_service
+
+        logger.info("Pre-loading reranker model...")
+        get_reranker_service()._load_model()
+        logger.info("Reranker model loaded.")
+    except Exception:
+        logger.warning("Failed to pre-load reranker model", exc_info=True)
+
+    try:
         from src.services.llm.llm_service import get_llm_service
 
         logger.info("Pre-loading LLM...")

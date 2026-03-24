@@ -3,11 +3,8 @@
 Runs the real DeBERTa-v3 zero-shot classifier against 50+ labeled queries.
 Computes overall accuracy, per-intent recall, and generates a confusion matrix.
 
-Known limitation: The zero-shot classifier uses short label strings as
-classification hypotheses. Intents ``film_details`` and ``horror_trivia``
-overlap significantly with ``horror_discussion`` because questions about
-specific films or horror facts are semantically close to "discussing horror".
-This is a documented finding for the E3 report (G11 — test interpretation).
+With 3 well-separated intents (needs_database, conversational, off_topic),
+accuracy should be significantly higher than the previous 7-label setup.
 
 Requires: ``ml`` dependency group (transformers, torch).
 Run with: ``uv run --group ml pytest tests/model/test_intent_accuracy.py -m model -v``
@@ -26,41 +23,29 @@ from src.services.intent.classifier import INTENT_LABELS
 # Thresholds calibrated against real model behavior
 # ---------------------------------------------------------------------------
 
-# Overall accuracy target (zero-shot with short labels).
-# Observed: ~62% with current labels. Target: >= 55% (margin for variance).
-MINIMUM_OVERALL_ACCURACY = 0.55
+# Overall accuracy target (3 well-separated labels -> much better than 7).
+MINIMUM_OVERALL_ACCURACY = 0.75
 
-# Intents where zero-shot labels overlap heavily with horror_discussion.
-# Documented as a known limitation — actionable via label engineering or
-# few-shot fine-tuning in a future iteration.
-WEAK_INTENTS = {"film_details", "horror_trivia"}
-
-# Strong intents: labels distinctive enough for reliable zero-shot.
+# Per-intent minimum recall -- all intents should be "strong" with 3 labels.
 STRONG_INTENT_MIN_RECALL = 0.60
 
-# Minimum number of strong intents that must meet STRONG_INTENT_MIN_RECALL.
-MIN_STRONG_INTENTS_PASSING = 4
+# All 3 intents must meet the recall threshold.
+MIN_STRONG_INTENTS_PASSING = 3
 
 
 # =========================================================================
-# T1 — Intent accuracy on labeled dataset
+# T1 -- Intent accuracy on labeled dataset
 # =========================================================================
 
 
 @pytest.mark.model
 @pytest.mark.slow
 class TestIntentAccuracy:
-    """T1 — Confusion matrix on 50+ labeled queries."""
+    """T1 -- Confusion matrix on 50+ labeled queries."""
 
     @staticmethod
     def test_overall_accuracy(intent_predictions):
-        """Overall accuracy >= 55% across all test cases.
-
-        Note: Target is intentionally below the initial 85% plan because
-        zero-shot classification with short labels (``film_details``,
-        ``horror_trivia``) cannot reliably distinguish from
-        ``horror_discussion``. This finding is documented for G11.
-        """
+        """Overall accuracy >= 75% across all test cases."""
         correct = sum(1 for p in intent_predictions if p["predicted"] == p["expected"])
         accuracy = correct / len(intent_predictions)
         failures = [p for p in intent_predictions if p["predicted"] != p["expected"]]
@@ -77,12 +62,8 @@ class TestIntentAccuracy:
         )
 
     @staticmethod
-    def test_strong_intents_recall(intent_predictions):
-        """Strong intents (non-ambiguous labels) achieve recall >= 60%.
-
-        At least 4 out of 5 strong intents (horror_recommendation,
-        horror_discussion, greeting, farewell, out_of_scope) must pass.
-        """
+    def test_per_intent_recall(intent_predictions):
+        """All 3 intents achieve recall >= 60%."""
         by_intent = defaultdict(lambda: {"total": 0, "correct": 0})
 
         for p in intent_predictions:
@@ -90,57 +71,28 @@ class TestIntentAccuracy:
             if p["predicted"] == p["expected"]:
                 by_intent[p["expected"]]["correct"] += 1
 
-        strong_passing = 0
-        strong_failing = []
+        passing = 0
+        failing = []
         for intent, stats in by_intent.items():
-            if intent in WEAK_INTENTS:
-                continue
             recall = stats["correct"] / stats["total"]
             if recall >= STRONG_INTENT_MIN_RECALL:
-                strong_passing += 1
+                passing += 1
             else:
-                strong_failing.append(f"  {intent}: {recall:.2%} ({stats['correct']}/{stats['total']})")
+                failing.append(f"  {intent}: {recall:.2%} ({stats['correct']}/{stats['total']})")
 
-        assert strong_passing >= MIN_STRONG_INTENTS_PASSING, (
-            f"Only {strong_passing} strong intents pass >= {STRONG_INTENT_MIN_RECALL:.0%} recall "
+        assert passing >= MIN_STRONG_INTENTS_PASSING, (
+            f"Only {passing} intents pass >= {STRONG_INTENT_MIN_RECALL:.0%} recall "
             f"(need {MIN_STRONG_INTENTS_PASSING}). Failing:\n"
-            + "\n".join(strong_failing)
+            + "\n".join(failing)
         )
-
-    @staticmethod
-    def test_weak_intents_documented(intent_predictions):
-        """Weak intents are measured and reported (no hard threshold).
-
-        film_details and horror_trivia overlap with horror_discussion
-        due to zero-shot label similarity. This test reports their recall
-        for documentation purposes.
-        """
-        by_intent = defaultdict(lambda: {"total": 0, "correct": 0})
-
-        for p in intent_predictions:
-            by_intent[p["expected"]]["total"] += 1
-            if p["predicted"] == p["expected"]:
-                by_intent[p["expected"]]["correct"] += 1
-
-        print("\n=== Weak Intent Recall (documented, no hard threshold) ===")
-        for intent in WEAK_INTENTS:
-            stats = by_intent[intent]
-            recall = stats["correct"] / stats["total"] if stats["total"] > 0 else 0.0
-            print(f"  {intent}: {recall:.2%} ({stats['correct']}/{stats['total']})")
-        print("  → Actionable: improve via label engineering or few-shot tuning")
-
-        # Soft assertion: at least one weak intent should have >0 correct
-        total_weak_correct = sum(by_intent[i]["correct"] for i in WEAK_INTENTS)
-        assert total_weak_correct >= 0  # Always passes — metric is informational
 
     @staticmethod
     def test_confidence_above_threshold_for_correct(intent_predictions):
         """Correctly classified cases have confidence >= 0.3.
 
-        Note: The classifier falls back to ``horror_discussion`` when
+        The classifier falls back to ``needs_database`` when
         confidence < 0.4. Some queries are *correctly* classified via this
-        fallback (e.g. broad discussion queries with low confidence).
-        We use 0.3 as the test threshold to allow for these valid fallbacks.
+        fallback. We use 0.3 as the test threshold to allow for these.
         """
         low_confidence = [
             p for p in intent_predictions
@@ -168,19 +120,16 @@ class TestIntentAccuracy:
     @staticmethod
     def test_confusion_matrix_generated(intent_predictions, artifact_dir):
         """Generate and save a confusion matrix as JSON artifact."""
-        # Build confusion matrix manually (no sklearn dependency needed)
         labels = sorted(set(INTENT_LABELS))
         matrix = {actual: dict.fromkeys(labels, 0) for actual in labels}
         for p in intent_predictions:
             if p["expected"] in matrix and p["predicted"] in matrix[p["expected"]]:
                 matrix[p["expected"]][p["predicted"]] += 1
 
-        # Compute per-intent metrics
         report = {
             "confusion_matrix": matrix,
             "per_intent": {},
             "total_cases": len(intent_predictions),
-            "weak_intents": list(WEAK_INTENTS),
         }
         total_correct = 0
         for intent in labels:
@@ -191,7 +140,6 @@ class TestIntentAccuracy:
                 "total": total,
                 "correct": tp,
                 "recall": round(tp / total, 3) if total > 0 else 0.0,
-                "is_weak": intent in WEAK_INTENTS,
             }
         report["overall_accuracy"] = round(total_correct / len(intent_predictions), 3)
 
@@ -204,5 +152,4 @@ class TestIntentAccuracy:
         print("\n=== Intent Accuracy Report ===")
         print(f"Overall accuracy: {report['overall_accuracy']:.1%}")
         for intent, stats in report["per_intent"].items():
-            weak_tag = " [WEAK]" if stats["is_weak"] else ""
-            print(f"  {intent}: {stats['recall']:.1%} ({stats['correct']}/{stats['total']}){weak_tag}")
+            print(f"  {intent}: {stats['recall']:.1%} ({stats['correct']}/{stats['total']})")

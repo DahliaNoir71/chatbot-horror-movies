@@ -19,6 +19,7 @@ from src.monitoring.metrics import (
 )
 from src.services.llm.llm_service import LLMService, get_llm_service
 from src.services.rag.prompt_builder import RAGPromptBuilder
+from src.services.rag.reranker import RerankerService, get_reranker_service
 from src.services.rag.retriever import (
     DocumentRetriever,
     RetrievedDocument,
@@ -60,25 +61,29 @@ class RAGResult:
 
 
 class RAGPipeline:
-    """Full RAG pipeline: retrieve -> build prompt -> generate.
+    """Full RAG pipeline: retrieve -> rerank -> build prompt -> generate.
 
     Attributes:
         _retriever: Document retriever for vector search.
+        _reranker: Cross-encoder reranker for precision filtering.
         _llm: LLM service for text generation.
     """
 
     def __init__(
         self,
         retriever: DocumentRetriever | None = None,
+        reranker: RerankerService | None = None,
         llm_service: LLMService | None = None,
     ) -> None:
         """Initialize pipeline with injectable dependencies.
 
         Args:
             retriever: Override document retriever (for testing).
+            reranker: Override reranker service (for testing).
             llm_service: Override LLM service (for testing).
         """
         self._retriever = retriever or get_document_retriever()
+        self._reranker = reranker or get_reranker_service()
         self._llm = llm_service or get_llm_service()
         self._logger = logger
 
@@ -100,6 +105,7 @@ class RAGPipeline:
         """
         retrieval_start = time.perf_counter()
         documents = self._retriever.retrieve(user_message)
+        documents = self._reranker.rerank(user_message, documents)
         retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
 
         messages = RAGPromptBuilder.build(
@@ -148,6 +154,7 @@ class RAGPipeline:
             Tuple of (token iterator, retrieved documents).
         """
         documents = self._retriever.retrieve(user_message)
+        documents = self._reranker.rerank(user_message, documents)
 
         messages = RAGPromptBuilder.build(
             intent=intent,

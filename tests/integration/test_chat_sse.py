@@ -28,7 +28,7 @@ from tests.integration.conftest import (
 def _make_stream_router(
     *,
     token_iter=None,
-    intent: str = "greeting",
+    intent: str = "conversational",
     confidence: float = 0.95,
     session_id=None,
     direct_text: str | None = None,
@@ -88,7 +88,7 @@ class TestChatSSE:
     ) -> None:
         mock_router, _ = _make_stream_router(
             direct_text="Bienvenue !",
-            intent="greeting",
+            intent="conversational",
             confidence=0.93,
         )
 
@@ -116,7 +116,7 @@ class TestChatSSE:
     ) -> None:
         mock_router, _ = _make_stream_router(
             token_iter=iter(["Voici ", "quelques ", "films effrayants."]),
-            intent="horror_recommendation",
+            intent="needs_database",
             confidence=0.88,
         )
 
@@ -143,7 +143,7 @@ class TestChatSSE:
     ) -> None:
         mock_router, _ = _make_stream_router(
             direct_text="Au revoir !",
-            intent="farewell",
+            intent="conversational",
             confidence=0.91,
         )
 
@@ -159,7 +159,7 @@ class TestChatSSE:
 
         events = parse_sse_events(resp.text)
         done = next(e for e in events if e["type"] == "done")
-        assert done["intent"] == "farewell"
+        assert done["intent"] == "conversational"
         assert isinstance(done["confidence"], float)
         assert "session_id" in done
         UUID(done["session_id"])
@@ -171,7 +171,7 @@ class TestChatSSE:
     ) -> None:
         mock_router, _ = _make_stream_router(
             token_iter=iter(["Les ", "films ", "d'horreur ", "japonais."]),
-            intent="horror_discussion",
+            intent="needs_database",
             confidence=0.86,
         )
 
@@ -197,7 +197,7 @@ class TestChatSSE:
     ) -> None:
         mock_router, expected_sid = _make_stream_router(
             direct_text="Salut !",
-            intent="greeting",
+            intent="conversational",
             confidence=0.94,
         )
 

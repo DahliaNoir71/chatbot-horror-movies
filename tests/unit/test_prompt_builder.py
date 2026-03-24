@@ -21,112 +21,120 @@ class TestPromptBuilderBuild:
     """T4 — Construction of the LLM message list."""
 
     @staticmethod
-    def test_basic_structure_system_then_user():
-        """Minimal call produces [system, user] messages."""
+    def test_basic_structure_system_context_user():
+        """Minimal call produces [system, context, user] messages."""
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Pourquoi l'horreur ?",
         )
 
-        assert len(messages) >= 2
+        assert len(messages) == 3
         assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "system"  # context block (empty)
         assert messages[-1]["role"] == "user"
         assert messages[-1]["content"] == "Pourquoi l'horreur ?"
 
     @staticmethod
     def test_with_documents_adds_context_block(sample_documents):
-        """When documents are provided, a context block is inserted."""
+        """When documents are provided, context block contains document data."""
         messages = RAGPromptBuilder.build(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="Recommande un film",
             documents=sample_documents,
         )
 
-        # system + context + user = 3 messages minimum
-        assert len(messages) >= 3
+        # system + context + user = 3 messages
+        assert len(messages) == 3
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "system"  # context block
         assert "The Conjuring" in messages[1]["content"]
         assert messages[-1]["role"] == "user"
 
     @staticmethod
-    def test_without_documents_no_context():
-        """Without documents, no context block is added."""
+    def test_without_documents_explicit_empty_context():
+        """Without documents, an explicit empty context block is added."""
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Discussion",
             documents=None,
         )
 
-        # Only system + user
-        assert len(messages) == 2
+        # system + empty context + user = 3
+        assert len(messages) == 3
         assert messages[0]["role"] == "system"
-        assert messages[1]["role"] == "user"
+        assert messages[1]["role"] == "system"
+        assert "Aucun document pertinent" in messages[1]["content"]
+        assert messages[2]["role"] == "user"
 
     @staticmethod
-    def test_empty_documents_no_context():
-        """Empty document list behaves like None."""
+    def test_empty_documents_explicit_empty_context():
+        """Empty document list produces explicit empty context block."""
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Discussion",
             documents=[],
         )
 
-        assert len(messages) == 2
+        assert len(messages) == 3
+        assert "Aucun document pertinent" in messages[1]["content"]
 
     @staticmethod
     def test_with_history_inserts_before_user():
-        """Conversation history is placed between system and user."""
+        """Conversation history is placed between context and user."""
         history = [
             {"role": "user", "content": "Bonjour"},
             {"role": "assistant", "content": "Bienvenue !"},
         ]
 
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Nouvelle question",
             history=history,
         )
 
-        # system + 2 history + user = 4
-        assert len(messages) == 4
+        # system + context + 2 history + user = 5
+        assert len(messages) == 5
         assert messages[0]["role"] == "system"
-        assert messages[1]["role"] == "user"
-        assert messages[1]["content"] == "Bonjour"
-        assert messages[2]["role"] == "assistant"
-        assert messages[3]["role"] == "user"
-        assert messages[3]["content"] == "Nouvelle question"
+        assert messages[1]["role"] == "system"  # context
+        assert messages[2]["role"] == "user"
+        assert messages[2]["content"] == "Bonjour"
+        assert messages[3]["role"] == "assistant"
+        assert messages[4]["role"] == "user"
+        assert messages[4]["content"] == "Nouvelle question"
 
     @staticmethod
     def test_empty_history_ignored():
         """Empty history list does not add extra messages."""
         messages = RAGPromptBuilder.build(
-            intent="horror_discussion",
+            intent="needs_database",
             user_message="Question",
             history=[],
         )
 
-        assert len(messages) == 2
+        # system + context + user = 3
+        assert len(messages) == 3
 
     @staticmethod
     def test_system_prompt_matches_intent():
         """System prompt content matches the intent-specific prompt."""
-        for intent in ["horror_recommendation", "horror_discussion", "horror_trivia"]:
-            messages = RAGPromptBuilder.build(intent=intent, user_message="test")
-            expected_prompt = get_system_prompt(intent, has_context=False)
-            assert messages[0]["content"] == expected_prompt
+        messages = RAGPromptBuilder.build(intent="needs_database", user_message="test")
+        expected_prompt = get_system_prompt("needs_database")
+        assert messages[0]["content"] == expected_prompt
 
     @staticmethod
-    def test_with_context_uses_context_variant(sample_documents):
-        """When documents are present, has_context=True is used for system prompt."""
-        messages = RAGPromptBuilder.build(
-            intent="horror_recommendation",
+    def test_single_system_prompt_used(sample_documents):
+        """Same system prompt is used regardless of documents presence."""
+        messages_no_docs = RAGPromptBuilder.build(
+            intent="needs_database",
+            user_message="test",
+        )
+        messages_with_docs = RAGPromptBuilder.build(
+            intent="needs_database",
             user_message="test",
             documents=sample_documents,
         )
 
-        expected_prompt = get_system_prompt("horror_recommendation", has_context=True)
-        assert messages[0]["content"] == expected_prompt
+        assert messages_no_docs[0]["content"] == messages_with_docs[0]["content"]
 
     @staticmethod
     def test_full_message_order_with_all_components(sample_documents):
@@ -134,7 +142,7 @@ class TestPromptBuilderBuild:
         history = [{"role": "user", "content": "prev"}]
 
         messages = RAGPromptBuilder.build(
-            intent="horror_recommendation",
+            intent="needs_database",
             user_message="current",
             documents=sample_documents,
             history=history,
@@ -145,6 +153,25 @@ class TestPromptBuilderBuild:
         roles = [m["role"] for m in messages]
         assert roles == ["system", "system", "user", "user"]
         assert messages[-1]["content"] == "current"
+
+    @staticmethod
+    def test_history_truncated_to_max():
+        """History is truncated to the last 6 messages (3 turns)."""
+        history = [
+            {"role": "user", "content": f"msg{i}"}
+            for i in range(10)
+        ]
+
+        messages = RAGPromptBuilder.build(
+            intent="needs_database",
+            user_message="current",
+            history=history,
+        )
+
+        # system + context + 6 history + user = 9
+        assert len(messages) == 9
+        # First history message should be msg4 (10 - 6 = 4)
+        assert messages[2]["content"] == "msg4"
 
 
 # =========================================================================
@@ -197,8 +224,8 @@ class TestPromptBuilderFormatContext:
         assert "86" in context
 
     @staticmethod
-    def test_header_line_in_french():
-        """Context block starts with the French header."""
+    def test_header_line():
+        """Context block starts with the strict context header."""
         from uuid import uuid4
 
         from src.services.rag.retriever import RetrievedDocument
@@ -215,4 +242,12 @@ class TestPromptBuilderFormatContext:
         ]
         context = RAGPromptBuilder._format_context(docs)
 
-        assert context.startswith("Voici les informations pertinentes")
+        assert context.startswith("=== CONTEXTE DOCUMENTAIRE (source de verite) ===")
+
+    @staticmethod
+    def test_empty_documents_explicit_message():
+        """Empty documents produce an explicit 'no documents found' message."""
+        context = RAGPromptBuilder._format_context(None)
+
+        assert "Aucun document pertinent" in context
+        assert "CONTEXTE DOCUMENTAIRE" in context

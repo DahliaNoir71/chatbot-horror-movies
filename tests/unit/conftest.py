@@ -91,14 +91,14 @@ def mock_llm_responses() -> dict:
 def mock_classifier():
     """Mock IntentClassifier with injectable classify() return values.
 
-    Default: returns 'greeting' with 0.95 confidence.
+    Default: returns 'conversational' with 0.95 confidence.
     Override via ``mock_classifier.classify.return_value = {...}``.
     """
     mock = MagicMock()
     mock.classify.return_value = {
-        "intent": "greeting",
+        "intent": "conversational",
         "confidence": 0.95,
-        "all_scores": {"greeting": 0.95, "farewell": 0.02, "out_of_scope": 0.03},
+        "all_scores": {"conversational": 0.95, "needs_database": 0.03, "off_topic": 0.02},
     }
     return mock
 
@@ -111,7 +111,7 @@ def mock_rag_pipeline():
     mock = MagicMock()
     mock.execute.return_value = RAGResult(
         text="Je vous recommande The Conjuring (2013).",
-        intent="horror_recommendation",
+        intent="needs_database",
         documents=[],
         usage={"prompt_tokens": 150, "completion_tokens": 40},
         retrieval_time_ms=50.0,

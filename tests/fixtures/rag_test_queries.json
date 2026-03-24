@@ -107,102 +107,102 @@
     {
       "query": "Recommande-moi un bon film de zombies",
       "expected_keywords": ["zombie", "mort", "dead"],
-      "intent": "horror_recommendation"
+      "intent": "needs_database"
     },
     {
       "query": "Je cherche un film avec des fantômes",
       "expected_keywords": ["fantôme", "ghost", "hant", "spirit"],
-      "intent": "horror_recommendation"
+      "intent": "needs_database"
     },
     {
       "query": "Un film d'horreur psychologique comme Hereditary",
       "expected_keywords": ["Hereditary", "psycholog", "horreur"],
-      "intent": "horror_recommendation"
+      "intent": "needs_database"
     },
     {
       "query": "Quel est le meilleur slasher de tous les temps ?",
       "expected_keywords": ["slasher", "Halloween", "Scream", "tueur"],
-      "intent": "horror_recommendation"
+      "intent": "needs_database"
     },
     {
       "query": "Un film de vampires effrayant",
       "expected_keywords": ["vampire", "sang", "blood", "nuit"],
-      "intent": "horror_recommendation"
+      "intent": "needs_database"
     },
     {
       "query": "Qui a réalisé L'Exorciste ?",
       "expected_keywords": ["Friedkin", "William", "1973", "Exorciste"],
-      "intent": "horror_trivia"
+      "intent": "needs_database"
     },
     {
       "query": "En quelle année est sorti Halloween ?",
       "expected_keywords": ["1978", "Carpenter", "John", "Halloween"],
-      "intent": "horror_trivia"
+      "intent": "needs_database"
     },
     {
       "query": "Combien de films Saw existe-t-il ?",
       "expected_keywords": ["Saw", "film", "suite", "sequel"],
-      "intent": "horror_trivia"
+      "intent": "needs_database"
     },
     {
       "query": "Quel acteur joue Pennywise ?",
       "expected_keywords": ["Skarsgård", "Bill", "Tim", "Curry", "clown"],
-      "intent": "horror_trivia"
+      "intent": "needs_database"
     },
     {
       "query": "Quel est le premier film d'horreur de l'histoire ?",
       "expected_keywords": ["Méliès", "Nosferatu", "Caligari", "1920", "1896"],
-      "intent": "horror_trivia"
+      "intent": "needs_database"
     },
     {
       "query": "Pourquoi le found footage fonctionne-t-il si bien ?",
       "expected_keywords": ["found footage", "réalisme", "caméra", "authentic"],
-      "intent": "horror_discussion"
+      "intent": "needs_database"
     },
     {
       "query": "Qu'est-ce qui rend un film d'horreur vraiment effrayant ?",
       "expected_keywords": ["peur", "tension", "suspense", "atmosphere"],
-      "intent": "horror_discussion"
+      "intent": "needs_database"
     },
     {
       "query": "L'horreur japonaise est-elle supérieure à l'horreur américaine ?",
       "expected_keywords": ["japon", "améric", "J-horror", "Ringu", "culture"],
-      "intent": "horror_discussion"
+      "intent": "needs_database"
     },
     {
       "query": "Le gore est-il nécessaire dans un bon film d'horreur ?",
       "expected_keywords": ["gore", "violence", "sang", "nécessaire", "subtil"],
-      "intent": "horror_discussion"
+      "intent": "needs_database"
     },
     {
       "query": "Comment le cinéma d'horreur a-t-il évolué depuis les années 70 ?",
       "expected_keywords": ["évolution", "70", "année", "moderne", "classique"],
-      "intent": "horror_discussion"
+      "intent": "needs_database"
     },
     {
       "query": "Quelle est la note de The Shining ?",
       "expected_keywords": ["Shining", "Kubrick", "note", "Jack"],
-      "intent": "film_details"
+      "intent": "needs_database"
     },
     {
       "query": "Donne-moi les détails sur Get Out",
       "expected_keywords": ["Get Out", "Peele", "Jordan", "2017"],
-      "intent": "film_details"
+      "intent": "needs_database"
     },
     {
       "query": "C'est quoi Midsommar ?",
       "expected_keywords": ["Midsommar", "Aster", "Ari", "suède", "folk"],
-      "intent": "film_details"
+      "intent": "needs_database"
     },
     {
       "query": "Parle-moi du film Scream",
       "expected_keywords": ["Scream", "Craven", "Wes", "Ghostface", "1996"],
-      "intent": "film_details"
+      "intent": "needs_database"
     },
     {
       "query": "Informations sur le film It Follows",
       "expected_keywords": ["It Follows", "Mitchell", "2014", "indépendant"],
-      "intent": "film_details"
+      "intent": "needs_database"
     }
   ]
 }

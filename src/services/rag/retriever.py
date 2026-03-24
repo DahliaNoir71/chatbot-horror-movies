@@ -58,6 +58,50 @@ class RetrievedDocument:
 # =============================================================================
 
 
+# Horror domain keywords for query expansion (case-insensitive).
+_HORROR_DOMAIN_KEYWORDS = {
+    "horreur",
+    "horror",
+    "film",
+    "movie",
+    "scary",
+    "effrayant",
+    "terrifiant",
+    "zombie",
+    "vampire",
+    "ghost",
+    "fantome",
+    "fantôme",
+    "slasher",
+    "gore",
+    "thriller",
+    "surnaturel",
+    "supernatural",
+    "demon",
+    "démon",
+    "exorcis",
+    "hante",
+    "hanté",
+    "haunted",
+    "creature",
+    "créature",
+    "monstre",
+    "monster",
+    "sang",
+    "blood",
+    "mort",
+    "dead",
+    "tueur",
+    "killer",
+    "psychopathe",
+    "cauchemar",
+    "nightmare",
+    "possession",
+    "maudit",
+    "cursed",
+}
+
+
 class DocumentRetriever:
     """Retrieves relevant documents from the vector store.
 
@@ -74,14 +118,16 @@ class DocumentRetriever:
 
     def __init__(
         self,
-        match_count: int = 5,
-        similarity_threshold: float = 0.7,
+        match_count: int = 20,
+        similarity_threshold: float = 0.3,
     ) -> None:
         """Initialize retriever.
 
         Args:
             match_count: Default maximum documents to retrieve.
+                Wide funnel (20) — the reranker filters to top-k.
             similarity_threshold: Minimum cosine similarity (0.0-1.0).
+                Low threshold (0.3) favors recall; reranker handles precision.
         """
         self._embedding_service = get_embedding_service()
         self._engine: Engine | None = None
@@ -132,8 +178,10 @@ class DocumentRetriever:
         count = match_count or self._default_match_count
         threshold = similarity_threshold or self._default_threshold
 
+        expanded_query = self._expand_query(query)
+
         embed_start = time.perf_counter()
-        query_embedding = self._embedding_service.generate(query)
+        query_embedding = self._embedding_service.generate(expanded_query)
         embed_duration = time.perf_counter() - embed_start
         EMBEDDING_REQUEST_DURATION.observe(embed_duration)
 
@@ -151,12 +199,37 @@ class DocumentRetriever:
         if documents:
             RAG_TOP_SIMILARITY.observe(documents[0].similarity)
 
-        self._logger.debug(
-            f"Retrieval complete: found {len(documents)} documents "
-            f"(query: {query[:80]}, duration: {round(retrieval_duration * 1000)}ms)"
-        )
+        if not documents:
+            self._logger.warning(
+                f"No documents retrieved (query: {query[:80]}, "
+                f"threshold: {threshold}, expanded: {expanded_query[:80]})"
+            )
+        else:
+            self._logger.debug(
+                f"Retrieval complete: found {len(documents)} documents "
+                f"(query: {query[:80]}, duration: {round(retrieval_duration * 1000)}ms)"
+            )
 
         return documents
+
+    @staticmethod
+    def _expand_query(query: str) -> str:
+        """Expand query with domain term if none is present.
+
+        If the user's query doesn't mention any horror-related keyword,
+        appends "film d'horreur" to improve embedding retrieval relevance
+        (the corpus is horror-focused).
+
+        Args:
+            query: Original user query.
+
+        Returns:
+            Expanded query string.
+        """
+        lower = query.lower()
+        if any(kw in lower for kw in _HORROR_DOMAIN_KEYWORDS):
+            return query
+        return f"{query} film d'horreur"
 
     def _execute_search(
         self,
