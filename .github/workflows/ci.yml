@@ -308,6 +308,9 @@ jobs:
           uv export --frozen --all-groups --all-extras --no-hashes \
             | grep -v "^torch==" \
             | grep -v "^horrorbot" \
+            | grep -v "^-e " \
+            | grep -v "^\./" \
+            | grep -v "^file:" \
             > /tmp/requirements-audit.txt
           echo "[OK] requirements-audit.txt generated ($(wc -l < /tmp/requirements-audit.txt) deps)"
 
@@ -317,9 +320,10 @@ jobs:
           echo "=== Python Dependency Security Scans ==="
 
           # -- pip-audit: scans via requirements file only --
+          # uvx runs in isolated env, avoids editable horrorbot in venv
           echo "--- pip-audit vulnerability scan ---"
           set +e
-          uv run pip-audit --strict \
+          uvx pip-audit --strict \
             -r /tmp/requirements-audit.txt \
             --no-deps \
             -f json \

@@ -141,6 +141,7 @@ ml = [
 [tool.uv]
 # Installer dev par défaut (pas ml, trop lourd)
 default-groups = ["dev"]
+package = false
 
 # Index PyTorch CPU-only (évite les dépendances nvidia-* transitives)
 [[tool.uv.index]]
@@ -166,11 +167,12 @@ llama-cpp-python = [
 # Build system
 # =============================================================================
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 # =============================================================================
 # Configuration des outils
