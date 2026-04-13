@@ -1,54 +1,96 @@
 # .github/workflows/ci.yml
 # ===================================================
-# Pipeline CI/CD GitHub Actions
+# GitHub Actions CI/CD Pipeline — DevSecOps
 # ===================================================
-# Ce pipeline exécute les tests unitaires et les analyses de sécurité
-# Il s'exécute sur les push/PR vers main et develop
+# Project : HorrorBot
+# Version : 3.0
+# Date    : April 2026
+#
+# Adapted from GitLab CI 3-tier pipeline.
+# Branch model: single-branch (main only, no PR).
+#
+# -- 2-tier architecture --
+#
+#   Tier 1 (every push, feedback < 3 min):
+#     tests, frontend-tests, bandit, gitleaks,
+#     python-deps-scan, hadolint
+#
+#   Tier 2 (every push, heavier 10-30 min):
+#     export-deps → owasp, docker+trivy,
+#     sonarqube (non-blocking)
+#
+# -- Execution strategy per job --
+#
+#   Job                     | push main | Blocking?
+#   ------------------------|-----------|----------------------------
+#   tests                   |     ✓     | Always
+#   frontend-tests          |     ✓     | Always
+#   security-bandit         |     ✓     | Always
+#   security-gitleaks       |     ✓     | Always
+#   security-python-deps    |     ✓     | Always
+#   security-hadolint       |     ✓     | Always (via .hadolint.yaml)
+#   prepare-export-deps     |     ✓     | —
+#   security-owasp          |     ✓     | Always (CVSS ≥ 7)
+#   security-docker-trivy   |     ✓     | Always (CRITICAL,HIGH)
+#   sonarqube               |     ✓     | Never (continue-on-error)
+#   pipeline-status         |     ✓     | Single gate
+#
+# -- Pre-commit / CI consistency --
+#
+#   - Ruff, Vulture           → pre-commit only
+#   - Bandit                  → pre-commit + CI (JSON report → SonarQube)
+#   - Gitleaks                → pre-commit (staged) + CI (full history)
+#   - Tests, deps scan, OWASP → CI only
+#   - Hadolint (Dockerfile)   → CI only (blocking, .hadolint.yaml)
+#   - Trivy (Docker image)    → CI only
+#   - SonarQube               → CI only (non-blocking)
+# ===================================================
 
-name: CI/CD Pipeline
+name: CI/CD Pipeline — DevSecOps
 
-# ===================================================
-# Déclencheurs du pipeline
-# ===================================================
 on:
-  # Exécution sur push vers les branches principales
   push:
-    branches: [ main, develop ]
-
-  # Exécution sur les pull requests vers main
-  pull_request:
-    branches: [ main ]
-
-  # Permet le déclenchement manuel depuis l'interface GitHub
+    branches: [main]
   workflow_dispatch:
 
 # ===================================================
-# Variables d'environnement globales
+# Global variables
 # ===================================================
 env:
   PYTHON_VERSION: "3.12"
   PYTHONUNBUFFERED: "1"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  REPORT_DIR: reports
+  SECURITY_DIR: security-reports
+  TRIVY_SEVERITY: "CRITICAL,HIGH"
 
 # ===================================================
-# JOBS DU PIPELINE
+# Concurrency — cancel previous runs on same branch
+# ===================================================
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# ===================================================
+# JOBS
 # ===================================================
 jobs:
-  # ============================================
-  # JOB 1 : Tests (unitaires + intégration)
-  # ============================================
-  # Exécute tous les tests avec calcul de la couverture de code
-  # Génère des rapports JUnit et Cobertura
-  # Couverture minimale requise : 50%
+
+  # ###########################################################
+  #  TIER 1 — Fast feedback (< 3 min)
+  # ###########################################################
+
+  # ===================================================
+  # Tests Python (unit + coverage)
+  # ===================================================
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      # Récupère le code source du repository
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # Installe uv avec cache basé sur uv.lock
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -56,49 +98,44 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      # Installe toutes les dépendances (core + dev + ml)
       - name: Install dependencies
-        run: uv sync --locked --group dev --group ml
+        run: uv sync --frozen --group dev --group ml
 
-      # Exécute tous les tests avec pytest et génère les rapports de couverture
-      - name: Run all tests with coverage
+      - name: Run unit tests with coverage
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           ENVIRONMENT: test
         run: |
-          mkdir -p reports
+          mkdir -p "${{ env.REPORT_DIR }}"
           uv run pytest -v --tb=short \
             -m "not slow" \
-            --junitxml=reports/junit.xml \
+            --junitxml="${{ env.REPORT_DIR }}/junit.xml" \
             --cov=src \
-            --cov-report=xml:reports/coverage.xml \
-            --cov-report=html:reports/htmlcov \
+            --cov-report=xml:"${{ env.REPORT_DIR }}/coverage.xml" \
+            --cov-report=html:"${{ env.REPORT_DIR }}/htmlcov" \
             --cov-report=term
 
-      # Upload optionnel vers Codecov pour visualisation
       - name: Upload coverage to Codecov
-        if: github.event_name == 'push'
         uses: codecov/codecov-action@v5
         with:
-          files: reports/coverage.xml
+          files: ${{ env.REPORT_DIR }}/coverage.xml
           fail_ci_if_error: false
         continue-on-error: true
 
-      # Conserve les rapports de test comme artifacts (7 jours)
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v5
         with:
           name: test-reports
-          path: reports/
+          path: ${{ env.REPORT_DIR }}/
           retention-days: 7
 
-  # ============================================
-  # JOB 2 : Tests Frontend (lint + type-check + tests + build)
-  # ============================================
-  # Vérifie le code frontend Vue.js/TypeScript
+  # ===================================================
+  # Tests Frontend (lint + type-check + tests + build)
+  # ===================================================
   frontend-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     defaults:
       run:
@@ -111,31 +148,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
           cache-dependency-path: src/frontend/package-lock.json
 
-      # Installe les dépendances de manière reproductible via le lock file
       - name: Install dependencies
         run: npm ci
 
-      # Vérifie la qualité du code avec ESLint
       - name: Run linter
         run: npm run lint
 
-      # Vérifie les types TypeScript
       - name: Run type-check
         run: npm run type-check
 
-      # Exécute les tests unitaires Vitest
       - name: Run unit tests
         run: npm run test:run
 
-      # Vérifie que le build de production fonctionne
       - name: Build production
         run: npm run build
 
-      # Vérifie que le bundle gzippé total reste sous 150 KB (éco-conception)
       - name: Verify bundle size (gzipped < 150 KB)
         run: |
           TOTAL=$(find dist -type f \( -name '*.js' -o -name '*.css' \) -exec gzip -c {} \; | wc -c)
@@ -146,19 +177,15 @@ jobs:
             exit 1
           fi
 
-      # Installe les navigateurs Playwright pour les tests e2e
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # Exécute les tests d'accessibilité axe-core via Playwright
       - name: Run accessibility tests
         run: npm run test:a11y -- --project=chromium
 
-      # Exécute les tests e2e fonctionnels (auth, chat, films)
       - name: Run e2e functional tests
         run: npx playwright test e2e/auth.spec.ts e2e/chat.spec.ts e2e/films.spec.ts --project=chromium
 
-      # Conserve le rapport Playwright en cas d'échec
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v5
@@ -167,12 +194,12 @@ jobs:
           path: src/frontend/playwright-report/
           retention-days: 7
 
-  # ============================================
-  # JOB 3 : Analyse de sécurité Bandit
-  # ============================================
-  # Scanne le code Python à la recherche de vulnérabilités de sécurité
+  # ===================================================
+  # Bandit — SAST (blocking)
+  # ===================================================
   security-bandit:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout code
@@ -183,27 +210,209 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Installe et exécute Bandit via uv tool
       - name: Run Bandit security scan
         run: |
-          mkdir -p security-reports
-          uvx bandit[toml] -r src -f json -o security-reports/bandit-report.json || true
+          mkdir -p "${{ env.SECURITY_DIR }}"
+          echo "=== Running Bandit SAST analysis ==="
+          set +e
+          timeout 4m uvx bandit[toml] -r src -f json \
+            -o "${{ env.SECURITY_DIR }}/bandit-report.json"
+          BANDIT_STATUS=$?
+          set -e
 
-      # Sauvegarde le rapport JSON pour consultation ultérieure
+          if [ -f "${{ env.SECURITY_DIR }}/bandit-report.json" ] && \
+             [ -s "${{ env.SECURITY_DIR }}/bandit-report.json" ]; then
+            echo "[OK] Bandit report generated"
+            if [ ${BANDIT_STATUS} -eq 0 ]; then
+              echo "[OK] No security issues detected"
+            else
+              echo "[WARN] Security issues detected (exit code: ${BANDIT_STATUS})"
+              python3 -m json.tool "${{ env.SECURITY_DIR }}/bandit-report.json" | head -50
+            fi
+          else
+            echo "[FAIL] Bandit report missing or empty"
+            BANDIT_STATUS=1
+          fi
+
+          if [ ${BANDIT_STATUS} -ne 0 ]; then
+            echo "::error::Bandit detected security issues — must be resolved"
+            exit ${BANDIT_STATUS}
+          fi
+
       - name: Upload Bandit report
         if: always()
         uses: actions/upload-artifact@v5
         with:
           name: bandit-report
-          path: security-reports/bandit-report.json
+          path: ${{ env.SECURITY_DIR }}/bandit-report.json
           retention-days: 7
 
-  # ============================================
-  # JOB 4 : Analyse des dépendances avec Safety
-  # ============================================
-  # Vérifie les vulnérabilités connues dans les dépendances
-  security-dependencies:
+  # ===================================================
+  # Gitleaks — Secret detection (blocking)
+  # ===================================================
+  security-gitleaks:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (full history)
+        uses: docker://zricethezav/gitleaks:latest
+        with:
+          args: >-
+            detect
+            --source="."
+            --report-format=json
+            --report-path=security-reports/gitleaks-report.json
+            --verbose
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: gitleaks-report
+          path: security-reports/gitleaks-report.json
+          retention-days: 7
+
+  # ===================================================
+  # Python dependency scan — pip-audit + safety (blocking)
+  # ===================================================
+  # Scans the installed environment directly (no requirements.txt).
+  # Identical to the environment used for tests.
+  security-python-deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Run pip-audit + safety scans
+        run: |
+          mkdir -p "${{ env.SECURITY_DIR }}"
+          echo "=== Python Dependency Security Scans ==="
+
+          # -- pip-audit: scans the installed environment directly --
+          echo "--- pip-audit vulnerability scan ---"
+          set +e
+          uv run pip-audit --strict -f json \
+            -o "${{ env.SECURITY_DIR }}/pip-audit.json"
+          PIPA_STATUS=$?
+          set -e
+
+          if [ ${PIPA_STATUS} -ne 0 ] && \
+             [ -f "${{ env.SECURITY_DIR }}/pip-audit.json" ] && \
+             [ -s "${{ env.SECURITY_DIR }}/pip-audit.json" ]; then
+            echo "[WARN] pip-audit detected vulnerabilities"
+            python3 -m json.tool "${{ env.SECURITY_DIR }}/pip-audit.json" | head -50
+          else
+            echo "[OK] pip-audit clean"
+          fi
+
+          # -- safety: scans the installed environment directly --
+          echo "--- Safety vulnerability scan ---"
+          set +e
+          uv run safety check --output json \
+            > "${{ env.SECURITY_DIR }}/safety-report.json"
+          SAFETY_STATUS=$?
+          set -e
+
+          if [ ${SAFETY_STATUS} -ne 0 ] && \
+             [ -f "${{ env.SECURITY_DIR }}/safety-report.json" ] && \
+             [ -s "${{ env.SECURITY_DIR }}/safety-report.json" ]; then
+            echo "[WARN] Safety detected vulnerabilities"
+            python3 -m json.tool "${{ env.SECURITY_DIR }}/safety-report.json" | head -50
+          fi
+
+          # -- Aggregated result --
+          FINAL_STATUS=$(( PIPA_STATUS + SAFETY_STATUS ))
+          if [ ${FINAL_STATUS} -ne 0 ]; then
+            echo "::error::Vulnerabilities detected (pip-audit: ${PIPA_STATUS}, safety: ${SAFETY_STATUS})"
+            exit 1
+          else
+            echo "[OK] All Python dependency scans passed"
+          fi
+
+      - name: Upload dependency scan reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: dependency-security-reports
+          path: |
+            ${{ env.SECURITY_DIR }}/pip-audit.json
+            ${{ env.SECURITY_DIR }}/safety-report.json
+          retention-days: 7
+
+  # ===================================================
+  # Hadolint — Dockerfile lint (blocking)
+  # ===================================================
+  # Uses .hadolint.yaml for rule exclusions.
+  # Scans both API and Frontend Dockerfiles.
+  security-hadolint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Hadolint — docker/api/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/api/Dockerfile
+          format: json
+          output-file: security-reports/hadolint-api.json
+          # no-fail omitted → blocking by default
+
+      - name: Hadolint — docker/frontend/Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/frontend/Dockerfile
+          format: json
+          output-file: security-reports/hadolint-frontend.json
+
+      - name: Merge Hadolint reports
+        if: always()
+        run: |
+          mkdir -p "${{ env.SECURITY_DIR }}"
+          jq -s 'add' \
+            security-reports/hadolint-api.json \
+            security-reports/hadolint-frontend.json \
+            > "${{ env.SECURITY_DIR }}/hadolint-report.json" || true
+
+      - name: Upload Hadolint report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: hadolint-report
+          path: ${{ env.SECURITY_DIR }}/hadolint-report.json
+          retention-days: 7
+
+  # ###########################################################
+  #  TIER 2 — Heavier validation (10-30 min)
+  # ###########################################################
+
+  # ===================================================
+  # Prepare — Export dependencies from uv.lock
+  # ===================================================
+  # Required by OWASP Dependency-Check (needs requirements.txt).
+  prepare-export-deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
 
     steps:
       - name: Checkout code
@@ -214,68 +423,71 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Exporte les dépendances depuis le lock file pour les scanners
-      - name: Export dependencies
+      - name: Export dependencies from uv.lock
         run: |
-          uv export --no-hashes --no-header --frozen > /tmp/requirements-export.txt
+          echo "=== Ephemeral generation of requirements.txt from uv.lock ==="
+          uv export --frozen --no-dev --no-hashes > requirements.txt
+          uv export --frozen --all-groups --all-extras --no-hashes > requirements-full.txt
+          echo "[OK] requirements.txt generated ($(wc -l < requirements.txt) prod dependencies)"
+          echo "[OK] requirements-full.txt generated ($(wc -l < requirements-full.txt) total dependencies)"
 
-      # Safety : vérifie les vulnérabilités connues (base de données PyUp)
-      - name: Run Safety scan
-        run: |
-          mkdir -p security-reports
-          uvx safety check \
-            -r /tmp/requirements-export.txt \
-            --output json > security-reports/safety-report.json || true
-
-      # pip-audit : vérifie les vulnérabilités (base OSV)
-      - name: Run pip-audit scan
-        run: |
-          uvx pip-audit \
-            -r /tmp/requirements-export.txt \
-            -f json \
-            -o security-reports/pip-audit.json || true
-
-      # Conserve les rapports des deux outils
-      - name: Upload security reports
-        if: always()
+      - name: Upload requirements artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: dependency-security-reports
-          path: security-reports/
-          retention-days: 7
+          name: requirements
+          path: |
+            requirements.txt
+            requirements-full.txt
+          retention-days: 1
 
-  # ============================================
-  # JOB 5 : OWASP Dependency-Check
-  # ============================================
-  # Analyse complète des dépendances avec la base OWASP NVD
+  # ===================================================
+  # OWASP Dependency-Check (blocking, CVSS ≥ 7)
+  # ===================================================
   security-owasp:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [prepare-export-deps]
 
-    # Utilise le container Docker officiel OWASP
     container:
       image: owasp/dependency-check-action:latest
       options: --user root
 
-    # Configuration JVM pour optimiser les performances
     env:
-      _JAVA_OPTIONS: "-Xmx2g -Xms256m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC -XX:+UseStringDeduplication"
-      JAVA_OPTS: "-Xmx2g"
+      _JAVA_OPTIONS: >-
+        -Xmx2g -Xms256m
+        -XX:MaxMetaspaceSize=256m
+        -XX:+UseG1GC -XX:+UseStringDeduplication
+        -XX:G1HeapRegionSize=8m -XX:MaxGCPauseMillis=200
+        -XX:ParallelGCThreads=2 -XX:ConcGCThreads=1
+        -XX:+UseCompressedOops
+        -Dfile.encoding=UTF-8
+      JAVA_OPTS: "-Xmx2g -Dfile.encoding=UTF-8"
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # Exécute OWASP Dependency-Check avec exclusions des dossiers inutiles
+      - name: Download requirements artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: requirements
+
       - name: Run OWASP Dependency-Check
         run: |
-          mkdir -p security-reports/dependency-check
+          mkdir -p "${{ env.SECURITY_DIR }}/dependency-check"
+          echo "=== OWASP Dependency-Check ==="
+          echo "[INFO] requirements.txt ($(wc -l < requirements.txt) deps)"
+
+          set +e
+          timeout 40m \
           /usr/share/dependency-check/bin/dependency-check.sh \
-            --project "chatbot-api" \
+            --project "HorrorBot" \
             --scan . \
             --format HTML \
             --format JSON \
             --format XML \
-            --out security-reports/dependency-check \
+            --out "${{ env.SECURITY_DIR }}/dependency-check" \
             --noupdate \
             --enableExperimental \
             --exclude "**/node_modules/**" \
@@ -291,136 +503,50 @@ jobs:
             --exclude "**/security-reports/**" \
             --exclude "**/dist/**" \
             --exclude "**/build/**" \
-            --failOnCVSS 7 || true
+            --exclude "**/.venv/**" \
+            $([ -f "suppression.xml" ] && echo "--suppression suppression.xml" || echo "") \
+            --failOnCVSS 7
+          OWASP_STATUS=$?
+          set -e
 
-      # Vérifie que les rapports ont bien été générés
-      - name: Check reports generated
-        if: always()
-        run: |
-          ls -lh security-reports/dependency-check/ || true
-          if [ -f "security-reports/dependency-check/dependency-check-report.json" ]; then
-            echo "Reports generated successfully"
-          else
-            echo "Reports not found"
+          if [ ${OWASP_STATUS} -eq 124 ]; then
+            echo "::error::OWASP Dependency-Check timed out after 40 minutes"
+            exit 1
           fi
 
-      # Conserve les rapports HTML, JSON et XML pour consultation
+          echo "=== Scan finished with code ${OWASP_STATUS} ==="
+          ls -lh "${{ env.SECURITY_DIR }}/dependency-check/" || true
+
+          if [ -f "${{ env.SECURITY_DIR }}/dependency-check/dependency-check-report.json" ] && \
+             [ -s "${{ env.SECURITY_DIR }}/dependency-check/dependency-check-report.json" ]; then
+            echo "[OK] JSON report generated"
+            VULN_COUNT=$(grep -c '"severity"' \
+              "${{ env.SECURITY_DIR }}/dependency-check/dependency-check-report.json" || echo "0")
+            echo "[STAT] Vulnerabilities found: ${VULN_COUNT}"
+          else
+            echo "::error::OWASP JSON report missing or empty — scan likely failed"
+            OWASP_STATUS=1
+          fi
+
+          if [ ${OWASP_STATUS} -ne 0 ]; then
+            echo "::error::OWASP Dependency-Check found CVEs with CVSS >= 7"
+            exit ${OWASP_STATUS}
+          fi
+
       - name: Upload OWASP reports
         if: always()
         uses: actions/upload-artifact@v5
         with:
           name: owasp-dependency-check
-          path: security-reports/dependency-check/
+          path: ${{ env.SECURITY_DIR }}/dependency-check/
           retention-days: 7
 
-  # ============================================
-  # JOB 6 : Gitleaks — Détection de secrets
-  # ============================================
-  # Scanne le code source à la recherche de secrets (clés API, mots de passe, tokens)
-  # Sur PR : scanne uniquement le diff (commits entre base et HEAD)
-  # Sur push : scanne l'historique complet du dépôt
-  security-gitleaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      # Récupère le code source avec l'historique complet pour le scan
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Créer le répertoire de rapports
-        run: mkdir -p security-reports
-
-      # Sur PR : scanne uniquement les commits entre la base et le HEAD
-      - name: Run Gitleaks (PR — diff only)
-        if: github.event_name == 'pull_request'
-        uses: docker://zricethezav/gitleaks:latest
-        with:
-          args: detect --source="." --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" --report-format=json --report-path=security-reports/gitleaks-report.json --verbose
-
-      # Sur push : scanne l'historique complet
-      - name: Run Gitleaks (push — full history)
-        if: github.event_name == 'push'
-        uses: docker://zricethezav/gitleaks:latest
-        with:
-          args: detect --source="." --report-format=json --report-path=security-reports/gitleaks-report.json --verbose
-
-      # Sauvegarde le rapport JSON pour consultation ultérieure
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: gitleaks-report
-          path: security-reports/gitleaks-report.json
-          retention-days: 7
-
-  # ============================================
-  # JOB 7 : Hadolint — Linting des Dockerfiles
-  # ============================================
-  # Analyse statique des Dockerfiles pour détecter les mauvaises pratiques
-  # Warning only : n'échoue pas le pipeline (continue-on-error)
-  security-hadolint:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Créer le répertoire de rapports
-        run: mkdir -p security-reports
-
-      # Lint du Dockerfile API (FastAPI)
-      - name: Hadolint — docker/api/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: docker/api/Dockerfile
-          format: json
-          output-file: security-reports/hadolint-api.json
-          no-fail: true
-
-      # Lint du Dockerfile Frontend (Vue.js → nginx)
-      - name: Hadolint — docker/frontend/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: docker/frontend/Dockerfile
-          format: json
-          output-file: security-reports/hadolint-frontend.json
-          no-fail: true
-
-      # Fusionne les deux rapports JSON en un seul fichier
-      - name: Fusionner les rapports Hadolint
-        if: always()
-        run: |
-          jq -s 'add' \
-            security-reports/hadolint-api.json \
-            security-reports/hadolint-frontend.json \
-            > security-reports/hadolint-report.json || true
-
-      # Sauvegarde le rapport combiné
-      - name: Upload Hadolint report
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: hadolint-report
-          path: security-reports/hadolint-report.json
-          retention-days: 7
-
-  # ============================================
-  # JOB 8 : Docker Build + Trivy — Scan d'images
-  # ============================================
-  # Construit les images Docker sans les pousser, puis les scanne
-  # avec Trivy pour détecter les vulnérabilités CRITICAL et HIGH
-  # S'exécute uniquement sur PR vers main et push sur main
+  # ===================================================
+  # Docker Build + Trivy — Container scan (blocking)
+  # ===================================================
   security-docker-trivy:
     runs-on: ubuntu-latest
-
-    # Uniquement sur PR vers main ou push sur main
-    if: >-
-      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -437,11 +563,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # Configure Docker Buildx pour le build
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Construit l'image Docker sans la pousser (load dans le daemon local)
       - name: Build Docker image — ${{ matrix.label }}
         uses: docker/build-push-action@v6
         with:
@@ -451,32 +575,27 @@ jobs:
           load: true
           tags: ${{ matrix.image }}:ci-scan
 
-      - name: Créer le répertoire de rapports
-        run: mkdir -p security-reports
-
-      # Scan Trivy — rapport table (lisible dans les logs CI)
-      # Secret scanning désactivé : Gitleaks (Job 6) s'en charge déjà
       - name: Trivy scan (table) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
           format: table
-          severity: CRITICAL,HIGH
-          exit-code: '0'
+          severity: ${{ env.TRIVY_SEVERITY }}
+          exit-code: "0"
 
-      # Scan Trivy — rapport JSON (artifact pour analyse ultérieure)
-      - name: Trivy scan (JSON) — ${{ matrix.label }}
+      # Blocking scan — exit-code 1 fails the job on CRITICAL/HIGH
+      - name: Trivy scan (JSON, blocking) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
           format: json
-          severity: CRITICAL,HIGH
+          severity: ${{ env.TRIVY_SEVERITY }}
           output: security-reports/trivy-${{ matrix.label }}-report.json
-          exit-code: '0'
+          exit-code: "1"
+          ignore-unfixed: true
 
-      # Sauvegarde le rapport Trivy JSON
       - name: Upload Trivy report — ${{ matrix.label }}
         if: always()
         uses: actions/upload-artifact@v5
@@ -485,19 +604,150 @@ jobs:
           path: security-reports/trivy-${{ matrix.label }}-report.json
           retention-days: 7
 
-  # ============================================
-  # JOB 9 : Validation finale
-  # ============================================
-  # Job récapitulatif qui s'exécute seulement si tous les jobs précédents réussissent
-  build-success:
+  # ###########################################################
+  #  SONARQUBE — Post-push monitoring (non-blocking)
+  # ###########################################################
+  # SonarQube CE (single-branch) runs AFTER the push on main.
+  # Non-blocking: monitoring tool for DevSecOps, not a gate.
+  # Trend tracking: coverage, technical debt, code smells.
+  sonarqube:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    needs: [tests, security-bandit, security-owasp]
 
-    # Attend la fin de tous les autres jobs
-    needs: [tests, frontend-tests, security-bandit, security-dependencies, security-owasp, security-gitleaks, security-hadolint, security-docker-trivy]
+    container:
+      image: sonarsource/sonar-scanner-cli:latest
 
-    # S'exécute uniquement si tous les jobs précédents ont réussi
-    if: success()
+    env:
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
 
     steps:
-      - name: Build successful
-        run: echo "All checks passed successfully"
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download test reports
+        uses: actions/download-artifact@v5
+        with:
+          name: test-reports
+          path: reports/
+
+      - name: Download Bandit report
+        uses: actions/download-artifact@v5
+        with:
+          name: bandit-report
+          path: security-reports/
+
+      - name: Download OWASP reports
+        uses: actions/download-artifact@v5
+        with:
+          name: owasp-dependency-check
+          path: security-reports/dependency-check/
+        continue-on-error: true
+
+      - name: Validate critical artifacts
+        run: |
+          MISSING_CRITICAL=0
+          for report in \
+            "reports/coverage.xml" \
+            "reports/junit.xml" \
+            "security-reports/bandit-report.json"; do
+            if [ -f "${report}" ] && [ -s "${report}" ]; then
+              echo "[OK] ${report}"
+            else
+              echo "[FAIL] CRITICAL artifact missing: ${report}"
+              MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
+            fi
+          done
+
+          for report in \
+            "security-reports/dependency-check/dependency-check-report.html" \
+            "security-reports/dependency-check/dependency-check-report.json"; do
+            if [ -f "${report}" ] && [ -s "${report}" ]; then
+              echo "[OK] ${report}"
+            else
+              echo "[WARN] Optional artifact missing: ${report}"
+            fi
+          done
+
+          if [ ${MISSING_CRITICAL} -ne 0 ]; then
+            echo "::error::${MISSING_CRITICAL} critical artifact(s) missing"
+            exit 1
+          fi
+
+      - name: Run SonarQube analysis
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey="${{ secrets.SONAR_PROJECT_KEY }}" \
+            -Dsonar.host.url="${{ secrets.SONAR_HOST_URL }}" \
+            -Dsonar.token="${{ secrets.SONAR_TOKEN }}" \
+            -Dsonar.python.coverage.reportPaths=reports/coverage.xml \
+            -Dsonar.junit.reportPaths=reports/junit.xml \
+            -Dsonar.python.bandit.reportPaths=security-reports/bandit-report.json \
+            -Dsonar.dependencyCheck.htmlReportPath=security-reports/dependency-check/dependency-check-report.html \
+            -Dsonar.dependencyCheck.jsonReportPath=security-reports/dependency-check/dependency-check-report.json \
+            -Dsonar.scm.provider=git
+          echo "[OK] SonarQube analysis completed"
+
+  # ###########################################################
+  #  PIPELINE STATUS — Single gate
+  # ###########################################################
+  # Final job aggregating all checks for branch protection.
+  pipeline-status:
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      # -- Tier 1 --
+      - tests
+      - frontend-tests
+      - security-bandit
+      - security-gitleaks
+      - security-python-deps
+      - security-hadolint
+      # -- Tier 2 --
+      - prepare-export-deps
+      - security-owasp
+      - security-docker-trivy
+      # -- Non-blocking (excluded from failure check) --
+      - sonarqube
+
+    steps:
+      - name: Check pipeline result
+        run: |
+          echo "=== Pipeline Status ==="
+          echo "tests:              ${{ needs.tests.result }}"
+          echo "frontend-tests:     ${{ needs.frontend-tests.result }}"
+          echo "security-bandit:    ${{ needs.security-bandit.result }}"
+          echo "security-gitleaks:  ${{ needs.security-gitleaks.result }}"
+          echo "security-python-deps: ${{ needs.security-python-deps.result }}"
+          echo "security-hadolint:  ${{ needs.security-hadolint.result }}"
+          echo "prepare-export-deps: ${{ needs.prepare-export-deps.result }}"
+          echo "security-owasp:     ${{ needs.security-owasp.result }}"
+          echo "security-docker-trivy: ${{ needs.security-docker-trivy.result }}"
+          echo "sonarqube:          ${{ needs.sonarqube.result }} (non-blocking)"
+
+          # All jobs except sonarqube must succeed
+          FAILED=0
+          for result in \
+            "${{ needs.tests.result }}" \
+            "${{ needs.frontend-tests.result }}" \
+            "${{ needs.security-bandit.result }}" \
+            "${{ needs.security-gitleaks.result }}" \
+            "${{ needs.security-python-deps.result }}" \
+            "${{ needs.security-hadolint.result }}" \
+            "${{ needs.prepare-export-deps.result }}" \
+            "${{ needs.security-owasp.result }}" \
+            "${{ needs.security-docker-trivy.result }}"; do
+            if [ "${result}" != "success" ]; then
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          if [ ${FAILED} -ne 0 ]; then
+            echo "::error::${FAILED} job(s) failed — pipeline blocked"
+            exit 1
+          fi
+
+          echo "[OK] All pipeline checks passed"
