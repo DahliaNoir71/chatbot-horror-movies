@@ -307,6 +307,9 @@ jobs:
         run: |
           uv export --frozen --all-groups --all-extras --no-hashes \
             | grep -v "^torch==" \
+            | grep -v "^nvidia-" \
+            | grep -v "^cuda-" \
+            | grep -v "^triton==" \
             | grep -v "^horrorbot" \
             | grep -v "^-e " \
             | grep -v "^\./" \
@@ -321,11 +324,14 @@ jobs:
 
           # -- pip-audit: scans via requirements file only --
           # uvx runs in isolated env, avoids editable horrorbot in venv
+          # --ignore-vuln: diskcache CVE-2025-69872 has no fix available,
+          # it is a transitive dep of Crawl4AI, not directly used
           echo "--- pip-audit vulnerability scan ---"
           set +e
           uvx pip-audit --strict \
             -r /tmp/requirements-audit.txt \
             --no-deps \
+            --ignore-vuln CVE-2025-69872 \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?

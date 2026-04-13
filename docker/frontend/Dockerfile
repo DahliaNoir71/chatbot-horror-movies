@@ -10,6 +10,8 @@
 # ── Stage 1: Build ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS build
 
+RUN apk update && apk upgrade --no-cache
+
 WORKDIR /app
 
 COPY src/frontend/package.json src/frontend/package-lock.json ./
