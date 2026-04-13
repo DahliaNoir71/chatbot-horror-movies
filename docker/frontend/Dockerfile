@@ -24,12 +24,12 @@ RUN npm run build
 # ── Stage 2: Serve ───────────────────────────────────────────────────────────
 FROM nginx:alpine
 
+RUN apk update && apk upgrade --no-cache && apk add --no-cache curl
+
 COPY docker/frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
-
-RUN apk add --no-cache curl
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
     CMD curl -f http://localhost/ || exit 1
