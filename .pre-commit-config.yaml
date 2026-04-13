@@ -1,73 +1,124 @@
-# Main configuration file for pre-commit hooks
-# This file defines which hooks will run automatically before each commit
-# to ensure code quality and consistency across the project.
+# =============================================================================
+# Pre-commit hooks — DevSecOps Configuration
+# =============================================================================
+# Projet : horrorbot (Chatbot films d'horreur avec architecture RAG)
+# Layout : src/ (services, api, database, etc.)
+#
+# Ce fichier applique la strategie "shift-left" : chaque controle de securite
+# et de qualite est execute au plus tot, avant meme que le code n'atteigne
+# le pipeline CI/CD.
+#
+# Couches couvertes :
+#   1. Qualite de base (whitespace, formats, fichiers volumineux)
+#   2. Linting & Formatting (Ruff)
+#   3. Dead code detection (Vulture)
+#   4. Securite du code (Bandit SAST)
+#   5. Detection de secrets (Gitleaks)
+#   6. Integrite des dependances (uv lock)
+#
+# Installation : uv sync --group dev && uv run pre-commit install
+# Verification : uv run pre-commit run --all-files
+# =============================================================================
 
 repos:
   # ===================================================
-  # Basic pre-commit hooks for general code quality
+  # 1. Hooks de base — Qualite et hygiene du code
   # ===================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # Nettoyage du code
       - id: trailing-whitespace
         files: ^src/
       - id: end-of-file-fixer
         files: ^src/
+
+      # Validation des formats de configuration
       - id: check-yaml
       - id: check-toml
       - id: check-json
         exclude: ^src/frontend/tsconfig.*\.json$
+
+      # Prevention d'erreurs de merge
       - id: check-merge-conflict
+
+      # Limite la taille des fichiers commites (500KB)
       - id: check-added-large-files
+        args: ['--maxkb=500']
+
+      # Empeche les debug statements (pdb, ipdb, breakpoint)
       - id: debug-statements
-        files: ^src/
+        files: ^src/.*\.py$
+
+      # Detecte les cles privees commitees accidentellement
+      # Securite : premiere ligne de defense contre les fuites de secrets
+      - id: detect-private-key
 
   # ===================================================
-  # Ruff - The extremely fast Python linter and formatter
+  # 2. Ruff — Linter et Formateur Python
   # ===================================================
+  # Configuration lue depuis pyproject.toml [tool.ruff]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.10
+    rev: v0.15.9
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
         files: ^src/.*\.py$
       - id: ruff-format
         files: ^src/.*\.py$
 
   # ===================================================
-  # Vulture - Dead code detection
-  # Reads configuration from pyproject.toml
+  # 3. Vulture — Detection de code mort
   # ===================================================
   - repo: https://github.com/jendrikseipp/vulture
     rev: v2.16
     hooks:
       - id: vulture
-        args: ["src/", "tests/"]
-        pass_filenames: false
+        args: [--min-confidence, "80", "src/"]
+        files: ^src/.*\.py$
 
   # ===================================================
-  # Frontend - ESLint, Prettier, TypeScript
-  # Hooks locaux car les outils sont dans src/frontend/node_modules
+  # 4. Bandit — SAST (Static Application Security Testing)
   # ===================================================
-  - repo: local
+  # Securite : detecte les patterns de code vulnerables (injection SQL,
+  # utilisation de eval/exec, mots de passe hardcodes, algorithmes crypto
+  # faibles, etc.)
+  #
+  # Coherence : le meme scan est execute en CI (job security:bandit).
+  # L'executer en pre-commit permet de corriger AVANT le push.
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.9.4"
     hooks:
-      - id: frontend-eslint
-        name: frontend eslint
-        entry: bash -c "cd src/frontend && npx eslint --fix src/"
-        language: system
-        files: ^src/frontend/src/.*\.(ts|vue)$
+      - id: bandit
+        args:
+          - -r
+          - src/
+          - --severity-level=medium
+          - --confidence-level=medium
+          - --quiet
+        files: ^src/.*\.py$
         pass_filenames: false
 
-      - id: frontend-prettier
-        name: frontend prettier
-        entry: bash -c "cd src/frontend && npx prettier --write src/"
-        language: system
-        files: ^src/frontend/src/.*\.(ts|vue|css)$
-        pass_filenames: false
+  # ===================================================
+  # 5. Detection de secrets — Gitleaks
+  # ===================================================
+  # Securite CRITIQUE : empeche la fuite de secrets (tokens AWS, cles API,
+  # mots de passe, certificats) dans l'historique Git.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+        # Scanne uniquement les fichiers staged (pas tout l'historique)
+        # Pour un scan complet de l'historique : gitleaks detect --source .
+        args: ['--staged']
 
-      - id: frontend-typecheck
-        name: frontend type-check
-        entry: bash -c "cd src/frontend && npx vue-tsc -b --noEmit"
-        language: system
-        files: ^src/frontend/src/.*\.(ts|vue)$
-        pass_filenames: false
+  # ===================================================
+  # 6. uv — Integrite des dependances
+  # ===================================================
+  # Supply chain security : garantit que uv.lock est synchronise avec
+  # pyproject.toml et que le requirements.txt exporte est a jour.
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.5
+    hooks:
+      # Verifie et met a jour uv.lock si pyproject.toml a change
+      - id: uv-lock

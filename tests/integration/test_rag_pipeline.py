@@ -262,7 +262,7 @@ class TestRAGPipelineStream:
         """Test that documents are retrieved before streaming starts."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        token_stream, documents = pipeline.execute_stream(
+        _, documents = pipeline.execute_stream(
             intent="needs_database",
             user_message="Test query",
             history=[],
@@ -289,7 +289,7 @@ class TestRAGPipelineStream:
         )
 
         # Should still work with history
-        assert len(documents) >= 0
+        assert len(documents) > 0
         assert hasattr(token_stream, "__iter__")
 
 

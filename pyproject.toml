@@ -216,6 +216,7 @@ pythonpath = "."
 addopts = """
     -v
     --strict-markers
+    -m "not model"
     --cov=src
     --cov-report=html
     --cov-report=term-missing

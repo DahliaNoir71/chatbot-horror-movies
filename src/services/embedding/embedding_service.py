@@ -7,7 +7,6 @@ from functools import lru_cache
 
 import numpy as np
 from numpy.typing import NDArray
-from sentence_transformers import SentenceTransformer
 
 from src.etl.utils.logger import setup_logger
 
@@ -36,13 +35,15 @@ class EmbeddingService:
             model_name: Sentence-transformer model name.
         """
         self._model_name = model_name
-        self._model: SentenceTransformer | None = None
+        self._model = None
         self._logger = logger
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self):
         """Lazy-load and return the transformer model."""
         if self._model is None:
+            from sentence_transformers import SentenceTransformer
+
             device = "cpu"
             self._logger.info(f"Loading model: {self._model_name} on {device}")
             self._model = SentenceTransformer(self._model_name, device=device)

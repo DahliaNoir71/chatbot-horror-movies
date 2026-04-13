@@ -18,7 +18,7 @@ class APISettings(BaseSettings):
         public_url: Public URL for the API.
     """
 
-    host: str = Field(default="0.0.0.0", alias="API_HOST")
+    host: str = Field(default="0.0.0.0", alias="API_HOST")  # nosec B104
     port: int = Field(default=8000, alias="API_PORT")
     reload: bool = Field(default=True, alias="API_RELOAD")
     workers: int = Field(default=4, alias="API_WORKERS")

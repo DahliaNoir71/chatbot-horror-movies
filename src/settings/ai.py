@@ -32,6 +32,10 @@ class LLMSettings(BaseSettings):
     model_path: str = Field(alias="LLM_MODEL_PATH")
     hf_repo: str = Field(alias="LLM_HF_REPO")
     hf_filename: str = Field(alias="LLM_HF_FILENAME")
+    hf_revision: str = Field(
+        default="8911e8a47f92bac19d6f5c64a2e2095bd2f7d031",
+        alias="LLM_HF_REVISION",
+    )
     context_length: int = Field(alias="LLM_CONTEXT_LENGTH")
     max_tokens: int = Field(alias="LLM_MAX_TOKENS")
     temperature: float = Field(alias="LLM_TEMPERATURE")
@@ -98,6 +102,10 @@ class ClassifierSettings(BaseSettings):
     """
 
     model_name: str = Field(alias="CLASSIFIER_MODEL_NAME")
+    revision: str = Field(
+        default="8e7e5af5983a0ddb1a5b45a38b129ab69e2258e8",
+        alias="CLASSIFIER_REVISION",
+    )
     confidence_threshold: float = Field(alias="CLASSIFIER_CONFIDENCE_THRESHOLD")
     device: str = Field(default="cpu", alias="CLASSIFIER_DEVICE")
 
@@ -144,6 +152,10 @@ class EmbeddingSettings(BaseSettings):
     """
 
     model_name: str = Field(alias="EMBEDDING_MODEL_NAME")
+    revision: str = Field(
+        default="c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+        alias="EMBEDDING_REVISION",
+    )
     dimensions: int = Field(alias="EMBEDDING_DIMENSIONS")
     batch_size: int = Field(alias="EMBEDDING_BATCH_SIZE")
 
@@ -186,6 +198,10 @@ class RerankerSettings(BaseSettings):
     """
 
     model_name: str = Field(alias="RERANKER_MODEL_NAME")
+    revision: str = Field(
+        default="1427fd652930e4ba29e8149678df786c240d8825",
+        alias="RERANKER_REVISION",
+    )
     top_k: int = Field(alias="RERANKER_TOP_K")
     min_score: float = Field(alias="RERANKER_MIN_SCORE")
 

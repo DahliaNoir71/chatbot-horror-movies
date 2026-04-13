@@ -134,7 +134,9 @@ def download_llm() -> bool:
     print(f"   Destination: {dest}")
 
     try:
-        cached_path = hf_hub_download(repo_id=repo_id, filename=filename)
+        cached_path = hf_hub_download(
+            repo_id=repo_id, filename=filename, revision=settings.llm.hf_revision
+        )
     except (RepositoryNotFoundError, GatedRepoError) as e:
         print(f"   Download failed: {e}")
         return False
@@ -161,7 +163,7 @@ def download_classifier() -> bool:
     print(f"   Downloading {repo_id}...")
 
     try:
-        snapshot_download(repo_id=repo_id)
+        snapshot_download(repo_id=repo_id, revision=settings.classifier.revision)
     except (RepositoryNotFoundError, GatedRepoError) as e:
         print(f"   Download failed: {e}")
         return False
@@ -185,7 +187,7 @@ def download_embedding() -> bool:
     print(f"   Downloading {repo_id}...")
 
     try:
-        snapshot_download(repo_id=repo_id)
+        snapshot_download(repo_id=repo_id, revision=settings.embedding.revision)
     except (RepositoryNotFoundError, GatedRepoError) as e:
         print(f"   Download failed: {e}")
         return False
@@ -208,7 +210,7 @@ def download_reranker() -> bool:
     print(f"   Downloading {repo_id}...")
 
     try:
-        snapshot_download(repo_id=repo_id)
+        snapshot_download(repo_id=repo_id, revision=settings.reranker.revision)
     except (RepositoryNotFoundError, GatedRepoError) as e:
         print(f"   Download failed: {e}")
         return False

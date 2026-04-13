@@ -307,15 +307,38 @@ def mock_llm_service():
     return mock
 
 
+@pytest.fixture(autouse=True)
+def _patch_reranker(monkeypatch):
+    """Auto-patch get_reranker_service for all integration tests.
+
+    Prevents any RAGPipeline constructed without an explicit reranker from
+    loading the CrossEncoder model (sentence-transformers / xlm-roberta).
+    """
+    mock = MagicMock()
+    mock.rerank.side_effect = lambda query, docs: docs
+    monkeypatch.setattr("src.services.rag.pipeline.get_reranker_service", lambda: mock)
+
+
 @pytest.fixture
-def rag_pipeline(mock_retriever, mock_llm_service):
+def mock_reranker():
+    """Mock RerankerService that passes documents through unchanged.
+
+    Avoids loading the CrossEncoder model (sentence-transformers) in tests.
+    """
+    mock = MagicMock()
+    mock.rerank.side_effect = lambda query, docs: docs
+    return mock
+
+
+@pytest.fixture
+def rag_pipeline(mock_retriever, mock_reranker, mock_llm_service):
     """RAGPipeline with mocked dependencies.
 
     Used for testing RAG orchestration without real retrieval or LLM calls.
     """
     from src.services.rag.pipeline import RAGPipeline
 
-    return RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
+    return RAGPipeline(retriever=mock_retriever, reranker=mock_reranker, llm_service=mock_llm_service)
 
 
 @pytest.fixture

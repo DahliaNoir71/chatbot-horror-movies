@@ -236,10 +236,10 @@ class IntentClassifier:
         # but query contains horror-related keywords, force needs_database.
         if top_label in {"off_topic", "conversational"} and self._has_domain_keyword(text):
             self._logger.debug(
-                "domain_keyword_override",
-                text=text[:80],
-                original_label=top_label,
-                original_score=top_score,
+                "domain_keyword_override: text=%s, original_label=%s, original_score=%s",
+                text[:80],
+                top_label,
+                top_score,
             )
             top_label = "needs_database"
 
@@ -247,19 +247,19 @@ class IntentClassifier:
         if top_score < self._confidence_threshold:
             if top_score >= _SECONDARY_THRESHOLD:
                 self._logger.debug(
-                    "secondary_threshold_fallback",
-                    text=text[:80],
-                    top_label=top_label,
-                    top_score=top_score,
+                    "secondary_threshold_fallback: text=%s, top_label=%s, top_score=%s",
+                    text[:80],
+                    top_label,
+                    top_score,
                 )
                 top_label = FALLBACK_INTENT
             else:
                 self._logger.debug(
-                    "low_confidence_fallback",
-                    text=text[:80],
-                    top_label=top_label,
-                    top_score=top_score,
-                    threshold=self._confidence_threshold,
+                    "low_confidence_fallback: text=%s, top_label=%s, top_score=%s, threshold=%s",
+                    text[:80],
+                    top_label,
+                    top_score,
+                    self._confidence_threshold,
                 )
                 top_label = FALLBACK_INTENT
 
