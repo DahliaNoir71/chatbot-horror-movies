@@ -166,7 +166,9 @@ class TMDBExtractor(BaseExtractor):
         Returns:
             Discover response or None on error.
         """
-        assert self._client is not None, self._ERR_CLIENT_NOT_INITIALIZED
+        if self._client is None:
+            self.logger.error(self._ERR_CLIENT_NOT_INITIALIZED)
+            raise RuntimeError(self._ERR_CLIENT_NOT_INITIALIZED)
 
         try:
             response = self._client.discover_movies(
@@ -221,7 +223,9 @@ class TMDBExtractor(BaseExtractor):
         Returns:
             Enriched film data.
         """
-        assert self._client is not None, self._ERR_CLIENT_NOT_INITIALIZED
+        if self._client is None:
+            self.logger.error(self._ERR_CLIENT_NOT_INITIALIZED)
+            raise RuntimeError(self._ERR_CLIENT_NOT_INITIALIZED)
 
         try:
             details = self._client.get_movie_full(tmdb_id)
@@ -391,7 +395,9 @@ class TMDBExtractor(BaseExtractor):
         Returns:
             Response dict or None.
         """
-        assert self._client is not None, self._ERR_CLIENT_NOT_INITIALIZED
+        if self._client is None:
+            self.logger.error(self._ERR_CLIENT_NOT_INITIALIZED)
+            raise RuntimeError(self._ERR_CLIENT_NOT_INITIALIZED)
 
         try:
             return self._client.discover_movies(
