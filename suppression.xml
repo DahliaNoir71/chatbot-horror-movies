@@ -1,10 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check Suppression File
+  Project: HorrorBot
+
+  This file suppresses known false positives and CVEs on transitive
+  dependencies that are not exposed in HorrorBot's architecture.
+
+  Each suppression MUST include a justification in <notes>.
+  Suppressions are reviewed on each pipeline update.
+-->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+  <!-- =================================================================
+       litellm — Transitive dependency of Crawl4AI
+       =================================================================
+       HorrorBot uses llama-cpp-python directly (no LangChain/LiteLLM).
+       litellm is pulled transitively by Crawl4AI and is never imported,
+       configured, or exposed. The CVEs concern litellm's JWT proxy
+       authentication and config update endpoints, which are never
+       instantiated in HorrorBot's architecture.
+  -->
   <suppress>
-    <notes>litellm is a transitive dependency of Crawl4AI, not used by HorrorBot.
-    The CVEs concern litellm's JWT proxy authentication, which is never exposed.</notes>
+    <notes>CVE-2026-35030: litellm JWT auth bypass — transitive dep of Crawl4AI, not exposed</notes>
     <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
     <cve>CVE-2026-35030</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-35029: litellm /config/update RCE — transitive dep of Crawl4AI, not exposed</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
     <cve>CVE-2026-35029</cve>
   </suppress>
+
 </suppressions>

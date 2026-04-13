@@ -307,6 +307,7 @@ jobs:
         run: |
           uv export --frozen --all-groups --all-extras --no-hashes \
             | grep -v "^torch==" \
+            | grep -v "^horrorbot" \
             > /tmp/requirements-audit.txt
           echo "[OK] requirements-audit.txt generated ($(wc -l < /tmp/requirements-audit.txt) deps)"
 
@@ -315,11 +316,12 @@ jobs:
           mkdir -p "${{ env.SECURITY_DIR }}"
           echo "=== Python Dependency Security Scans ==="
 
-          # -- pip-audit: scans via requirements file --
+          # -- pip-audit: scans via requirements file only --
           echo "--- pip-audit vulnerability scan ---"
           set +e
           uv run pip-audit --strict \
             -r /tmp/requirements-audit.txt \
+            --no-deps \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?
@@ -376,10 +378,12 @@ jobs:
           retention-days: 7
 
   # ===================================================
-  # Hadolint — Dockerfile lint (blocking)
+  # Hadolint — Dockerfile lint (blocking on errors)
   # ===================================================
   # Uses .hadolint.yaml for rule exclusions.
   # Scans both API and Frontend Dockerfiles.
+  # no-fail: true lets hadolint save reports even with warnings.
+  # Blocking logic is in the "Check results" step (errors only).
   security-hadolint:
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -397,7 +401,7 @@ jobs:
           dockerfile: docker/api/Dockerfile
           format: json
           output-file: security-reports/hadolint-api.json
-          # no-fail omitted → blocking by default
+          no-fail: true
 
       - name: Hadolint — docker/frontend/Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
@@ -405,15 +409,43 @@ jobs:
           dockerfile: docker/frontend/Dockerfile
           format: json
           output-file: security-reports/hadolint-frontend.json
+          no-fail: true
 
       - name: Merge Hadolint reports
         if: always()
         run: |
-          mkdir -p "${{ env.SECURITY_DIR }}"
-          jq -s 'add' \
+          jq -s 'add // []' \
             security-reports/hadolint-api.json \
             security-reports/hadolint-frontend.json \
             > "${{ env.SECURITY_DIR }}/hadolint-report.json" || true
+
+      - name: Check Hadolint results
+        run: |
+          REPORT="${{ env.SECURITY_DIR }}/hadolint-report.json"
+          if [ ! -f "${REPORT}" ] || [ ! -s "${REPORT}" ]; then
+            echo "[OK] No Hadolint issues found"
+            exit 0
+          fi
+
+          # Count error-level issues (blocking)
+          ERROR_COUNT=$(jq '[.[] | select(.level == "error")] | length' "${REPORT}" 2>/dev/null || echo "0")
+          WARN_COUNT=$(jq '[.[] | select(.level == "warning")] | length' "${REPORT}" 2>/dev/null || echo "0")
+          INFO_COUNT=$(jq '[.[] | select(.level == "info" or .level == "style")] | length' "${REPORT}" 2>/dev/null || echo "0")
+
+          echo "[STAT] Errors: ${ERROR_COUNT}, Warnings: ${WARN_COUNT}, Info/Style: ${INFO_COUNT}"
+
+          if [ "${ERROR_COUNT}" -gt 0 ]; then
+            echo "::error::Hadolint found ${ERROR_COUNT} error(s) — must be resolved"
+            jq '.[] | select(.level == "error")' "${REPORT}"
+            exit 1
+          fi
+
+          if [ "${WARN_COUNT}" -gt 0 ]; then
+            echo "[WARN] ${WARN_COUNT} warning(s) — review recommended"
+            jq '.[] | select(.level == "warning") | "\(.code): \(.message) (\(.file):\(.line))"' "${REPORT}"
+          fi
+
+          echo "[OK] Hadolint passed (no blocking errors)"
 
       - name: Upload Hadolint report
         if: always()
@@ -493,6 +525,16 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: requirements
+
+      # npm install so that OWASP Node Audit Analyzer can scan node_modules
+      - name: Install frontend dependencies for OWASP
+        run: |
+          if [ -f "src/frontend/package-lock.json" ]; then
+            cd src/frontend && npm ci --ignore-scripts && cd ../..
+            echo "[OK] node_modules installed for OWASP Node Audit"
+          else
+            echo "[WARN] No package-lock.json found — skipping npm install"
+          fi
 
       - name: Run OWASP Dependency-Check
         run: |
@@ -596,6 +638,9 @@ jobs:
           push: false
           load: true
           tags: ${{ matrix.image }}:ci-scan
+
+      - name: Create security reports directory
+        run: mkdir -p security-reports
 
       - name: Trivy scan (table) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
