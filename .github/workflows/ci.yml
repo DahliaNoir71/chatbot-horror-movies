@@ -16,8 +16,7 @@
 #     python-deps-scan, hadolint
 #
 #   Tier 2 (every push, heavier 10-30 min):
-#     export-deps → owasp, docker+trivy,
-#     sonarqube (non-blocking)
+#     export-deps → owasp, docker+trivy
 #
 # -- Execution strategy per job --
 #
@@ -32,7 +31,6 @@
 #   prepare-export-deps     |     ✓     | —
 #   security-owasp          |     ✓     | Always (CVSS ≥ 7)
 #   security-docker-trivy   |     ✓     | Always (CRITICAL,HIGH)
-#   sonarqube               |     ✓     | Never (continue-on-error)
 #   pipeline-status         |     ✓     | Single gate
 #
 # -- Pre-commit / CI consistency --
@@ -43,7 +41,6 @@
 #   - Tests, deps scan, OWASP → CI only
 #   - Hadolint (Dockerfile)   → CI only (blocking, .hadolint.yaml)
 #   - Trivy (Docker image)    → CI only
-#   - SonarQube               → CI only (non-blocking)
 # ===================================================
 
 name: CI/CD Pipeline — DevSecOps
@@ -605,93 +602,6 @@ jobs:
           retention-days: 7
 
   # ###########################################################
-  #  SONARQUBE — Post-push monitoring (non-blocking)
-  # ###########################################################
-  # SonarQube CE (single-branch) runs AFTER the push on main.
-  # Non-blocking: monitoring tool for DevSecOps, not a gate.
-  # Trend tracking: coverage, technical debt, code smells.
-  sonarqube:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-    needs: [tests, security-bandit, security-owasp]
-
-    container:
-      image: sonarsource/sonar-scanner-cli:latest
-
-    env:
-      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Download test reports
-        uses: actions/download-artifact@v5
-        with:
-          name: test-reports
-          path: reports/
-
-      - name: Download Bandit report
-        uses: actions/download-artifact@v5
-        with:
-          name: bandit-report
-          path: security-reports/
-
-      - name: Download OWASP reports
-        uses: actions/download-artifact@v5
-        with:
-          name: owasp-dependency-check
-          path: security-reports/dependency-check/
-        continue-on-error: true
-
-      - name: Validate critical artifacts
-        run: |
-          MISSING_CRITICAL=0
-          for report in \
-            "reports/coverage.xml" \
-            "reports/junit.xml" \
-            "security-reports/bandit-report.json"; do
-            if [ -f "${report}" ] && [ -s "${report}" ]; then
-              echo "[OK] ${report}"
-            else
-              echo "[FAIL] CRITICAL artifact missing: ${report}"
-              MISSING_CRITICAL=$((MISSING_CRITICAL + 1))
-            fi
-          done
-
-          for report in \
-            "security-reports/dependency-check/dependency-check-report.html" \
-            "security-reports/dependency-check/dependency-check-report.json"; do
-            if [ -f "${report}" ] && [ -s "${report}" ]; then
-              echo "[OK] ${report}"
-            else
-              echo "[WARN] Optional artifact missing: ${report}"
-            fi
-          done
-
-          if [ ${MISSING_CRITICAL} -ne 0 ]; then
-            echo "::error::${MISSING_CRITICAL} critical artifact(s) missing"
-            exit 1
-          fi
-
-      - name: Run SonarQube analysis
-        run: |
-          sonar-scanner \
-            -Dsonar.projectKey="${{ secrets.SONAR_PROJECT_KEY }}" \
-            -Dsonar.host.url="${{ secrets.SONAR_HOST_URL }}" \
-            -Dsonar.token="${{ secrets.SONAR_TOKEN }}" \
-            -Dsonar.python.coverage.reportPaths=reports/coverage.xml \
-            -Dsonar.junit.reportPaths=reports/junit.xml \
-            -Dsonar.python.bandit.reportPaths=security-reports/bandit-report.json \
-            -Dsonar.dependencyCheck.htmlReportPath=security-reports/dependency-check/dependency-check-report.html \
-            -Dsonar.dependencyCheck.jsonReportPath=security-reports/dependency-check/dependency-check-report.json \
-            -Dsonar.scm.provider=git
-          echo "[OK] SonarQube analysis completed"
-
-  # ###########################################################
   #  PIPELINE STATUS — Single gate
   # ###########################################################
   # Final job aggregating all checks for branch protection.
@@ -710,8 +620,6 @@ jobs:
       - prepare-export-deps
       - security-owasp
       - security-docker-trivy
-      # -- Non-blocking (excluded from failure check) --
-      - sonarqube
 
     steps:
       - name: Check pipeline result
@@ -726,9 +634,8 @@ jobs:
           echo "prepare-export-deps: ${{ needs.prepare-export-deps.result }}"
           echo "security-owasp:     ${{ needs.security-owasp.result }}"
           echo "security-docker-trivy: ${{ needs.security-docker-trivy.result }}"
-          echo "sonarqube:          ${{ needs.sonarqube.result }} (non-blocking)"
 
-          # All jobs except sonarqube must succeed
+          # All jobs must succeed
           FAILED=0
           for result in \
             "${{ needs.tests.result }}" \
