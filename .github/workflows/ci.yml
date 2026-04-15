@@ -675,6 +675,26 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
 
+      # Diagnostic — always print the list of blocking CVEs in readable form,
+      # so failing runs surface package/version/fix info directly in the log.
+      - name: Summarize Trivy CVEs — ${{ matrix.label }}
+        if: always()
+        run: |
+          REPORT="security-reports/trivy-${{ matrix.label }}-report.json"
+          if [ ! -s "${REPORT}" ]; then
+            echo "::warning::Trivy JSON report missing or empty: ${REPORT}"
+            exit 0
+          fi
+          echo "=== Blocking CVEs (CRITICAL/HIGH, fixes available) — ${{ matrix.label }} ==="
+          jq -r '
+            .Results[]?
+            | .Target as $target
+            | .Vulnerabilities[]?
+            | select(.FixedVersion != null and .FixedVersion != "")
+            | "[\(.Severity)] \(.VulnerabilityID)  pkg=\(.PkgName)@\(.InstalledVersion)  fix=\(.FixedVersion)  target=\($target)"
+          ' "${REPORT}" | sort -u
+          echo "=== end ==="
+
       - name: Upload Trivy report — ${{ matrix.label }}
         if: always()
         uses: actions/upload-artifact@v5
