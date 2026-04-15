@@ -204,6 +204,7 @@ jobs:
       - name: Generate sample embeddings (equivalent entrainement)
         env:
           ENVIRONMENT: test
+          PYTHONPATH: "."
         run: |
           mkdir -p reports/embeddings
           uv run python scripts/generate_sample_embeddings.py \
