@@ -1,0 +1,15 @@
+# =============================================================================
+# Trivy Vulnerability Ignore File — HorrorBot
+#
+# Mirrors the accepted risks in suppression.xml (OWASP Dependency-Check).
+# Each suppression must include a justification comment.
+# Reviewed on each pipeline update.
+# =============================================================================
+
+# litellm — transitive dependency of Crawl4AI
+# HorrorBot uses llama-cpp-python directly (no LangChain/LiteLLM).
+# litellm is pulled transitively and never imported, configured, or exposed.
+# The CVEs concern litellm's JWT proxy and config update endpoints which are
+# never instantiated in HorrorBot's architecture.
+CVE-2026-35030
+CVE-2026-35029

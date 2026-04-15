@@ -660,6 +660,7 @@ jobs:
           format: table
           severity: ${{ env.TRIVY_SEVERITY }}
           exit-code: "0"
+          trivyignores: .trivyignore
 
       # Blocking scan — exit-code 1 fails the job on CRITICAL/HIGH
       - name: Trivy scan (JSON, blocking) — ${{ matrix.label }}
@@ -672,6 +673,7 @@ jobs:
           output: security-reports/trivy-${{ matrix.label }}-report.json
           exit-code: "1"
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
       - name: Upload Trivy report — ${{ matrix.label }}
         if: always()
