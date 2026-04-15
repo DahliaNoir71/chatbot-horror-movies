@@ -49,6 +49,7 @@ def _make_stream_router(
             confidence,
             sid,
             direct_text,
+            [],
         )
     return mock, sid
 

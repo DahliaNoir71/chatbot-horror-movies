@@ -345,6 +345,9 @@ class AggregatedFilm(BaseModel):
     # ==========================================================================
     genres: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
+    cast: list[str] = Field(default_factory=list)
+    director: str | None = Field(default=None, max_length=255)
+    writers: list[str] = Field(default_factory=list)
 
     # ==========================================================================
     # Aggregation Metadata
@@ -407,4 +410,10 @@ class AggregatedFilm(BaseModel):
             parts.append(self.overview)
         if self.tagline:
             parts.append(self.tagline)
+        if self.director:
+            parts.append(f"Director: {self.director}")
+        if self.cast:
+            parts.append("Cast: " + ", ".join(self.cast[:5]))
+        if self.keywords:
+            parts.append("Keywords: " + ", ".join(self.keywords[:15]))
         return " ".join(parts)

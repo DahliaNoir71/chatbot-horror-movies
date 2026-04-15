@@ -63,7 +63,7 @@ class UserTokenRequest(BaseModel):
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Username (alphanumeric, underscore, hyphen)",
     )
-    password: str = Field(min_length=8, max_length=100)
+    password: str = Field(min_length=7, max_length=100)
 
 
 class AdminTokenRequest(BaseModel):
@@ -75,7 +75,7 @@ class AdminTokenRequest(BaseModel):
         pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
         description="Email address",
     )
-    password: str = Field(min_length=8, max_length=100)
+    password: str = Field(min_length=7, max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -102,9 +102,9 @@ class RegisterRequest(BaseModel):
         description="Email address",
     )
     password: str = Field(
-        min_length=8,
+        min_length=7,
         max_length=100,
-        description="Password (min 8 characters)",
+        description="Password (min 7 characters)",
     )
 
 
@@ -236,6 +236,37 @@ class SearchResponse(BaseModel):
 # =============================================================================
 
 
+class ChatSourceDocument(BaseModel):
+    """A retrieved document returned as context source."""
+
+    title: str = Field(description="Film title")
+    year: int | None = Field(default=None, description="Release year")
+    similarity_score: float = Field(description="Vector similarity (0-1)")
+    rerank_score: float | None = Field(
+        default=None,
+        description="Cross-encoder rerank score",
+    )
+
+
+class ChatTimings(BaseModel):
+    """Pipeline stage durations in milliseconds."""
+
+    classification_ms: float = Field(description="Intent classification duration")
+    retrieval_ms: float | None = Field(
+        default=None,
+        description="Vector retrieval duration",
+    )
+    rerank_ms: float | None = Field(
+        default=None,
+        description="Cross-encoder reranking duration",
+    )
+    generation_ms: float | None = Field(
+        default=None,
+        description="LLM generation duration",
+    )
+    total_ms: float = Field(description="Total end-to-end duration")
+
+
 class ChatRequest(BaseModel):
     """Chat endpoint request schema."""
 
@@ -253,12 +284,20 @@ class ChatResponse(BaseModel):
     intent: str = Field(description="Classified intent label")
     confidence: float = Field(description="Classifier confidence (0.0-1.0)")
     session_id: str = Field(description="Session UUID for subsequent requests")
+    sources: list[ChatSourceDocument] = Field(
+        default_factory=list,
+        description="Retrieved documents used as context",
+    )
+    timings: ChatTimings | None = Field(default=None, description="Pipeline stage durations")
+    token_usage: dict[str, int] = Field(
+        default_factory=dict,
+        description="LLM token usage (prompt_tokens, completion_tokens)",
+    )
 
 
 class StreamChunk(BaseModel):
     """SSE stream chunk schema.
 
-    Serialized as JSON in each SSE data field.
     type='chunk' for text fragments, type='done' for final metadata.
     """
 
@@ -267,3 +306,12 @@ class StreamChunk(BaseModel):
     intent: str | None = Field(default=None, description="Intent (for type='done')")
     confidence: float | None = Field(default=None, description="Confidence (for type='done')")
     session_id: str | None = Field(default=None, description="Session ID (for type='done')")
+    sources: list[ChatSourceDocument] | None = Field(
+        default=None,
+        description="Retrieved sources (for type='done')",
+    )
+    timings: ChatTimings | None = Field(default=None, description="Timings (for type='done')")
+    token_usage: dict[str, int] | None = Field(
+        default=None,
+        description="Token usage (for type='done')",
+    )

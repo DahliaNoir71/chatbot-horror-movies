@@ -142,20 +142,18 @@ class ClassifierSettings(BaseSettings):
 class EmbeddingSettings(BaseSettings):
     """Embedding model configuration (sentence-transformers).
 
-    Defaults match existing constants in embedding_service.py
-    for backward compatibility.
+    All fields are required from environment — no defaults
+    (per project convention for AI settings).
 
     Attributes:
         model_name: Sentence-transformer model name.
+        revision: HuggingFace commit hash to pin the model revision.
         dimensions: Embedding vector dimensions (must match pgvector schema).
         batch_size: Batch size for bulk encoding.
     """
 
     model_name: str = Field(alias="EMBEDDING_MODEL_NAME")
-    revision: str = Field(
-        default="c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
-        alias="EMBEDDING_REVISION",
-    )
+    revision: str = Field(alias="EMBEDDING_REVISION")
     dimensions: int = Field(alias="EMBEDDING_DIMENSIONS")
     batch_size: int = Field(alias="EMBEDDING_BATCH_SIZE")
 

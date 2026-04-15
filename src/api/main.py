@@ -59,6 +59,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging()
     _verify_database_connection()
     _seed_admin_users()
+    _seed_chatbot_users()
     _preload_models()
     yield
 
@@ -90,6 +91,38 @@ def _seed_admin_users() -> None:
                 )
                 repo.create(admin)
                 logger.info("Seeded admin user: %s", email)
+        session.commit()
+    finally:
+        session.close()
+
+
+def _seed_chatbot_users() -> None:
+    """Seed chatbot users from AUTH_DEMO_USERS env var on startup.
+
+    Format: "user1:pass1,user2:pass2" — synthetic email "{user}@horrorbot.local"
+    is generated. Skips usernames already present in the database.
+    """
+    import logging
+
+    from src.api.database import get_session_factory
+
+    logger = logging.getLogger("horrorbot.seed")
+    demo_users = settings.security.demo_users
+    if not demo_users:
+        return
+
+    session = get_session_factory()()
+    try:
+        repo = ChatbotUserRepository(session)
+        for username, password in demo_users.items():
+            if not repo.username_exists(username):
+                user = ChatbotUser(
+                    username=username,
+                    email=f"{username}@horrorbot.local",
+                    password_hash=hash_password(password),
+                )
+                repo.create(user)
+                logger.info("Seeded chatbot user: %s", username)
         session.commit()
     finally:
         session.close()

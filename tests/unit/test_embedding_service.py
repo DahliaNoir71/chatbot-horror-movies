@@ -13,10 +13,10 @@ import pytest
 from pytest import approx
 
 from src.services.embedding.embedding_service import (
-    DEFAULT_MODEL,
     EMBEDDING_DIMENSION,
     EmbeddingService,
 )
+from src.settings import settings
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +162,9 @@ class TestEmbeddingServiceProperties:
 
     @staticmethod
     def test_default_model_name():
-        """Default model is all-MiniLM-L6-v2."""
+        """Default model name comes from settings.embedding.model_name."""
         service = EmbeddingService()
-        assert service.model_name == DEFAULT_MODEL
+        assert service.model_name == settings.embedding.model_name
 
     @staticmethod
     def test_model_lazy_loaded():

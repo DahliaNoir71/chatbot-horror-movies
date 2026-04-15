@@ -43,7 +43,8 @@ class RAGResult:
         intent: The intent that triggered this pipeline.
         documents: Retrieved documents used as context.
         usage: Token usage stats from LLM.
-        retrieval_time_ms: Time spent on document retrieval.
+        retrieval_time_ms: Time spent on vector retrieval.
+        rerank_time_ms: Time spent on cross-encoder reranking.
         generation_time_ms: Time spent on LLM generation.
     """
 
@@ -52,6 +53,7 @@ class RAGResult:
     documents: list[RetrievedDocument] = field(default_factory=list)
     usage: dict[str, Any] = field(default_factory=dict)
     retrieval_time_ms: float = 0.0
+    rerank_time_ms: float = 0.0
     generation_time_ms: float = 0.0
 
 
@@ -105,8 +107,11 @@ class RAGPipeline:
         """
         retrieval_start = time.perf_counter()
         documents = self._retriever.retrieve(user_message)
-        documents = self._reranker.rerank(user_message, documents)
         retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
+
+        rerank_start = time.perf_counter()
+        documents = self._reranker.rerank(user_message, documents)
+        rerank_ms = (time.perf_counter() - rerank_start) * 1000
 
         messages = RAGPromptBuilder.build(
             intent=intent,
@@ -123,12 +128,22 @@ class RAGPipeline:
             self._record_llm_metrics(result.get("usage", {}), gen_ms / 1000)
             LLM_REQUESTS_TOTAL.labels(status="success").inc()
 
+            self._logger.info(
+                f"RAG pipeline complete: "
+                f"retrieval={round(retrieval_ms)}ms, "
+                f"rerank={round(rerank_ms)}ms ({len(documents)} docs), "
+                f"generation={round(gen_ms)}ms, "
+                f"tokens={result.get('usage', {}).get('completion_tokens', '?')}, "
+                f"total={round(retrieval_ms + rerank_ms + gen_ms)}ms"
+            )
+
             return RAGResult(
                 text=result["text"],
                 intent=intent,
                 documents=documents,
                 usage=result.get("usage", {}),
                 retrieval_time_ms=retrieval_ms,
+                rerank_time_ms=rerank_ms,
                 generation_time_ms=gen_ms,
             )
         except Exception:
@@ -155,6 +170,13 @@ class RAGPipeline:
         """
         documents = self._retriever.retrieve(user_message)
         documents = self._reranker.rerank(user_message, documents)
+
+        self._logger.info(
+            f"RAG stream retrieval: "
+            f"{len(documents)} docs after rerank "
+            f"(top_similarity={round(documents[0].similarity, 3) if documents else 'N/A'}, "
+            f"top_rerank={round(documents[0].rerank_score, 3) if documents and documents[0].rerank_score else 'N/A'})"
+        )
 
         messages = RAGPromptBuilder.build(
             intent=intent,

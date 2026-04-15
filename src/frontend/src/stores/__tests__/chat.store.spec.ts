@@ -22,6 +22,7 @@ describe('Chat Store', () => {
         intent: 'recommendation',
         confidence: 0.95,
         session_id: 'session-1',
+        sources: [],
       })
 
       const store = useChatStore()
@@ -48,6 +49,7 @@ describe('Chat Store', () => {
           intent: 'info',
           confidence: 0.9,
           session_id: 'session-1',
+          sources: [],
         })
       })
 
@@ -75,6 +77,7 @@ describe('Chat Store', () => {
         intent: 'info',
         confidence: 0.9,
         session_id: 'session-abc',
+        sources: [],
       })
 
       const store = useChatStore()
@@ -141,6 +144,7 @@ describe('Chat Store', () => {
         intent: 'info',
         confidence: 0.9,
         session_id: 'session-1',
+        sources: [],
       })
 
       const store = useChatStore()
@@ -162,6 +166,7 @@ describe('Chat Store', () => {
         intent: 'info',
         confidence: 0.9,
         session_id: 'session-1',
+        sources: [],
       })
 
       const store = useChatStore()
@@ -187,6 +192,7 @@ describe('Chat Store', () => {
         intent: 'info',
         confidence: 0.9,
         session_id: 'session-1',
+        sources: [],
       })
 
       const store = useChatStore()
@@ -205,6 +211,7 @@ describe('Chat Store', () => {
         intent: 'info',
         confidence: 0.9,
         session_id: 'session-1',
+        sources: [],
       })
 
       const store = useChatStore()

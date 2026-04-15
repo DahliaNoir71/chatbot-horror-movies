@@ -84,6 +84,7 @@ class RerankerService:
         for score, doc in scored:
             if score < self._min_score:
                 continue
+            doc.rerank_score = float(score)
             results.append(doc)
             if len(results) >= self._top_k:
                 break

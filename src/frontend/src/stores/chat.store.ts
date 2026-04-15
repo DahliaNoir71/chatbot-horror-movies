@@ -46,6 +46,9 @@ export const useChatStore = defineStore('chat', () => {
         content: response.response,
         intent: response.intent,
         confidence: response.confidence,
+        sources: response.sources,
+        timings: response.timings,
+        token_usage: response.token_usage,
         timestamp: new Date(),
       }
       messages.value.push(assistantMessage)
@@ -103,6 +106,9 @@ export const useChatStore = defineStore('chat', () => {
             msg.intent = event.intent
             msg.confidence = event.confidence
           }
+          msg.sources = event.sources ?? undefined
+          msg.timings = event.timings ?? undefined
+          msg.token_usage = event.token_usage ?? undefined
           break
         case 'error':
           error.value = event.content ?? 'Erreur streaming'

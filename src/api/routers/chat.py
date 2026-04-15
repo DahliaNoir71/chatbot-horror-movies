@@ -13,7 +13,13 @@ from sse_starlette.sse import EventSourceResponse
 
 from src.api.dependencies.auth import CurrentUser
 from src.api.dependencies.rate_limit import check_rate_limit
-from src.api.schemas import ChatRequest, ChatResponse, StreamChunk
+from src.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    ChatSourceDocument,
+    ChatTimings,
+    StreamChunk,
+)
 from src.etl.utils.logger import setup_logger
 from src.monitoring.metrics import (
     ACTIVE_SESSIONS,
@@ -104,11 +110,32 @@ def chat(
         session_history = get_session_manager().get_history_as_messages(result.session_id)
         SESSION_MESSAGE_COUNT.observe(len(session_history))
 
+        sources = [
+            ChatSourceDocument(
+                title=doc.metadata.get("title", "Unknown"),
+                year=doc.metadata.get("year"),
+                similarity_score=round(doc.similarity, 4),
+                rerank_score=(round(doc.rerank_score, 4) if doc.rerank_score is not None else None),
+            )
+            for doc in result.documents
+        ]
+
+        timings = ChatTimings(
+            classification_ms=round(result.classification_ms, 1),
+            retrieval_ms=round(result.retrieval_ms, 1) if result.retrieval_ms else None,
+            rerank_ms=round(result.rerank_ms, 1) if result.rerank_ms else None,
+            generation_ms=round(result.generation_ms, 1) if result.generation_ms else None,
+            total_ms=round(result.total_ms, 1),
+        )
+
         return ChatResponse(
             response=result.text,
             intent=result.intent,
             confidence=round(result.confidence, 4),
             session_id=str(result.session_id),
+            sources=sources,
+            timings=timings,
+            token_usage=result.usage,
         )
 
     except TimeoutError:
@@ -149,7 +176,7 @@ def chat_stream(
 
     start = time.perf_counter()
     try:
-        token_iter, intent, confidence, sid, direct_text = intent_router.handle_stream(
+        token_iter, intent, confidence, sid, direct_text, documents = intent_router.handle_stream(
             user_message=request.message,
             session_id=session_id,
             user_id=user.sub,
@@ -196,11 +223,26 @@ def chat_stream(
             CHAT_REQUEST_DURATION.labels(intent=intent).observe(duration)
             ACTIVE_SESSIONS.set(session_mgr.active_count())
 
+            sources = [
+                ChatSourceDocument(
+                    title=doc.metadata.get("title", "Unknown"),
+                    year=doc.metadata.get("year"),
+                    similarity_score=round(doc.similarity, 4),
+                    rerank_score=(
+                        round(doc.rerank_score, 4) if doc.rerank_score is not None else None
+                    ),
+                )
+                for doc in documents
+            ] or None
+
             done = StreamChunk(
                 type="done",
                 intent=intent,
                 confidence=round(confidence, 4),
                 session_id=str(sid),
+                sources=sources,
+                timings=None,
+                token_usage=None,
             )
             yield json.dumps(done.model_dump(exclude_none=True))
 

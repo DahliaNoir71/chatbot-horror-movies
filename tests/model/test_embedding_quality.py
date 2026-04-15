@@ -1,10 +1,10 @@
 """T8 — Embedding quality tests using cosine similarity.
 
-Validates that the real all-MiniLM-L6-v2 model produces semantically
+Validates that the configured embedding model produces semantically
 coherent embeddings: similar queries should be close, dissimilar far apart.
 
-Requires: ``ml`` dependency group (sentence-transformers, torch).
-Run with: ``uv run --group ml pytest tests/model/test_embedding_quality.py -m model -v``
+Requires: ``ml-api`` dependency group (sentence-transformers, torch).
+Run with: ``uv run --group ml-api pytest tests/model/test_embedding_quality.py -m model -v``
 """
 
 from __future__ import annotations

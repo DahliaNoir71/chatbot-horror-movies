@@ -128,8 +128,8 @@ class TestRAGPipelineExecute:
         mock_perf, sample_documents, mock_llm_service
     ):
         """Timing measurements use perf_counter for retrieval and generation."""
-        # Sequence: retrieval_start=0.0, retrieval_end=0.050, gen_start=0.055, gen_end=0.255
-        mock_perf.side_effect = [0.0, 0.050, 0.055, 0.255]
+        # Sequence: retrieval_start=0.0, retrieval_end=0.050, rerank_start=0.052, rerank_end=0.060, gen_start=0.065, gen_end=0.265
+        mock_perf.side_effect = [0.0, 0.050, 0.052, 0.060, 0.065, 0.265]
         mock_retriever = MagicMock()
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)

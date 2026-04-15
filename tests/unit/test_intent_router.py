@@ -113,7 +113,7 @@ class TestIntentRouterStream:
         classifier = _make_classifier("conversational")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text = router.handle_stream(
+        iterator, intent, _, _, direct_text, _ = router.handle_stream(
             "Bonjour", session_id=None, user_id="user1"
         )
 
@@ -129,7 +129,7 @@ class TestIntentRouterStream:
         classifier = _make_classifier("needs_database")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text = router.handle_stream(
+        iterator, intent, _, _, direct_text, _ = router.handle_stream(
             "Recommande un film", session_id=None, user_id="user1"
         )
 

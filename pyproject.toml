@@ -111,6 +111,14 @@ ml-api = [
     "llama-cpp-python>=0.3.0,<0.4",
     "huggingface-hub>=0.36.0",
     "hf-xet>=1.2.0",
+
+    # Spark (requis pour pipeline ETL Spark dans le container api)
+    "pyspark>=4.0.1",
+    "py4j>=0.10.9.9",
+
+    # Rotten Tomatoes scraping (requis pour pipeline ETL RT dans le container api)
+    "playwright>=1.57.0",
+    "patchright>=1.56.0",
 ]
 
 # --- Dépendances ML lourdes complètes (local uniquement, PAS en CI/Docker) ---
@@ -122,14 +130,8 @@ ml = [
     "scipy>=1.16.3",
     "scikit-learn>=1.8.0",
 
-    # Browser Automation (heavy)
-    "playwright>=1.57.0",
-    "patchright>=1.56.0",
+    # Browser Automation (heavy) — playwright+patchright déjà dans ml-api
     "selenium>=4.38.0",
-
-    # Spark (heavy)
-    "pyspark>=4.0.1",
-    "py4j>=0.10.9.9",
 
     # IMDB SQLite generator (downloads TSV datasets)
     "imdb-sqlite>=2.0.0,<3.0",

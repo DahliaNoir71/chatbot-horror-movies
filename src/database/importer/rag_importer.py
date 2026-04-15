@@ -30,6 +30,11 @@ logger = setup_logger("database.importer.rag")
 DEFAULT_INPUT_PATH = Path("data/processed/rag_films.json")
 BATCH_SIZE = 50
 
+# Limits for content enrichment (balance signal vs dilution)
+CONTENT_CAST_LIMIT = 5
+CONTENT_KEYWORDS_LIMIT = 15
+METADATA_CAST_LIMIT = 10
+
 
 # =============================================================================
 # DATA STRUCTURES
@@ -62,6 +67,8 @@ class RAGImportResult:
         documents_created: Total documents inserted.
         overviews_count: Film overview documents.
         consensus_count: Critics consensus documents.
+        metadata_only_count: Header-only documents (no overview/consensus).
+        films_skipped: Films producing zero documents.
         duration_seconds: Total execution time.
         errors: List of error messages.
     """
@@ -70,6 +77,8 @@ class RAGImportResult:
     documents_created: int = 0
     overviews_count: int = 0
     consensus_count: int = 0
+    metadata_only_count: int = 0
+    films_skipped: int = 0
     duration_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
 
@@ -163,6 +172,11 @@ class RAGImporter:
         documents = self._prepare_documents(films)
         result.overviews_count = self._count_by_type(documents, "film_overview")
         result.consensus_count = self._count_by_type(documents, "critics_consensus")
+        result.metadata_only_count = self._count_by_type(documents, "film_metadata")
+        film_ids_with_docs = {d.source_id for d in documents}
+        result.films_skipped = sum(
+            1 for f in films if f.get("tmdb_id", 0) not in film_ids_with_docs
+        )
 
         # Stage 3: Preload embedding model
         self._logger.info("Stage 3: Loading embedding model...")
@@ -228,11 +242,15 @@ class RAGImporter:
     def _film_to_documents(self, film: dict[str, Any]) -> list[RAGDocument]:
         """Convert film to RAG documents.
 
+        Falls back to a header-only metadata document when neither
+        overview nor critics consensus is available, so films extracted
+        from TMDB without a synopsis still reach the vector store.
+
         Args:
             film: Film dictionary.
 
         Returns:
-            List of documents (overview and/or consensus).
+            List of documents (overview, consensus, or metadata fallback).
         """
         documents: list[RAGDocument] = []
         tmdb_id = film.get("tmdb_id", 0)
@@ -246,18 +264,82 @@ class RAGImporter:
         if consensus_doc:
             documents.append(consensus_doc)
 
+        if not documents:
+            fallback_doc = self._create_metadata_doc(film, tmdb_id, metadata)
+            if fallback_doc:
+                documents.append(fallback_doc)
+
         return documents
 
+    @classmethod
+    def _create_metadata_doc(
+        cls,
+        film: dict[str, Any],
+        tmdb_id: int,
+        metadata: dict[str, Any],
+    ) -> RAGDocument | None:
+        """Create a header-only document for films lacking text content.
+
+        Used when overview and consensus are both empty: keeps the film
+        retrievable via its discriminative metadata (genres, keywords,
+        director, cast) rather than dropping it from the index.
+
+        Args:
+            film: Film dictionary.
+            tmdb_id: TMDB identifier.
+            metadata: Document metadata.
+
+        Returns:
+            RAGDocument or None if the header itself is empty.
+        """
+        header = cls._build_header(film)
+        if not header.strip():
+            return None
+
+        return RAGDocument(
+            content=header,
+            source_type="film_metadata",
+            source_id=tmdb_id,
+            metadata=metadata,
+        )
+
     @staticmethod
+    def _build_header(film: dict[str, Any]) -> str:
+        """Build shared header block enriching every RAG document.
+
+        Includes genres, keywords, director and top cast — the
+        discriminative signals for horror sub-genre retrieval.
+
+        Args:
+            film: Film dictionary.
+
+        Returns:
+            Multi-line header string (no trailing newline).
+        """
+        title = film.get("title", "")
+        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
+        genres = ", ".join(film.get("genres", []))
+        keywords = ", ".join(film.get("keywords", [])[:CONTENT_KEYWORDS_LIMIT])
+        director = film.get("director")
+        cast = ", ".join(film.get("cast", [])[:CONTENT_CAST_LIMIT])
+
+        lines = [f"{title} ({year}) - Genres: {genres}"]
+        if keywords:
+            lines.append(f"Keywords: {keywords}")
+        if director:
+            lines.append(f"Director: {director}")
+        if cast:
+            lines.append(f"Cast: {cast}")
+        return "\n".join(lines)
+
+    @classmethod
     def _create_overview_doc(
+        cls,
         film: dict[str, Any],
         tmdb_id: int,
         metadata: dict[str, Any],
     ) -> RAGDocument | None:
         """Create document from film overview.
-
-        Content is enriched with title, year, genres, and tagline
-        to improve embedding quality and retrieval relevance.
 
         Args:
             film: Film dictionary.
@@ -271,11 +353,7 @@ class RAGImporter:
         if not overview or not overview.strip():
             return None
 
-        title = film.get("title", "")
-        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
-        genres = ", ".join(film.get("genres", []))
-
-        content = f"{title} ({year}) - Genres: {genres}\n{overview.strip()}"
+        content = f"{cls._build_header(film)}\n{overview.strip()}"
 
         tagline = film.get("tagline")
         if tagline and tagline.strip():
@@ -288,16 +366,14 @@ class RAGImporter:
             metadata=metadata,
         )
 
-    @staticmethod
+    @classmethod
     def _create_consensus_doc(
+        cls,
         film: dict[str, Any],
         tmdb_id: int,
         metadata: dict[str, Any],
     ) -> RAGDocument | None:
         """Create document from critics consensus.
-
-        Content is enriched with title and year to improve
-        embedding quality and retrieval relevance.
 
         Args:
             film: Film dictionary.
@@ -311,10 +387,7 @@ class RAGImporter:
         if not consensus or not consensus.strip():
             return None
 
-        title = film.get("title", "")
-        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
-
-        content = f"{title} ({year}) - Critique: {consensus.strip()}"
+        content = f"{cls._build_header(film)}\nCritique: {consensus.strip()}"
 
         return RAGDocument(
             content=content,
@@ -327,6 +400,10 @@ class RAGImporter:
     def _build_metadata(film: dict[str, Any]) -> dict[str, Any]:
         """Build metadata dictionary for document.
 
+        Exposes fields used by the retriever for filtering
+        (tomatometer_state, aggregated_score) and by the
+        frontend for display (cast, director, runtime).
+
         Args:
             film: Film dictionary.
 
@@ -337,8 +414,16 @@ class RAGImporter:
             "title": film.get("title", ""),
             "year": film.get("release_date", "")[:4] if film.get("release_date") else None,
             "genres": film.get("genres", []),
+            "keywords": film.get("keywords", []),
+            "cast": film.get("cast", [])[:METADATA_CAST_LIMIT],
+            "director": film.get("director"),
+            "writers": film.get("writers", []),
+            "runtime": film.get("runtime"),
             "vote_average": film.get("vote_average", 0),
             "tomatometer": film.get("tomatometer_score"),
+            "tomatometer_state": film.get("tomatometer_state"),
+            "imdb_rating": film.get("imdb_rating"),
+            "aggregated_score": film.get("aggregated_score"),
         }
 
     @staticmethod
@@ -534,6 +619,8 @@ class RAGImporter:
         self._logger.info(f"Documents created: {result.documents_created}")
         self._logger.info(f"  - Overviews: {result.overviews_count}")
         self._logger.info(f"  - Consensus: {result.consensus_count}")
+        self._logger.info(f"  - Metadata-only: {result.metadata_only_count}")
+        self._logger.info(f"Films skipped (no content): {result.films_skipped}")
         self._logger.info(f"Duration: {result.duration_seconds:.1f}s")
 
 

@@ -1,6 +1,9 @@
 """Embedding generation service using sentence-transformers.
 
 Generates 384-dimensional vectors for RAG semantic search.
+Model name is sourced from settings.embedding.model_name (env var
+EMBEDDING_MODEL_NAME), dimension from EMBEDDING_DIMENSIONS — both
+must match the pgvector schema.
 """
 
 from functools import lru_cache
@@ -9,10 +12,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from src.etl.utils.logger import setup_logger
+from src.settings import settings
 
-# Model producing 384-dim embeddings (matches pgvector schema)
-DEFAULT_MODEL = "all-MiniLM-L6-v2"
-EMBEDDING_DIMENSION = 384
+EMBEDDING_DIMENSION = settings.embedding.dimensions
 
 logger = setup_logger("services.embedding")
 
@@ -20,21 +22,22 @@ logger = setup_logger("services.embedding")
 class EmbeddingService:
     """Service for generating text embeddings.
 
-    Uses sentence-transformers with all-MiniLM-L6-v2 model
-    producing 384-dimensional vectors for pgvector storage.
+    Wraps a sentence-transformers model producing fixed-size vectors
+    for pgvector storage. The model is lazy-loaded on first use.
 
     Attributes:
         model_name: Name of the sentence-transformer model.
         _model: Lazy-loaded transformer model.
     """
 
-    def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
         """Initialize embedding service.
 
         Args:
-            model_name: Sentence-transformer model name.
+            model_name: Sentence-transformer model name. Defaults to
+                settings.embedding.model_name (sourced from .env).
         """
-        self._model_name = model_name
+        self._model_name = model_name or settings.embedding.model_name
         self._model = None
         self._logger = logger
 

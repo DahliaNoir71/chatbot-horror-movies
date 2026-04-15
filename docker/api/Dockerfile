@@ -14,7 +14,7 @@ WORKDIR /app
 
 # ── System dependencies ──────────────────────────────────────────────────────
 # libpq-dev: psycopg2, build-essential+cmake: llama-cpp-python fallback build,
-# curl: healthcheck
+# curl: healthcheck, openjdk-21-jre-headless: pyspark runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libpq-dev \
@@ -22,15 +22,20 @@ RUN apt-get update && \
         cmake \
         curl \
         musl \
+        openjdk-21-jre-headless \
     && ln -sf /usr/lib/x86_64-linux-musl/libc.so /usr/lib/libc.musl-x86_64.so.1 \
     && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # ── Install uv ──────────────────────────────────────────────────────────────
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # ── Dependencies (cached layer) ─────────────────────────────────────────────
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --group ml-api
+# Install deps + download Playwright chromium (needed by RT scraper) in one layer
+RUN uv sync --frozen --group ml-api && \
+    uv run playwright install --with-deps chromium
 
 # ── Application code ─────────────────────────────────────────────────────────
 COPY src/ src/

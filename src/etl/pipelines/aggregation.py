@@ -85,6 +85,20 @@ JOIN keywords k ON fk.keyword_id = k.id
 GROUP BY fk.film_id
 """
 
+# SQL query to fetch ALL credits in bulk (eliminates N+1)
+CREDITS_BULK_QUERY = """
+SELECT
+    film_id,
+    array_agg(person_name ORDER BY display_order)
+        FILTER (WHERE role_type = 'actor') AS cast_list,
+    array_agg(person_name ORDER BY display_order)
+        FILTER (WHERE role_type = 'director') AS directors,
+    array_agg(person_name ORDER BY display_order)
+        FILTER (WHERE role_type = 'writer') AS writers
+FROM credits
+GROUP BY film_id
+"""
+
 
 # =============================================================================
 # PIPELINE RESULT
@@ -254,11 +268,17 @@ class AggregationPipeline:
         """
         genres_map = self._load_all_genres(session)
         keywords_map = self._load_all_keywords(session)
+        credits_map = self._load_all_credits(session)
 
         for film in films:
             film_id = film["id"]
             film["genres"] = genres_map.get(film_id, [])
             film["keywords"] = keywords_map.get(film_id, [])
+            credit = credits_map.get(film_id, {})
+            film["cast"] = credit.get("cast", [])
+            directors = credit.get("directors", [])
+            film["director"] = directors[0] if directors else None
+            film["writers"] = credit.get("writers", [])
 
         return films
 
@@ -287,6 +307,26 @@ class AggregationPipeline:
         """
         result = session.execute(text(KEYWORDS_BULK_QUERY))
         return {row[0]: list(row[1]) for row in result.fetchall()}
+
+    @staticmethod
+    def _load_all_credits(session: Session) -> dict[int, dict[str, list[str]]]:
+        """Load all credits (cast, directors, writers) in a single query.
+
+        Args:
+            session: Database session.
+
+        Returns:
+            Mapping of film_id to {cast, directors, writers} lists.
+        """
+        result = session.execute(text(CREDITS_BULK_QUERY))
+        return {
+            row[0]: {
+                "cast": list(row[1]) if row[1] else [],
+                "directors": list(row[2]) if row[2] else [],
+                "writers": list(row[3]) if row[3] else [],
+            }
+            for row in result.fetchall()
+        }
 
     # =========================================================================
     # Film Processing
@@ -340,7 +380,7 @@ class AggregationPipeline:
         try:
             return AggregatedFilm(
                 tmdb_id=film_dict["tmdb_id"],
-                imdb_id=film_dict.get("imdb_id"),
+                imdb_id=film_dict.get("imdb_id") or None,
                 title=film_dict["title"],
                 original_title=film_dict.get("original_title"),
                 release_date=film_dict.get("release_date"),
@@ -360,6 +400,9 @@ class AggregationPipeline:
                 revenue=film_dict.get("revenue", 0),
                 genres=film_dict.get("genres", []),
                 keywords=film_dict.get("keywords", []),
+                cast=film_dict.get("cast", []),
+                director=film_dict.get("director"),
+                writers=film_dict.get("writers", []),
                 tomatometer_score=film_dict.get("tomatometer_score"),
                 tomatometer_state=film_dict.get("tomatometer_state"),
                 audience_score=film_dict.get("audience_score"),

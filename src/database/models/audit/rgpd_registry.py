@@ -6,7 +6,7 @@ Tracks data processing activities as required by GDPR Article 30.
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean,
+    ARRAY,
     DateTime,
     Integer,
     String,
@@ -22,17 +22,18 @@ class RGPDProcessingRegistry(Base):
     """RGPD processing registry entry.
 
     Documents data processing activities for GDPR compliance.
+    Schema aligned with docker/init-db/02_horrorbot_schema.sql.
 
     Attributes:
         id: Primary key.
         processing_name: Name of the processing activity.
-        purpose: Purpose of data processing.
+        processing_purpose: Purpose of data processing.
         data_categories: Categories of personal data processed.
         data_subjects: Categories of data subjects.
         recipients: Data recipients.
         retention_period: Data retention duration.
         legal_basis: Legal basis for processing.
-        is_active: Whether processing is currently active.
+        security_measures: Description of security measures.
     """
 
     __tablename__ = "rgpd_processing_registry"
@@ -41,12 +42,12 @@ class RGPDProcessingRegistry(Base):
 
     # Processing identification
     processing_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    processing_purpose: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Data description
-    data_categories: Mapped[str] = mapped_column(Text, nullable=False)
-    data_subjects: Mapped[str] = mapped_column(String(255), nullable=False)
-    recipients: Mapped[str | None] = mapped_column(Text)
+    # Data description (PostgreSQL TEXT[] arrays)
+    data_categories: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+    data_subjects: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+    recipients: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
 
     # Retention and legal
     retention_period: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -54,9 +55,6 @@ class RGPDProcessingRegistry(Base):
 
     # Security measures
     security_measures: Mapped[str | None] = mapped_column(Text)
-
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -73,7 +71,4 @@ class RGPDProcessingRegistry(Base):
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"<RGPDProcessingRegistry(id={self.id}, "
-            f"name='{self.processing_name}', active={self.is_active})>"
-        )
+        return f"<RGPDProcessingRegistry(id={self.id}, name='{self.processing_name}')>"

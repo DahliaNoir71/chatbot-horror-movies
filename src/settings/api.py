@@ -59,7 +59,7 @@ class SecuritySettings(BaseSettings):
         alias="ADMIN_ALLOWED_EMAILS",
     )
     admin_default_password: str = Field(
-        default="sp-thx1138",
+        default="thx1138",
         alias="ADMIN_DEFAULT_PASSWORD",
     )
 

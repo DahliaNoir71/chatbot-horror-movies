@@ -5,7 +5,7 @@ Since all models are pre-trained (zero-shot), embedding generation from
 text data is the functional equivalent of training.
 
 This script:
-1. Loads the embedding model (all-MiniLM-L6-v2)
+1. Loads the embedding model (configured via EMBEDDING_MODEL_NAME)
 2. Generates embeddings for all fixture texts (individual + batch)
 3. Validates dimension, normalization, batch consistency, non-zero output
 4. Computes similarity/dissimilarity pair scores

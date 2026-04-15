@@ -17,7 +17,7 @@ export interface LoginResponse {
 export interface RegisterRequest {
   username: string // 3-50 chars, alphanumeric + _ -
   email: string // Valid email address
-  password: string // Min 8 chars
+  password: string // Min 7 chars
 }
 
 export interface RegisterResponse {

@@ -24,7 +24,7 @@
 
 - ✅ **Pipeline ETL multi-sources** : TMDB API, Rotten Tomatoes (scraping), Kaggle CSV, IMDB SQLite, Apache Spark
 - ✅ **Base vectorielle** : PostgreSQL 16 + pgvector pour recherche sémantique
-- ✅ **Embeddings** : sentence-transformers (all-MiniLM-L6-v2)
+- ✅ **Embeddings** : sentence-transformers (paraphrase-multilingual-MiniLM-L12-v2, multilingue FR/EN)
 - ✅ **LLM local** : Qwen2.5-7B-Instruct (Q5_K_M) via llama-cpp-python
 - ✅ **Intent Classifier** : DeBERTa-v3 zero-shot (routage intelligent des requêtes)
 - ✅ **Pipeline RAG** : Retriever pgvector + prompt builder + LLM (Qwen2.5-7B-Instruct)
@@ -303,7 +303,7 @@ npm run test:e2e
 
 - **llama-cpp-python** : LLM local (Qwen2.5-7B-Instruct Q5_K_M via GGUF)
 - **transformers** : Intent Classifier (DeBERTa-v3 zero-shot)
-- **sentence-transformers** : Embeddings (all-MiniLM-L6-v2)
+- **sentence-transformers** : Embeddings (paraphrase-multilingual-MiniLM-L12-v2)
 
 ### ETL
 

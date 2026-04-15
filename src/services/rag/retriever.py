@@ -43,6 +43,7 @@ class RetrievedDocument:
         source_id: TMDB film ID.
         metadata: JSONB metadata (title, year, genres, etc.).
         similarity: Cosine similarity score (0.0-1.0).
+        rerank_score: Cross-encoder score attached after reranking.
     """
 
     id: UUID
@@ -51,6 +52,7 @@ class RetrievedDocument:
     source_id: int
     metadata: dict[str, Any]
     similarity: float
+    rerank_score: float | None = None
 
 
 # =============================================================================

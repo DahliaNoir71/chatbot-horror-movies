@@ -38,9 +38,9 @@ function validate(): boolean {
 
   if (!password.value) {
     errors.value.password = 'Le mot de passe est requis'
-  } else if (password.value.length < 8) {
+  } else if (password.value.length < 7) {
     errors.value.password =
-      'Le mot de passe doit contenir au moins 8 caractères'
+      'Le mot de passe doit contenir au moins 7 caractères'
   } else {
     errors.value.password = null
   }

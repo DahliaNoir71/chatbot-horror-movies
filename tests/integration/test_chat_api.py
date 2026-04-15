@@ -108,7 +108,7 @@ class TestChatSchema:
             )
 
         body = resp.json()
-        assert set(body.keys()) == {"response", "intent", "confidence", "session_id"}
+        assert set(body.keys()) == {"response", "intent", "confidence", "session_id", "sources", "timings", "token_usage"}
         assert isinstance(body["confidence"], float)
         assert 0.0 <= body["confidence"] <= 1.0
 

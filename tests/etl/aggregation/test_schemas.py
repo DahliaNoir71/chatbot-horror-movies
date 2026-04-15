@@ -488,3 +488,67 @@ class TestAggregatedFilm:
         """Test aggregated_score must be 0-10."""
         with pytest.raises(ValidationError):
             AggregatedFilm(tmdb_id=1, title="Test", aggregated_score=11.0)
+
+    @staticmethod
+    def test_credits_fields_defaults() -> None:
+        """Test cast, director, writers default to empty/None."""
+        film = AggregatedFilm(tmdb_id=1, title="Test")
+        assert film.cast == []
+        assert film.director is None
+        assert film.writers == []
+
+    @staticmethod
+    def test_credits_fields_populated() -> None:
+        """Test cast, director, writers accept values."""
+        film = AggregatedFilm(
+            tmdb_id=1,
+            title="Test",
+            cast=["Jamie Lee Curtis", "Donald Pleasence"],
+            director="John Carpenter",
+            writers=["John Carpenter", "Debra Hill"],
+        )
+        assert film.cast == ["Jamie Lee Curtis", "Donald Pleasence"]
+        assert film.director == "John Carpenter"
+        assert film.writers == ["John Carpenter", "Debra Hill"]
+
+    @staticmethod
+    def test_rag_text_with_credits() -> None:
+        """rag_text appends Director/Cast/Keywords blocks when present."""
+        film = AggregatedFilm(
+            tmdb_id=1,
+            title="Halloween",
+            overview="Boogeyman stalks babysitters.",
+            director="John Carpenter",
+            cast=["Jamie Lee Curtis", "Donald Pleasence"],
+            keywords=["slasher", "masked killer"],
+        )
+        text = film.rag_text
+        assert "Halloween" in text
+        assert "Boogeyman stalks babysitters." in text
+        assert "Director: John Carpenter" in text
+        assert "Cast: Jamie Lee Curtis, Donald Pleasence" in text
+        assert "Keywords: slasher, masked killer" in text
+
+    @staticmethod
+    def test_rag_text_truncates_cast_and_keywords() -> None:
+        """rag_text keeps top 5 cast and top 15 keywords."""
+        film = AggregatedFilm(
+            tmdb_id=1,
+            title="Test",
+            cast=[f"Actor{i}" for i in range(10)],
+            keywords=[f"kw{i}" for i in range(20)],
+        )
+        text = film.rag_text
+        assert "Actor4" in text
+        assert "Actor5" not in text
+        assert "kw14" in text
+        assert "kw15" not in text
+
+    @staticmethod
+    def test_rag_text_skips_missing_credit_blocks() -> None:
+        """rag_text omits director/cast/keywords lines when absent."""
+        film = AggregatedFilm(tmdb_id=1, title="Test", overview="Plot.")
+        text = film.rag_text
+        assert "Director:" not in text
+        assert "Cast:" not in text
+        assert "Keywords:" not in text

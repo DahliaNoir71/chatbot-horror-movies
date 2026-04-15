@@ -97,11 +97,11 @@ describe('LoginView', () => {
       expect(mockLogin).not.toHaveBeenCalled()
     })
 
-    it('shows error when password is less than 8 characters', async () => {
+    it('shows error when password is less than 7 characters', async () => {
       const wrapper = mountLogin()
       await fillAndSubmit(wrapper, 'testuser', 'short')
 
-      expect(wrapper.text()).toContain('au moins 8 caractères')
+      expect(wrapper.text()).toContain('au moins 7 caractères')
       expect(mockLogin).not.toHaveBeenCalled()
     })
 

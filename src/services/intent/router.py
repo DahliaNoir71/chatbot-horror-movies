@@ -48,6 +48,12 @@ class ChatResult:
         confidence: Classifier confidence score.
         session_id: Session UUID.
         usage: Optional LLM usage stats.
+        documents: Retrieved documents (RAG intents only).
+        classification_ms: Intent classification duration.
+        retrieval_ms: Vector retrieval duration.
+        rerank_ms: Cross-encoder reranking duration.
+        generation_ms: LLM generation duration.
+        total_ms: End-to-end duration.
     """
 
     text: str
@@ -55,6 +61,12 @@ class ChatResult:
     confidence: float
     session_id: UUID
     usage: dict[str, Any] = field(default_factory=dict)
+    documents: list = field(default_factory=list)
+    classification_ms: float = 0.0
+    retrieval_ms: float = 0.0
+    rerank_ms: float = 0.0
+    generation_ms: float = 0.0
+    total_ms: float = 0.0
 
 
 # =============================================================================
@@ -113,29 +125,52 @@ class IntentRouter:
         Returns:
             ChatResult with text and metadata.
         """
+        total_start = time.perf_counter()
+
         classification = self._classify_with_metrics(user_message)
         intent = classification["intent"]
         confidence = classification["confidence"]
+        classification_ms = classification["duration_ms"]
 
         session = self._session_manager.get_or_create(session_id, user_id)
         history = self._session_manager.get_history_as_messages(session.session_id)
+
+        documents = []
+        usage = {}
+        retrieval_ms = 0.0
+        rerank_ms = 0.0
+        generation_ms = 0.0
 
         if intent in TEMPLATE_INTENTS:
             text = get_template_response(intent, user_message) or ""
         elif intent in RAG_INTENTS:
             rag_result = self._rag_pipeline.execute(intent, user_message, history)
             text = rag_result.text
+            documents = rag_result.documents
+            usage = rag_result.usage
+            retrieval_ms = rag_result.retrieval_time_ms
+            rerank_ms = rag_result.rerank_time_ms
+            generation_ms = rag_result.generation_time_ms
         else:
             text = get_template_response("off_topic", user_message) or ""
 
         self._session_manager.add_message(session.session_id, "user", user_message)
         self._session_manager.add_message(session.session_id, "assistant", text)
 
+        total_ms = (time.perf_counter() - total_start) * 1000
+
         return ChatResult(
             text=text,
             intent=intent,
             confidence=confidence,
             session_id=session.session_id,
+            usage=usage,
+            documents=documents,
+            classification_ms=classification_ms,
+            retrieval_ms=retrieval_ms,
+            rerank_ms=rerank_ms,
+            generation_ms=generation_ms,
+            total_ms=total_ms,
         )
 
     def handle_stream(
@@ -143,7 +178,7 @@ class IntentRouter:
         user_message: str,
         session_id: UUID | None,
         user_id: str,
-    ) -> tuple[Iterator[str] | None, str, float, UUID, str | None]:
+    ) -> tuple[Iterator[str] | None, str, float, UUID, str | None, list]:
         """Handle a user message with streaming response.
 
         For non-streamable intents (template), returns
@@ -156,7 +191,10 @@ class IntentRouter:
 
         Returns:
             Tuple of (token_iterator_or_None, intent, confidence,
-                      session_id, direct_text_or_None).
+                      session_id, direct_text_or_None, documents).
+            `documents` is the list of RAG documents used for context
+            (empty for template intents); needed by the SSE endpoint
+            to expose sources to the frontend.
         """
         classification = self._classify_with_metrics(user_message)
         intent = classification["intent"]
@@ -171,20 +209,20 @@ class IntentRouter:
         if intent in TEMPLATE_INTENTS:
             text = get_template_response(intent, user_message) or ""
             self._session_manager.add_message(session.session_id, "assistant", text)
-            return None, intent, confidence, session.session_id, text
+            return None, intent, confidence, session.session_id, text, []
 
         if intent in RAG_INTENTS:
-            token_stream, _docs = self._rag_pipeline.execute_stream(
+            token_stream, docs = self._rag_pipeline.execute_stream(
                 intent,
                 user_message,
                 history,
             )
-            return token_stream, intent, confidence, session.session_id, None
+            return token_stream, intent, confidence, session.session_id, None, docs
 
         # Fallback
         text = get_template_response("off_topic", user_message) or ""
         self._session_manager.add_message(session.session_id, "assistant", text)
-        return None, intent, confidence, session.session_id, text
+        return None, intent, confidence, session.session_id, text, []
 
     # =========================================================================
     # PRIVATE METHODS
@@ -197,11 +235,12 @@ class IntentRouter:
             text: User query text.
 
         Returns:
-            Classification result dict.
+            Classification result dict with intent, confidence, duration_ms.
         """
         start = time.perf_counter()
         result = self._classifier.classify(text)
         duration = time.perf_counter() - start
+        duration_ms = duration * 1000
 
         CLASSIFIER_REQUEST_DURATION.observe(duration)
         CLASSIFIER_REQUESTS_TOTAL.labels(intent=result["intent"]).inc()
@@ -210,9 +249,10 @@ class IntentRouter:
         self._logger.info(
             f"Intent classified: {result['intent']} "
             f"(confidence: {round(result['confidence'], 3)}, "
-            f"duration: {round(duration * 1000)}ms)"
+            f"duration: {round(duration_ms)}ms)"
         )
 
+        result["duration_ms"] = duration_ms
         return result
 
 

@@ -207,7 +207,7 @@ def _execute_vector_search(
     from src.services.embedding.embedding_service import get_embedding_service
 
     embedding_service = get_embedding_service()
-    query_embedding = embedding_service.encode(query)
+    query_embedding = embedding_service.generate(query)
 
     # pgvector cosine distance: 1 - cosine_similarity
     sql = text("""

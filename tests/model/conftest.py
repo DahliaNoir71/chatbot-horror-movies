@@ -104,9 +104,10 @@ def intent_predictions(intent_classifier, intent_test_cases):
 
 @pytest.fixture(scope="module")
 def embedding_service():
-    """Load the real EmbeddingService with all-MiniLM-L6-v2 model.
+    """Load the real EmbeddingService with the configured model.
 
-    Requires: ``sentence-transformers``, ``torch`` (ml group).
+    Model name comes from settings.embedding.model_name (env var
+    EMBEDDING_MODEL_NAME). Requires: ``sentence-transformers``, ``torch``.
     """
     from src.services.embedding.embedding_service import EmbeddingService
 

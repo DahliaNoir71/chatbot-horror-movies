@@ -231,14 +231,15 @@ def _build_embedding_metrics(metrics: dict) -> list[str]:
 
 
 def _build_embedding_section(results: dict[str, dict]) -> str:
-    lines = ["## Embedding Model (all-MiniLM-L6-v2)\n"]
-
     metrics = results.get("embeddings", {}).get("embedding_metrics")
+    model_name = (metrics or {}).get("model_name", "N/A")
+    lines = [f"## Embedding Model ({model_name})\n"]
+
     if not metrics:
         lines.append("*Embedding metrics artifact not found.*\n")
         return "\n".join(lines)
 
-    lines.append(f"**Model**: {metrics.get('model_name', 'N/A')}")
+    lines.append(f"**Model**: {model_name}")
     lines.append(f"**Dimension**: {metrics.get('expected_dimension', 'N/A')}")
     lines.append(f"**Texts Processed**: {metrics.get('total_texts', 'N/A')}")
     lines.append(

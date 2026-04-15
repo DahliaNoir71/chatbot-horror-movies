@@ -36,6 +36,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "CLASSIFIER_CONFIDENCE_THRESHOLD",
         "CLASSIFIER_DEVICE",
         "EMBEDDING_MODEL_NAME",
+        "EMBEDDING_REVISION",
         "EMBEDDING_DIMENSIONS",
         "EMBEDDING_BATCH_SIZE",
         # Database
@@ -65,7 +66,8 @@ def valid_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CLASSIFIER_MODEL_NAME", "MoritzLaurer/DeBERTa-v3-base-zeroshot-v2.0")
     monkeypatch.setenv("CLASSIFIER_CONFIDENCE_THRESHOLD", "0.4")
     monkeypatch.setenv("CLASSIFIER_DEVICE", "cpu")
-    monkeypatch.setenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+    monkeypatch.setenv("EMBEDDING_MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2")
+    monkeypatch.setenv("EMBEDDING_REVISION", "e8f8c211226b894fcb81acc59f3b34ba3efd5f42")
     monkeypatch.setenv("EMBEDDING_DIMENSIONS", "384")
     monkeypatch.setenv("EMBEDDING_BATCH_SIZE", "64")
     # Database

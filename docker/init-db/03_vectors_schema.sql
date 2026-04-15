@@ -35,7 +35,8 @@ CREATE TABLE rag_documents (
 
     CONSTRAINT chk_source_type CHECK (source_type IN (
         'film_overview',
-        'critics_consensus'
+        'critics_consensus',
+        'film_metadata'
     ))
 );
 
