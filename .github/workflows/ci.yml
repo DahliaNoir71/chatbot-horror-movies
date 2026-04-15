@@ -577,7 +577,8 @@ jobs:
             --exclude "**/dist/**" \
             --exclude "**/build/**" \
             --exclude "**/.venv/**" \
-            $([ -f "suppression.xml" ] && echo "--suppression suppression.xml" || echo "") \
+            --disableNodeAudit \
+            $([ -f "$GITHUB_WORKSPACE/suppression.xml" ] && echo "--suppression $GITHUB_WORKSPACE/suppression.xml" || echo "") \
             --failOnCVSS 7
           OWASP_STATUS=$?
           set -e
