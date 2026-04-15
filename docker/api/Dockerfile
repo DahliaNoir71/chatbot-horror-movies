@@ -16,6 +16,7 @@ WORKDIR /app
 # libpq-dev: psycopg2, build-essential+cmake: llama-cpp-python fallback build,
 # curl: healthcheck, openjdk-21-jre-headless: pyspark runtime
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         libpq-dev \
         build-essential \
