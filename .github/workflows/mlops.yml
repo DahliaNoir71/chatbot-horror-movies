@@ -206,6 +206,7 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "."
         run: |
+          set -a && source .env.test && set +a
           mkdir -p reports/embeddings
           uv run python scripts/generate_sample_embeddings.py \
             --output-dir reports/embeddings \
