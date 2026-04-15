@@ -652,22 +652,27 @@ jobs:
       - name: Create security reports directory
         run: mkdir -p security-reports
 
+      # Trivy scans OS-level CVEs only. Python/JS deps are handled by
+      # OWASP Dependency-Check (security-owasp job) to avoid double-scanning
+      # and diverging suppression files.
       - name: Trivy scan (table) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
+          vuln-type: os
           format: table
           severity: ${{ env.TRIVY_SEVERITY }}
           exit-code: "0"
           trivyignores: .trivyignore
 
-      # Blocking scan — exit-code 1 fails the job on CRITICAL/HIGH
+      # Blocking scan — exit-code 1 fails the job on CRITICAL/HIGH OS CVEs
       - name: Trivy scan (JSON, blocking) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
+          vuln-type: os
           format: json
           severity: ${{ env.TRIVY_SEVERITY }}
           output: security-reports/trivy-${{ matrix.label }}-report.json
