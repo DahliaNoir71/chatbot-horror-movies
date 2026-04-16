@@ -105,6 +105,10 @@ class TMDBFilmData(TypedDict):
     production_companies: NotRequired[list[TMDBProductionCompanyData]]
     spoken_languages: NotRequired[list[TMDBSpokenLanguageData]]
 
+    # From append_to_response=translations,alternative_titles
+    translations: NotRequired["TMDBTranslationsResponse"]
+    alternative_titles: NotRequired["TMDBAlternativeTitlesResponse"]
+
 
 class TMDBDiscoverResponse(TypedDict):
     """Response from TMDB discover/movie endpoint."""
@@ -120,3 +124,44 @@ class TMDBKeywordsResponse(TypedDict):
 
     id: int
     keywords: list[TMDBKeywordData]
+
+
+class TMDBTranslationDataPayload(TypedDict, total=False):
+    """Translated fields nested under TMDB `translations[].data`."""
+
+    title: str
+    overview: str
+    tagline: str
+    homepage: str
+
+
+class TMDBTranslationData(TypedDict):
+    """Single translation entry from TMDB /movie/{id}/translations."""
+
+    iso_639_1: str
+    iso_3166_1: str
+    name: NotRequired[str]
+    english_name: NotRequired[str]
+    data: TMDBTranslationDataPayload
+
+
+class TMDBTranslationsResponse(TypedDict):
+    """Response from TMDB movie/translations endpoint (or append_to_response)."""
+
+    id: NotRequired[int]
+    translations: list[TMDBTranslationData]
+
+
+class TMDBAlternativeTitle(TypedDict):
+    """Single alternative title entry from TMDB."""
+
+    iso_3166_1: str
+    title: str
+    type: NotRequired[str]
+
+
+class TMDBAlternativeTitlesResponse(TypedDict):
+    """Response from TMDB movie/alternative_titles endpoint."""
+
+    id: NotRequired[int]
+    titles: list[TMDBAlternativeTitle]

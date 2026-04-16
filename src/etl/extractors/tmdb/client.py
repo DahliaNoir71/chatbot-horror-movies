@@ -279,15 +279,21 @@ class TMDBClient:
     def get_movie_full(self, movie_id: int) -> dict[str, Any]:
         """Get movie with appended responses (single request).
 
-        Uses append_to_response for efficiency.
+        Uses TMDB's `append_to_response` to fetch 4 related resources in a
+        single HTTP call: credits (cast + crew), keywords, translations
+        (for French titles/overviews), and alternative_titles (for bilingual
+        BM25 retrieval over francophone variants).
 
         Args:
             movie_id: TMDB movie ID.
 
         Returns:
-            Movie details with credits and keywords.
+            Movie details merged with `credits`, `keywords`, `translations`,
+            and `alternative_titles` top-level keys.
         """
-        params: dict[str, Any] = {"append_to_response": "credits,keywords"}
+        params: dict[str, Any] = {
+            "append_to_response": "credits,keywords,translations,alternative_titles",
+        }
         return self._get(f"/movie/{movie_id}", params)
 
     def get_genres(self) -> dict[str, Any]:

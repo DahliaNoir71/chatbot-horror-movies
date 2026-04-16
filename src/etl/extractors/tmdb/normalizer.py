@@ -13,6 +13,7 @@ from src.etl.types import (
     NormalizedGenreData,
     NormalizedKeywordData,
     NormalizedLanguageData,
+    TMDBAlternativeTitlesResponse,
     TMDBCastData,
     TMDBCrewData,
     TMDBFilmData,
@@ -20,6 +21,7 @@ from src.etl.types import (
     TMDBKeywordData,
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
+    TMDBTranslationsResponse,
 )
 from src.etl.utils import setup_logger
 
@@ -41,6 +43,13 @@ class TMDBNormalizer:
     # Maximum actors to keep per film
     MAX_ACTORS = 10
 
+    # Francophone regions for translations and alternative titles.
+    # FR/BE/CA are targeted for official TMDB translations; FR/BE/CA/CH/LU
+    # cover alternative_titles where regional distributors may use different
+    # localized variants (e.g. Canadian release titles).
+    FR_TRANSLATION_COUNTRIES = frozenset({"FR", "BE", "CA"})
+    FR_ALT_TITLE_COUNTRIES = frozenset({"FR", "BE", "CA", "CH", "LU"})
+
     # -------------------------------------------------------------------------
     # Film Normalization
     # -------------------------------------------------------------------------
@@ -52,6 +61,10 @@ class TMDBNormalizer:
     ) -> NormalizedFilmData:
         """Normalize a TMDB film to database format.
 
+        When the raw payload includes `translations` and `alternative_titles`
+        keys (via append_to_response), French title/overview and francophone
+        alternative titles are extracted for bilingual BM25 retrieval.
+
         Args:
             raw: Raw TMDB film data.
             source: Data source identifier.
@@ -59,6 +72,10 @@ class TMDBNormalizer:
         Returns:
             Normalized film data.
         """
+        title_fr = self._extract_french_title(raw.get("translations"))
+        if title_fr is None:
+            logger.debug(f"No FR title for tmdb_id={raw['id']}")
+
         return NormalizedFilmData(
             tmdb_id=raw["id"],
             imdb_id=raw.get("imdb_id"),
@@ -80,6 +97,11 @@ class TMDBNormalizer:
             budget=raw.get("budget", 0),
             revenue=raw.get("revenue", 0),
             source=source,
+            title_fr=title_fr,
+            overview_fr=self._extract_french_overview(raw.get("translations")),
+            alternative_titles=self._extract_alternative_titles(
+                raw.get("alternative_titles"),
+            ),
         )
 
     def normalize_films(
@@ -342,6 +364,91 @@ class TMDBNormalizer:
             List of normalized languages.
         """
         return [self.normalize_language(lang) for lang in raw_languages]
+
+    # -------------------------------------------------------------------------
+    # Multilingual Extraction (translations + alternative_titles)
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_french_title(
+        translations: TMDBTranslationsResponse | None,
+    ) -> str | None:
+        """Extract official French title from TMDB /translations response.
+
+        Iterates translations[], returns data.title for the first match with
+        iso_639_1='fr' and iso_3166_1 in {FR, BE, CA}.
+
+        Args:
+            translations: Translations payload from append_to_response, or None.
+
+        Returns:
+            Cleaned French title or None if absent.
+        """
+        if not translations:
+            return None
+        for entry in translations.get("translations", []):
+            if entry.get("iso_639_1") != "fr":
+                continue
+            if entry.get("iso_3166_1") not in TMDBNormalizer.FR_TRANSLATION_COUNTRIES:
+                continue
+            title = (entry.get("data") or {}).get("title")
+            if title and title.strip():
+                return title.strip()
+        return None
+
+    @staticmethod
+    def _extract_french_overview(
+        translations: TMDBTranslationsResponse | None,
+    ) -> str | None:
+        """Extract French overview from TMDB /translations response.
+
+        Same matching logic as `_extract_french_title` but on `data.overview`.
+
+        Args:
+            translations: Translations payload from append_to_response, or None.
+
+        Returns:
+            Cleaned French overview or None if absent.
+        """
+        if not translations:
+            return None
+        for entry in translations.get("translations", []):
+            if entry.get("iso_639_1") != "fr":
+                continue
+            if entry.get("iso_3166_1") not in TMDBNormalizer.FR_TRANSLATION_COUNTRIES:
+                continue
+            overview = (entry.get("data") or {}).get("overview")
+            if overview and overview.strip():
+                return overview.strip()
+        return None
+
+    @staticmethod
+    def _extract_alternative_titles(
+        alt_titles: TMDBAlternativeTitlesResponse | None,
+    ) -> list[str]:
+        """Extract alternative titles from francophone regions.
+
+        Returns unique titles (order-preserving) coming from iso_3166_1
+        in {FR, BE, CA, CH, LU}.
+
+        Args:
+            alt_titles: Alternative titles payload from append_to_response.
+
+        Returns:
+            Deduplicated list of regional titles (insertion order preserved).
+        """
+        if not alt_titles:
+            return []
+        seen: set[str] = set()
+        result: list[str] = []
+        for entry in alt_titles.get("titles", []):
+            if entry.get("iso_3166_1") not in TMDBNormalizer.FR_ALT_TITLE_COUNTRIES:
+                continue
+            title = (entry.get("title") or "").strip()
+            if title and title not in seen:
+                seen.add(title)
+                result.append(title)
+        return result
 
     # -------------------------------------------------------------------------
     # Utility Methods

@@ -55,8 +55,11 @@ class TMDBFilmData(BaseModel):
     # Basic info
     title: str = Field(min_length=1, max_length=500)
     original_title: str | None = Field(default=None, max_length=500)
+    title_fr: str | None = Field(default=None, max_length=500)
     release_date: date | None = None
     overview: str | None = Field(default=None, max_length=5000)
+    overview_fr: str | None = Field(default=None, max_length=5000)
+    alternative_titles: list[str] = Field(default_factory=list)
     tagline: str | None = Field(default=None, max_length=500)
 
     # Metrics
@@ -285,6 +288,8 @@ class AggregatedFilm(BaseModel):
     # ==========================================================================
     title: str = Field(min_length=1, max_length=500)
     original_title: str | None = Field(default=None, max_length=500)
+    title_fr: str | None = Field(default=None, max_length=500)
+    alternative_titles: list[str] = Field(default_factory=list)
     release_date: date | None = None
     tagline: str | None = Field(default=None, max_length=500)
     runtime: int | None = Field(default=None, ge=1, le=1000)
@@ -296,6 +301,7 @@ class AggregatedFilm(BaseModel):
     # RAG Content (prioritized sources)
     # ==========================================================================
     overview: str | None = Field(default=None, max_length=5000)
+    overview_fr: str | None = Field(default=None, max_length=5000)
     critics_consensus: str | None = Field(default=None, max_length=2000)
 
     # ==========================================================================

@@ -31,6 +31,12 @@ class NormalizedFilmData(TypedDict):
     budget: int
     revenue: int
     source: str
+    # Multilingual fields — populated from TMDB `translations` and
+    # `alternative_titles` via append_to_response. Optional because
+    # fallback sources (Kaggle, Spark) don't provide them.
+    title_fr: NotRequired[str | None]
+    overview_fr: NotRequired[str | None]
+    alternative_titles: NotRequired[list[str]]
 
 
 class NormalizedCreditData(TypedDict):

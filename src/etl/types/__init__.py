@@ -42,6 +42,8 @@ from src.etl.types.rotten_tomatoes import (
     RTSearchResult,
 )
 from src.etl.types.tmdb import (
+    TMDBAlternativeTitle,
+    TMDBAlternativeTitlesResponse,
     TMDBCastData,
     TMDBCreditsData,
     TMDBCrewData,
@@ -52,6 +54,8 @@ from src.etl.types.tmdb import (
     TMDBKeywordsResponse,
     TMDBProductionCompanyData,
     TMDBSpokenLanguageData,
+    TMDBTranslationData,
+    TMDBTranslationsResponse,
 )
 
 __all__ = [
@@ -66,6 +70,10 @@ __all__ = [
     "TMDBSpokenLanguageData",
     "TMDBDiscoverResponse",
     "TMDBKeywordsResponse",
+    "TMDBTranslationData",
+    "TMDBTranslationsResponse",
+    "TMDBAlternativeTitle",
+    "TMDBAlternativeTitlesResponse",
     # Rotten Tomatoes
     "RTScoreData",
     "RTSearchResult",
