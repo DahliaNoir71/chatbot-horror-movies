@@ -245,6 +245,7 @@ markers = [
     "integration: Integration tests",
     "slow: Slow tests requiring network",
     "model: Model tests requiring ML dependencies (sentence-transformers, transformers)",
+    "network: Tests requiring external network (TMDB API, etc.)",
 ]
 
 [tool.coverage.run]
