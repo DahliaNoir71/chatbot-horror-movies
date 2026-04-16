@@ -4,8 +4,10 @@ Primary table containing film metadata from TMDB API.
 """
 
 from datetime import date
+from typing import Any
 
 from sqlalchemy import (
+    ARRAY,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -15,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.models.base import Base, ExtractedAtMixin, TimestampMixin
@@ -27,9 +30,16 @@ class Film(Base, TimestampMixin, ExtractedAtMixin):
         id: Internal primary key.
         tmdb_id: TMDB identifier (main join key).
         imdb_id: IMDb identifier (format: tt1234567).
-        title: Film title.
-        overview: Plot synopsis (used for RAG).
-        embedding: Vector embedding for semantic search.
+        title: Film title (original / EN).
+        overview: Plot synopsis EN (used for RAG).
+        title_fr: French title from TMDB translations.
+        overview_fr: French plot synopsis from TMDB translations.
+        alternative_titles: Alternative titles from francophone regions (FR/BE/CA/CH/LU).
+        director: Denormalized director name (from credits, role_type='director').
+        cast_names: Denormalized top-N cast names (from credits, role_type='actor').
+        keyword_names: Denormalized keyword labels (from film_keywords ↔ keywords).
+        search_vector_fr: Weighted FR tsvector, maintained by PostgreSQL trigger.
+        search_vector_en: Weighted EN tsvector, maintained by PostgreSQL trigger.
     """
 
     __tablename__ = "films"
@@ -75,6 +85,40 @@ class Film(Base, TimestampMixin, ExtractedAtMixin):
 
     # ETL metadata
     source: Mapped[str] = mapped_column(String(50), default="tmdb")
+
+    # Multilingual fields (TMDB translations + alternative_titles)
+    title_fr: Mapped[str | None] = mapped_column(Text)
+    overview_fr: Mapped[str | None] = mapped_column(Text)
+    alternative_titles: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        server_default="{}",
+        default=list,
+    )
+
+    # Denormalized fields (populated by ETL loader from credits/film_keywords)
+    director: Mapped[str | None] = mapped_column(Text)
+    cast_names: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        server_default="{}",
+        default=list,
+    )
+    keyword_names: Mapped[list[str]] = mapped_column(
+        ARRAY(Text),
+        server_default="{}",
+        default=list,
+    )
+
+    # Search vectors (read-only, maintained by PostgreSQL trigger)
+    # Any justifié ici : TSVECTOR n'a pas de type SQLAlchemy natif standardisé,
+    # et ces colonnes ne sont jamais lues/écrites depuis l'ORM (BM25 via SQL brut).
+    search_vector_fr: Mapped[Any | None] = mapped_column(
+        TSVECTOR,
+        info={"read_only": True},
+    )
+    search_vector_en: Mapped[Any | None] = mapped_column(
+        TSVECTOR,
+        info={"read_only": True},
+    )
 
     __table_args__ = (
         CheckConstraint(
