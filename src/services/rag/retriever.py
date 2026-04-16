@@ -44,6 +44,9 @@ class RetrievedDocument:
         metadata: JSONB metadata (title, year, genres, etc.).
         similarity: Cosine similarity score (0.0-1.0).
         rerank_score: Cross-encoder score attached after reranking.
+        final_score: Hybrid retrieval score (RRF + popularity boost),
+            populated by `HybridRetriever`. None when the doc came
+            straight from the vector retriever.
     """
 
     id: UUID
@@ -53,6 +56,7 @@ class RetrievedDocument:
     metadata: dict[str, Any]
     similarity: float
     rerank_score: float | None = None
+    final_score: float | None = None
 
 
 # =============================================================================
