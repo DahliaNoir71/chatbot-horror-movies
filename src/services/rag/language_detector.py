@@ -94,3 +94,9 @@ def _language_to_code(language: Language) -> DetectedLang:
     if language == Language.ENGLISH:
         return "en"
     return "mixed"
+
+
+@lru_cache(maxsize=1)
+def get_language_detector() -> LanguageDetector:
+    """Get the singleton LanguageDetector instance."""
+    return LanguageDetector()

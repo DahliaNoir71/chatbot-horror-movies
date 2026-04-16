@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Literal
 
 from sqlalchemy import text
@@ -195,3 +196,20 @@ def _rank_of(hit: BM25Result, results: list[BM25Result]) -> int:
         if other.tmdb_id == hit.tmdb_id:
             return idx
     return 10**9
+
+
+# -----------------------------------------------------------------------------
+# DI factory
+# -----------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def get_bm25_retriever() -> BM25MultilingualRetriever:
+    """Get the singleton BM25 retriever wired to horrorbot + language detector."""
+    from src.services.rag.hybrid_retriever import _horrorbot_session_factory
+    from src.services.rag.language_detector import get_language_detector
+
+    return BM25MultilingualRetriever(
+        session_factory=_horrorbot_session_factory(),
+        language_detector=get_language_detector(),
+    )

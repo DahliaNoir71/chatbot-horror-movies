@@ -16,16 +16,20 @@ from __future__ import annotations
 import asyncio
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.services.rag.bm25_retriever import BM25MultilingualRetriever, BM25Result
-from src.services.rag.retriever import DocumentRetriever, RetrievedDocument
-
-# Reciprocal Rank Fusion constant — same default as in BM25's mixed mode.
-_RRF_K = 60
+from src.services.rag.retriever import DocumentRetriever, RetrievedDocument, get_document_retriever
+from src.settings import settings
+from src.settings.retrieval import RetrievalSettings
 
 # Popularity normalization constants (chosen so a typical "very popular"
 # horror film hits ~1.0 after log1p):
@@ -35,19 +39,6 @@ _VOTE_COUNT_DIVISOR = 10.0
 _POPULARITY_DIVISOR = 6.0
 _VOTE_WEIGHT = 0.7
 _POP_WEIGHT = 0.3
-
-
-@dataclass(frozen=True)
-class RetrievalSettings:
-    """Tunable knobs for hybrid retrieval (Pydantic-backed in Tâche 1.4)."""
-
-    vector_top_k: int = 20
-    bm25_top_k: int = 20
-    vector_weight: float = 1.0
-    bm25_weight: float = 1.0
-    popularity_weight: float = 0.3
-    rrf_k: int = _RRF_K
-    top_k_default: int = 5
 
 
 @dataclass
@@ -122,12 +113,12 @@ class HybridRetriever:
 
         Args:
             query: User query.
-            top_k: Maximum results; defaults to `settings.top_k_default`.
+            top_k: Maximum results; defaults to `settings.final_top_k`.
 
         Returns:
             Documents ordered by `final_score` descending (length ≤ top_k).
         """
-        top_k = top_k or self._settings.top_k_default
+        top_k = top_k or self._settings.final_top_k
         vector_results, bm25_results = await self._fetch_parallel(query)
         fused = self._rrf_fuse(vector_results, bm25_results, self._settings)
         if not fused:
@@ -291,6 +282,44 @@ class HybridRetriever:
         pop_norm = math.log1p(popularity) / _POPULARITY_DIVISOR
         return _VOTE_WEIGHT * vote_norm + _POP_WEIGHT * pop_norm
 
+    # -------------------------------------------------------------------------
+    # Sync adapter — preserves the DocumentRetriever interface used by
+    # RAGPipeline so the swap is transparent to existing sync callers.
+    # -------------------------------------------------------------------------
+
+    def retrieve(
+        self,
+        query: str,
+        match_count: int | None = None,
+        **_ignored: Any,
+    ) -> list[RetrievedDocument]:
+        """Sync wrapper around `search()` for compatibility with `RAGPipeline`.
+
+        Must NOT be invoked from inside a running event loop — use the
+        async `search()` method directly in async contexts.
+
+        Args:
+            query: User query.
+            match_count: Optional override for `final_top_k`.
+            **_ignored: Swallows extra DocumentRetriever-style kwargs
+                (`similarity_threshold`, `source_type`) that don't apply here.
+
+        Returns:
+            Retrieved documents ordered by `final_score` desc.
+
+        Raises:
+            RuntimeError: When called from within a running event loop.
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.search(query, top_k=match_count))
+        msg = (
+            "HybridRetriever.retrieve() called from a running event loop. "
+            "Use `await retriever.search(query, top_k=...)` instead."
+        )
+        raise RuntimeError(msg)
+
 
 # -----------------------------------------------------------------------------
 # Pure helpers
@@ -332,4 +361,47 @@ def _row_to_retrieved_doc(row: Any) -> RetrievedDocument:
         source_id=row.source_id,
         metadata=row.metadata if isinstance(row.metadata, dict) else {},
         similarity=0.0,  # BM25-only doc — no cosine similarity available
+    )
+
+
+# -----------------------------------------------------------------------------
+# DI factories (singletons via lru_cache)
+# -----------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _horrorbot_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Singleton async session factory for the `horrorbot` database."""
+    engine = create_async_engine(settings.database.async_url, pool_pre_ping=True)
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+@lru_cache(maxsize=1)
+def _vectors_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Singleton async session factory for the `horrorbot_vectors` database."""
+    engine = create_async_engine(
+        settings.database.vectors_async_url,
+        pool_pre_ping=True,
+    )
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+@lru_cache(maxsize=1)
+def get_hybrid_retriever() -> HybridRetriever:
+    """Get singleton HybridRetriever wired to all dependencies.
+
+    Reuses the singleton language detector, BM25 retriever and vector
+    retriever from their respective modules. Connection pools and
+    lingua's compiled language profiles are not re-created per request.
+    """
+    # Local imports avoid a circular import: bm25_retriever's factory
+    # itself imports `_horrorbot_session_factory` from this module.
+    from src.services.rag.bm25_retriever import get_bm25_retriever
+
+    return HybridRetriever(
+        vector_retriever=get_document_retriever(),
+        bm25_retriever=get_bm25_retriever(),
+        horrorbot_session_factory=_horrorbot_session_factory(),
+        vectors_session_factory=_vectors_session_factory(),
+        settings=settings.retrieval,
     )

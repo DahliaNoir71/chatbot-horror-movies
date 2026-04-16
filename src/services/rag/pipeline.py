@@ -18,13 +18,10 @@ from src.monitoring.metrics import (
     LLM_TOKENS_PER_SECOND,
 )
 from src.services.llm.llm_service import LLMService, get_llm_service
+from src.services.rag.hybrid_retriever import HybridRetriever, get_hybrid_retriever
 from src.services.rag.prompt_builder import RAGPromptBuilder
 from src.services.rag.reranker import RerankerService, get_reranker_service
-from src.services.rag.retriever import (
-    DocumentRetriever,
-    RetrievedDocument,
-    get_document_retriever,
-)
+from src.services.rag.retriever import DocumentRetriever, RetrievedDocument
 
 logger = setup_logger("services.rag.pipeline")
 
@@ -66,25 +63,29 @@ class RAGPipeline:
     """Full RAG pipeline: retrieve -> rerank -> build prompt -> generate.
 
     Attributes:
-        _retriever: Document retriever for vector search.
+        _retriever: Retriever exposing `.retrieve(query) -> list[RetrievedDocument]`.
+            Defaults to the hybrid (vector + BM25 + popularity) retriever.
         _reranker: Cross-encoder reranker for precision filtering.
         _llm: LLM service for text generation.
     """
 
     def __init__(
         self,
-        retriever: DocumentRetriever | None = None,
+        retriever: HybridRetriever | DocumentRetriever | None = None,
         reranker: RerankerService | None = None,
         llm_service: LLMService | None = None,
     ) -> None:
         """Initialize pipeline with injectable dependencies.
 
         Args:
-            retriever: Override document retriever (for testing).
+            retriever: Override retriever (for testing). Accepts any object
+                exposing `.retrieve(query, match_count=...)` — the shared
+                interface of `HybridRetriever` (sync adapter) and
+                `DocumentRetriever`.
             reranker: Override reranker service (for testing).
             llm_service: Override LLM service (for testing).
         """
-        self._retriever = retriever or get_document_retriever()
+        self._retriever = retriever or get_hybrid_retriever()
         self._reranker = reranker or get_reranker_service()
         self._llm = llm_service or get_llm_service()
         self._logger = logger

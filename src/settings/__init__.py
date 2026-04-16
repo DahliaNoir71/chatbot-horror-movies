@@ -25,6 +25,7 @@ from src.settings.ai import ClassifierSettings, EmbeddingSettings, LLMSettings, 
 from src.settings.api import APISettings, CORSSettings, SecuritySettings
 from src.settings.base import ETLSettings, LoggingSettings, PathsSettings
 from src.settings.database import DatabaseSettings
+from src.settings.retrieval import RetrievalSettings
 from src.settings.sources import (
     KaggleSettings,
     RTSettings,
@@ -56,6 +57,8 @@ __all__ = [
     "ClassifierSettings",
     "EmbeddingSettings",
     "RerankerSettings",
+    # Retrieval
+    "RetrievalSettings",
     # Utilities
     "get_masked_settings",
     "print_sources_status",
@@ -101,6 +104,9 @@ class Settings(BaseSettings):
     classifier: ClassifierSettings = Field(default_factory=ClassifierSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     reranker: RerankerSettings = Field(default_factory=RerankerSettings)
+
+    # RAG Retrieval (hybrid: vector + BM25 + popularity)
+    retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",
