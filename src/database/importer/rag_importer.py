@@ -4,6 +4,7 @@ Reads JSON from aggregation pipeline, generates embeddings,
 and inserts into horrorbot_vectors.rag_documents table.
 """
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -33,6 +34,7 @@ BATCH_SIZE = 50
 # Limits for content enrichment (balance signal vs dilution)
 CONTENT_CAST_LIMIT = 5
 CONTENT_KEYWORDS_LIMIT = 15
+CONTENT_ALT_TITLES_LIMIT = 5
 METADATA_CAST_LIMIT = 10
 
 
@@ -304,11 +306,31 @@ class RAGImporter:
         )
 
     @staticmethod
-    def _build_header(film: dict[str, Any]) -> str:
+    def _format_title_line(film: dict[str, Any]) -> str:
+        """Format the first header line: title[ / title_fr] (year) - Genres: ...
+
+        Args:
+            film: Film dictionary.
+
+        Returns:
+            Title line string.
+        """
+        title = film.get("title", "")
+        title_fr = film.get("title_fr")
+        if title_fr and title_fr != title:
+            title = f"{title} / {title_fr}"
+        release = film.get("release_date") or ""
+        year = release[:4] if release else ""
+        genres = ", ".join(film.get("genres", []))
+        return f"{title} ({year}) - Genres: {genres}"
+
+    @classmethod
+    def _build_header(cls, film: dict[str, Any]) -> str:
         """Build shared header block enriching every RAG document.
 
-        Includes genres, keywords, director and top cast — the
-        discriminative signals for horror sub-genre retrieval.
+        Includes FR title, alternative francophone titles, genres, keywords,
+        director and top cast — the discriminative signals for horror
+        sub-genre retrieval and for bilingual (FR/EN) BM25.
 
         Args:
             film: Film dictionary.
@@ -316,20 +338,25 @@ class RAGImporter:
         Returns:
             Multi-line header string (no trailing newline).
         """
-        title = film.get("title", "")
-        year = film.get("release_date", "")[:4] if film.get("release_date") else ""
-        genres = ", ".join(film.get("genres", []))
-        keywords = ", ".join(film.get("keywords", [])[:CONTENT_KEYWORDS_LIMIT])
-        director = film.get("director")
-        cast = ", ".join(film.get("cast", [])[:CONTENT_CAST_LIMIT])
+        lines = [cls._format_title_line(film)]
 
-        lines = [f"{title} ({year}) - Genres: {genres}"]
+        alt_titles = film.get("alternative_titles") or []
+        if alt_titles:
+            joined = ", ".join(alt_titles[:CONTENT_ALT_TITLES_LIMIT])
+            lines.append(f"Alternative titles: {joined}")
+
+        keywords = ", ".join(film.get("keywords", [])[:CONTENT_KEYWORDS_LIMIT])
         if keywords:
             lines.append(f"Keywords: {keywords}")
+
+        director = film.get("director")
         if director:
             lines.append(f"Director: {director}")
+
+        cast = ", ".join(film.get("cast", [])[:CONTENT_CAST_LIMIT])
         if cast:
             lines.append(f"Cast: {cast}")
+
         return "\n".join(lines)
 
     @classmethod
@@ -339,7 +366,7 @@ class RAGImporter:
         tmdb_id: int,
         metadata: dict[str, Any],
     ) -> RAGDocument | None:
-        """Create document from film overview.
+        """Create document from film overview (bilingual EN + FR).
 
         Args:
             film: Film dictionary.
@@ -354,6 +381,10 @@ class RAGImporter:
             return None
 
         content = f"{cls._build_header(film)}\n{overview.strip()}"
+
+        overview_fr = film.get("overview_fr")
+        if overview_fr and overview_fr.strip() and overview_fr.strip() != overview.strip():
+            content += f"\n{overview_fr.strip()}"
 
         tagline = film.get("tagline")
         if tagline and tagline.strip():
@@ -412,6 +443,9 @@ class RAGImporter:
         """
         return {
             "title": film.get("title", ""),
+            "title_fr": film.get("title_fr"),
+            "overview_fr": film.get("overview_fr"),
+            "alternative_titles": film.get("alternative_titles", []),
             "year": film.get("release_date", "")[:4] if film.get("release_date") else None,
             "genres": film.get("genres", []),
             "keywords": film.get("keywords", []),
@@ -501,6 +535,7 @@ class RAGImporter:
                 {
                     "id": str(uuid4()),
                     "content": doc.content,
+                    "content_hash": self._compute_content_hash(doc.content),
                     "embedding": embedding,
                     "source_type": doc.source_type,
                     "source_id": doc.source_id,
@@ -510,6 +545,24 @@ class RAGImporter:
 
         self._bulk_insert(session, values)
         return len(documents)
+
+    @staticmethod
+    def _compute_content_hash(content: str) -> str:
+        """Compute MD5 of UTF-8 encoded content.
+
+        Non-cryptographic use (change detection for embedding regen),
+        so `usedforsecurity=False` silences Bandit B324.
+
+        Args:
+            content: Document text.
+
+        Returns:
+            32-char hex digest.
+        """
+        return hashlib.md5(
+            content.encode("utf-8"),
+            usedforsecurity=False,
+        ).hexdigest()
 
     @staticmethod
     def _bulk_insert(session: Session, values: list[dict[str, Any]]) -> None:
@@ -528,11 +581,14 @@ class RAGImporter:
 
         for i, row in enumerate(values):
             placeholders.append(
-                f"(:id_{i}, :content_{i}, CAST(:embedding_{i} AS vector), "
-                f":source_type_{i}, :source_id_{i}, CAST(:metadata_{i} AS jsonb), 0, 1)"
+                f"(:id_{i}, :content_{i}, :content_hash_{i}, "
+                f"CAST(:embedding_{i} AS vector), "
+                f":source_type_{i}, :source_id_{i}, "
+                f"CAST(:metadata_{i} AS jsonb), 0, 1)"
             )
             params[f"id_{i}"] = row["id"]
             params[f"content_{i}"] = row["content"]
+            params[f"content_hash_{i}"] = row["content_hash"]
             params[f"embedding_{i}"] = str(row["embedding"])
             params[f"source_type_{i}"] = row["source_type"]
             params[f"source_id_{i}"] = row["source_id"]
@@ -540,12 +596,13 @@ class RAGImporter:
 
         stmt = text(f"""
             INSERT INTO rag_documents (
-                id, content, embedding, source_type,
+                id, content, content_hash, embedding, source_type,
                 source_id, metadata, chunk_index, chunk_total
             ) VALUES {", ".join(placeholders)}
             ON CONFLICT (source_type, source_id, chunk_index)
             DO UPDATE SET
                 content = EXCLUDED.content,
+                content_hash = EXCLUDED.content_hash,
                 embedding = EXCLUDED.embedding,
                 metadata = EXCLUDED.metadata,
                 updated_at = NOW()

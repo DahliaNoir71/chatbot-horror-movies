@@ -401,19 +401,27 @@ class AggregatedFilm(BaseModel):
 
     @property
     def rag_text(self) -> str:
-        """Generate combined text for RAG embedding.
+        """Generate bilingual combined text for RAG embedding.
 
-        Prioritizes critics_consensus over overview for
-        semantic search quality.
+        Prioritizes critics_consensus over overview for semantic search
+        quality. Includes FR title/overview and francophone alternative
+        titles to match the text indexed by `RAGImporter._build_header` so
+        aggregated output and vector store stay aligned.
 
         Returns:
             Combined text for embedding generation.
         """
-        parts: list[str] = [self.title]
+        title_part = self.title
+        if self.title_fr and self.title_fr != self.title:
+            title_part = f"{self.title} / {self.title_fr}"
+
+        parts: list[str] = [title_part]
         if self.critics_consensus:
             parts.append(self.critics_consensus)
         if self.overview:
             parts.append(self.overview)
+        if self.overview_fr and self.overview_fr != self.overview:
+            parts.append(self.overview_fr)
         if self.tagline:
             parts.append(self.tagline)
         if self.director:
@@ -422,4 +430,8 @@ class AggregatedFilm(BaseModel):
             parts.append("Cast: " + ", ".join(self.cast[:5]))
         if self.keywords:
             parts.append("Keywords: " + ", ".join(self.keywords[:15]))
+        if self.alternative_titles:
+            parts.append(
+                "Alternative titles: " + ", ".join(self.alternative_titles[:5]),
+            )
         return " ".join(parts)
