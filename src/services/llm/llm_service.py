@@ -6,6 +6,7 @@ using GGUF models via llama.cpp bindings.
 
 from collections.abc import Iterator
 from functools import lru_cache
+from typing import Any
 
 from src.etl.utils.logger import setup_logger
 from src.settings import settings
@@ -26,6 +27,9 @@ class LLMService:
         _max_tokens: Default maximum tokens per response.
         _temperature: Default sampling temperature.
         _n_gpu_layers: Layers offloaded (0 = CPU only).
+        _n_threads: CPU threads used for inference.
+        _n_batch: Prompt processing batch size.
+        _warmup_enabled: Whether to warm up the model after load.
         _timeout: Inference timeout in seconds.
         _llm: Lazy-loaded Llama model instance.
     """
@@ -37,6 +41,9 @@ class LLMService:
         max_tokens: int | None = None,
         temperature: float | None = None,
         n_gpu_layers: int | None = None,
+        n_threads: int | None = None,
+        n_batch: int | None = None,
+        warmup_enabled: bool | None = None,
         timeout_seconds: int | None = None,
     ) -> None:
         """Initialize LLM service from settings or explicit parameters.
@@ -47,6 +54,9 @@ class LLMService:
             max_tokens: Override max tokens from settings.
             temperature: Override temperature from settings.
             n_gpu_layers: Override layers from settings (0 = CPU only).
+            n_threads: Override CPU threads from settings (None = auto).
+            n_batch: Override prompt batch size from settings.
+            warmup_enabled: Override warmup flag from settings.
             timeout_seconds: Override timeout from settings.
         """
         llm_settings = settings.llm
@@ -55,28 +65,84 @@ class LLMService:
         self._max_tokens = max_tokens or llm_settings.max_tokens
         self._temperature = temperature if temperature is not None else llm_settings.temperature
         self._n_gpu_layers = n_gpu_layers if n_gpu_layers is not None else llm_settings.n_gpu_layers
+        self._n_threads = n_threads if n_threads is not None else llm_settings.n_threads
+        self._n_batch = n_batch or llm_settings.n_batch
+        self._warmup_enabled = (
+            warmup_enabled if warmup_enabled is not None else llm_settings.warmup_enabled
+        )
         self._timeout = timeout_seconds or llm_settings.timeout_seconds
-        self._llm = None
+        self._llm: Any = None
         self._logger = logger
 
+    # -------------------------------------------------------------------------
+    # Model loading
+    # -------------------------------------------------------------------------
+
     @property
-    def llm(self):
+    def llm(self) -> Any:
         """Lazy-load and return the Llama model."""
         if self._llm is None:
-            from llama_cpp import Llama
-
-            self._logger.info(
-                f"Loading LLM: {self._model_path} "
-                f"(context_length: {self._context_length}, gpu_layers: {self._n_gpu_layers})"
-            )
-            self._llm = Llama(
-                model_path=self._model_path,
-                n_ctx=self._context_length,
-                n_gpu_layers=self._n_gpu_layers,
-                verbose=False,
-            )
-            self._logger.info("LLM loaded successfully")
+            self._llm = self._load_llama()
+            if self._warmup_enabled:
+                self._warmup()
         return self._llm
+
+    def _load_llama(self) -> Any:
+        """Instantiate the Llama model with optimized loading parameters.
+
+        Key flags for fast cold starts:
+            - ``use_mmap=True``: maps the GGUF file into virtual memory. The
+              OS loads pages on demand, turning a 60-120s full read into a
+              near-instant operation.
+            - ``use_mlock=False``: avoids locking pages in RAM, preventing
+              swap pressure in resource-constrained containers.
+            - ``n_threads`` / ``n_batch``: taken from settings for
+              reproducibility across environments.
+
+        Returns:
+            Configured ``Llama`` instance.
+        """
+        from llama_cpp import Llama
+
+        self._logger.info(
+            "Loading LLM: %s (ctx=%d, gpu_layers=%d, threads=%s, batch=%d)",
+            self._model_path,
+            self._context_length,
+            self._n_gpu_layers,
+            self._n_threads if self._n_threads is not None else "auto",
+            self._n_batch,
+        )
+        llm = Llama(
+            model_path=self._model_path,
+            n_ctx=self._context_length,
+            n_gpu_layers=self._n_gpu_layers,
+            n_threads=self._n_threads,
+            n_batch=self._n_batch,
+            use_mmap=True,
+            use_mlock=False,
+            verbose=False,
+        )
+        self._logger.info("LLM loaded successfully")
+        return llm
+
+    def _warmup(self) -> None:
+        """Force a 1-token generation to pre-fault pages and build caches.
+
+        With ``use_mmap=True``, the first real user request would otherwise
+        pay the cost of loading model pages from disk on demand. A tiny dummy
+        generation pulls the hot pages into RAM and warms internal buffers,
+        keeping the first user-facing response fast.
+        """
+        self._logger.info("Warming up LLM (1 token)...")
+        try:
+            self._llm.create_completion(prompt="Hi", max_tokens=1, temperature=0.0)
+            self._logger.info("LLM warmup complete")
+        except Exception:  # noqa: BLE001 — warmup failure must not block boot
+            self._logger.warning("LLM warmup failed (non-fatal)", exc_info=True)
+
+    # -------------------------------------------------------------------------
+    # Generation methods
+    # -------------------------------------------------------------------------
 
     def generate(
         self,
@@ -169,6 +235,10 @@ class LLMService:
             if content:
                 yield content
 
+    # -------------------------------------------------------------------------
+    # Accessors
+    # -------------------------------------------------------------------------
+
     @property
     def model_path(self) -> str:
         """Return model path."""
@@ -178,6 +248,15 @@ class LLMService:
     def context_length(self) -> int:
         """Return context length."""
         return self._context_length
+
+    @property
+    def is_loaded(self) -> bool:
+        """Return whether the underlying Llama model is loaded.
+
+        Exposed as a public accessor so health checks don't reach into the
+        private ``_llm`` attribute.
+        """
+        return self._llm is not None
 
 
 @lru_cache(maxsize=1)

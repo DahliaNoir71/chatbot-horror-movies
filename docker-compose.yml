@@ -14,6 +14,21 @@
 # Startup order (via depends_on + healthcheck):
 #   db → api → frontend, prometheus → grafana
 #   db → pgadmin
+#
+# -----------------------------------------------------------------------------
+# First-time setup — populate the models volume (Docker Desktop Windows)
+# -----------------------------------------------------------------------------
+# GGUF models are stored in a Docker-managed volume (not a bind mount) to
+# avoid the WSL2 ↔ Windows filesystem translation overhead (10–50× slowdown
+# on large file I/O). Copy local models into the volume once:
+#
+#   docker run --rm \
+#     -v horrorbot_models:/target \
+#     -v ${PWD}/models:/source \
+#     alpine sh -c "cp -v /source/*.gguf /target/"
+#
+# Verify contents:
+#   docker run --rm -v horrorbot_models:/models alpine ls -lh /models
 # =============================================================================
 
 services:
@@ -101,15 +116,14 @@ services:
       # Override host settings for Docker network
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
-      # Override host JAVA_HOME leaking from .env (pyspark runtime inside container)
-      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
 
     ports:
       - "8000:8000"
 
     volumes:
-      # AI models (not baked into image — too large)
-      - ./models:/app/models
+      # AI models — Docker-managed volume (fast ext4 inside WSL2 VM).
+      # Populate once via the command documented at the top of this file.
+      - horrorbot_models:/app/models
       # ETL outputs (rag_films.json, processed datasets) consumed by importers
       - ./data:/app/data
 
@@ -334,6 +348,8 @@ volumes:
     name: horrorbot_prometheus_test
   horrorbot_grafana_test:
     name: horrorbot_grafana_test
+  horrorbot_models:
+    name: horrorbot_models
 
 # =============================================================================
 # Networks

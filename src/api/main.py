@@ -286,19 +286,21 @@ def _check_components() -> HealthComponents:
     )
 
 
+def _get_process_memory_mb() -> int:
+    """Return current process RSS memory in megabytes."""
+    import psutil
+
+    return psutil.Process().memory_info().rss // (1024 * 1024)
+
+
 def _check_llm() -> LLMComponentHealth:
     """Check LLM service status."""
     try:
         from src.services.llm.llm_service import get_llm_service
 
         service = get_llm_service()
-        loaded = service._llm is not None
-        memory_mb = None
-        if loaded:
-            import psutil
-
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss // (1024 * 1024)
+        loaded = service.is_loaded
+        memory_mb = _get_process_memory_mb() if loaded else None
         return LLMComponentHealth(loaded=loaded, memory_mb=memory_mb)
     except Exception:
         return LLMComponentHealth(loaded=False)

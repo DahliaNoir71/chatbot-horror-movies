@@ -22,11 +22,17 @@ class LLMSettings(BaseSettings):
         model_path: Path to GGUF model file (relative to project root or absolute).
         hf_repo: HuggingFace repository ID for downloading the model.
         hf_filename: Filename of the GGUF file in the HuggingFace repository.
+        hf_revision: HuggingFace commit hash to pin the model revision.
         context_length: Context window size in tokens.
         max_tokens: Maximum tokens to generate per response.
         temperature: Sampling temperature (0.0 = deterministic, 2.0 = creative).
         timeout_seconds: Inference timeout.
         n_gpu_layers: Number of layers offloaded (0 = CPU only).
+        n_threads: CPU threads used for inference (None = auto-detect).
+        n_batch: Prompt processing batch size.
+        warmup_enabled: Trigger a 1-token generation after load to force
+            page faults and compile compute graphs. Trades a few extra
+            seconds at boot for a fast first user request.
     """
 
     model_path: str = Field(alias="LLM_MODEL_PATH")
@@ -41,6 +47,11 @@ class LLMSettings(BaseSettings):
     temperature: float = Field(alias="LLM_TEMPERATURE")
     timeout_seconds: int = Field(alias="LLM_TIMEOUT_SECONDS")
     n_gpu_layers: int = Field(alias="LLM_N_GPU_LAYERS")
+
+    # Performance tuning (optional — sane defaults)
+    n_threads: int | None = Field(default=None, alias="LLM_N_THREADS")
+    n_batch: int = Field(default=512, alias="LLM_N_BATCH")
+    warmup_enabled: bool = Field(default=True, alias="LLM_WARMUP_ENABLED")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -71,6 +82,14 @@ class LLMSettings(BaseSettings):
         """Validate max tokens is positive."""
         if v <= 0:
             raise ValueError("LLM_MAX_TOKENS must be > 0")
+        return v
+
+    @field_validator("n_batch")
+    @classmethod
+    def validate_n_batch(cls, v: int) -> int:
+        """Validate batch size is positive."""
+        if v <= 0:
+            raise ValueError("LLM_N_BATCH must be > 0")
         return v
 
     @property
