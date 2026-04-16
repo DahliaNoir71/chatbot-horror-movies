@@ -102,6 +102,9 @@ dev = [
 ]
 
 # --- Dépendances ML pour l'API Docker (LLM, embeddings, classifier) ---
+# Ce groupe est installé dans le container API. Il ne contient AUCUNE
+# dépendance liée à Spark (JRE) ou Playwright (Chromium) pour minimiser
+# la surface d'attaque CVE et la taille d'image.
 ml-api = [
     "torch>=2.9.0,<3.0",
     "transformers>=4.57.3",
@@ -111,26 +114,30 @@ ml-api = [
     "llama-cpp-python>=0.3.0,<0.4",
     "huggingface-hub>=0.36.0",
     "hf-xet>=1.2.0",
+]
 
-    # Spark (requis pour pipeline ETL Spark dans le container api)
+# --- Dépendances ETL offline E1 (local uniquement, PAS dans le container API) ---
+# Pipelines d'ingestion batch exécutés hors du runtime API :
+#   - Spark : traitement des datasets TMDB/IMDB
+#   - Playwright/Patchright : scraping Rotten Tomatoes
+etl = [
     "pyspark>=4.0.1",
     "py4j>=0.10.9.9",
-
-    # Rotten Tomatoes scraping (requis pour pipeline ETL RT dans le container api)
     "playwright>=1.57.0",
     "patchright>=1.56.0",
 ]
 
 # --- Dépendances ML lourdes complètes (local uniquement, PAS en CI/Docker) ---
 ml = [
-    # Inclut ml-api
+    # Inclut ml-api + etl
     {include-group = "ml-api"},
+    {include-group = "etl"},
 
     # Scientific Computing (heavy)
     "scipy>=1.16.3",
     "scikit-learn>=1.8.0",
 
-    # Browser Automation (heavy) — playwright+patchright déjà dans ml-api
+    # Browser Automation (heavy) — playwright+patchright déjà dans etl
     "selenium>=4.38.0",
 
     # IMDB SQLite generator (downloads TSV datasets)

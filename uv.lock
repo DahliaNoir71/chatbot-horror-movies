@@ -1301,6 +1301,12 @@ dev = [
     { name = "pytest-xdist" },
     { name = "safety" },
 ]
+etl = [
+    { name = "patchright" },
+    { name = "playwright" },
+    { name = "py4j" },
+    { name = "pyspark" },
+]
 ml = [
     { name = "hf-xet" },
     { name = "huggingface-hub" },
@@ -1326,10 +1332,6 @@ ml-api = [
     { name = "huggingface-hub" },
     { name = "llama-cpp-python", version = "0.3.19", source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cpu" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "llama-cpp-python", version = "0.3.19", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
-    { name = "patchright" },
-    { name = "playwright" },
-    { name = "py4j" },
-    { name = "pyspark" },
     { name = "safetensors" },
     { name = "sentence-transformers" },
     { name = "tokenizers" },
@@ -1404,6 +1406,12 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.0.2" },
     { name = "safety", specifier = ">=3.0.0" },
 ]
+etl = [
+    { name = "patchright", specifier = ">=1.56.0" },
+    { name = "playwright", specifier = ">=1.57.0" },
+    { name = "py4j", specifier = ">=0.10.9.9" },
+    { name = "pyspark", specifier = ">=4.0.1" },
+]
 ml = [
     { name = "hf-xet", specifier = ">=1.2.0" },
     { name = "huggingface-hub", specifier = ">=0.36.0" },
@@ -1430,10 +1438,6 @@ ml-api = [
     { name = "llama-cpp-python", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=0.3.0,<0.4" },
     { name = "llama-cpp-python", marker = "sys_platform == 'linux'", specifier = ">=0.3.0,<0.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cpu" },
     { name = "llama-cpp-python", marker = "sys_platform == 'win32'", specifier = ">=0.3.0,<0.4", index = "https://abetlen.github.io/llama-cpp-python/whl/cpu" },
-    { name = "patchright", specifier = ">=1.56.0" },
-    { name = "playwright", specifier = ">=1.57.0" },
-    { name = "py4j", specifier = ">=0.10.9.9" },
-    { name = "pyspark", specifier = ">=4.0.1" },
     { name = "safetensors", specifier = ">=0.7.0" },
     { name = "sentence-transformers", specifier = ">=5.2.0" },
     { name = "tokenizers", specifier = ">=0.22.1" },

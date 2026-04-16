@@ -13,8 +13,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # ── System dependencies ──────────────────────────────────────────────────────
-# libpq-dev: psycopg2, build-essential+cmake: llama-cpp-python fallback build,
-# curl: healthcheck, openjdk-21-jre-headless: pyspark runtime
+# libpq-dev: psycopg2 headers, build-essential+cmake: llama-cpp-python fallback
+# build (pre-built wheel preferred), curl: healthcheck
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
@@ -22,27 +22,19 @@ RUN apt-get update && \
         build-essential \
         cmake \
         curl \
-        musl \
-        openjdk-21-jre-headless \
-    && ln -sf /usr/lib/x86_64-linux-musl/libc.so /usr/lib/libc.musl-x86_64.so.1 \
     && rm -rf /var/lib/apt/lists/*
-
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 # ── Install uv ──────────────────────────────────────────────────────────────
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # ── Dependencies (cached layer) ─────────────────────────────────────────────
 COPY pyproject.toml uv.lock README.md ./
-# Install deps + download Playwright chromium (needed by RT scraper) in one layer
-RUN uv sync --frozen --group ml-api && \
-    uv run playwright install --with-deps chromium
+RUN uv sync --frozen --group ml-api
 
 # ── Application code ─────────────────────────────────────────────────────────
 COPY src/ src/
 
 # ── Runtime config ───────────────────────────────────────────────────────────
-# CPU-only inference
 ENV LLM_N_GPU_LAYERS=0
 ENV PYTHONUNBUFFERED=1
 

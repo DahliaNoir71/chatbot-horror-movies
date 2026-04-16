@@ -3,7 +3,7 @@
 # GitHub Actions CI/CD Pipeline — DevSecOps
 # ===================================================
 # Project : HorrorBot
-# Version : 3.0
+# Version : 3.1
 # Date    : April 2026
 #
 # Adapted from GitLab CI 3-tier pipeline.
@@ -40,7 +40,7 @@
 #   - Gitleaks                → pre-commit (staged) + CI (full history)
 #   - Tests, deps scan, OWASP → CI only
 #   - Hadolint (Dockerfile)   → CI only (blocking, .hadolint.yaml)
-#   - Trivy (Docker image)    → CI only
+#   - Trivy (Docker image)    → CI only (OS-level CVEs only, pkg-types: os)
 # ===================================================
 
 name: CI/CD Pipeline — DevSecOps
@@ -652,15 +652,16 @@ jobs:
       - name: Create security reports directory
         run: mkdir -p security-reports
 
-      # Trivy scans OS-level CVEs only. Python/JS deps are handled by
-      # OWASP Dependency-Check (security-owasp job) to avoid double-scanning
-      # and diverging suppression files.
+      # Trivy scans OS-level CVEs only (pkg-types: os).
+      # Python/JS/JAR deps are handled by OWASP Dependency-Check (security-owasp job)
+      # to avoid double-scanning and diverging suppression files.
+      # Note: pkg-types replaces the deprecated vuln-type flag (Trivy >= 0.56).
       - name: Trivy scan (table) — ${{ matrix.label }}
         uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
-          vuln-type: os
+          pkg-types: os
           format: table
           severity: ${{ env.TRIVY_SEVERITY }}
           exit-code: "0"
@@ -672,7 +673,7 @@ jobs:
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
-          vuln-type: os
+          pkg-types: os
           format: json
           severity: ${{ env.TRIVY_SEVERITY }}
           output: security-reports/trivy-${{ matrix.label }}-report.json
