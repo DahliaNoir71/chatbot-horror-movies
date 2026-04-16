@@ -18,14 +18,12 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pydantic_core>=2.41.5",
-
     # --- Database ---
     "SQLAlchemy>=2.0.45",
     "asyncpg>=0.31.0",
     "psycopg2-binary>=2.9.11",
     "alembic>=1.17.2",
     "pgvector>=0.4.2",
-
     # --- HTTP & Async ---
     "httpx>=0.28.1",
     "httpcore>=1.0.9",
@@ -33,29 +31,24 @@ dependencies = [
     "aiofiles>=25.1.0",
     "anyio>=4.12.0",
     "requests>=2.33.0",
-
     # --- Auth & Security ---
     "bcrypt>=5.0.0",
     "passlib>=1.7.4",
     "PyJWT>=2.12.0",
     "python-jose>=3.5.0",
     "cryptography>=46.0.7",
-
     # --- Rate Limiting ---
     "slowapi>=0.1.9",
     "limits>=5.6.0",
-
     # --- Data Processing (léger) ---
     "pandas>=2.3.3",
     "polars>=1.36.1",
     "numpy>=2.3.5",
     "openpyxl>=3.1.5",
-
     # --- Web Scraping ---
     "beautifulsoup4>=4.14.3",
     "Crawl4AI>=0.8.0",
     "lxml>=5.4.0",
-
     # --- Utilities ---
     "python-dotenv>=1.2.1",
     "structlog>=25.5.0",
@@ -66,15 +59,13 @@ dependencies = [
     "PyYAML>=6.0.3",
     "Jinja2>=3.1.6",
     "orjson>=3.11.6",
-
     # --- APIs ---
     "kaggle>=1.8.2",
-
     # --- Monitoring ---
     "prometheus_client>=0.23.1",
-
     # --- SSE Streaming ---
     "sse-starlette",
+    "lingua-language-detector>=2.2.0",
 ]
 
 # =============================================================================
