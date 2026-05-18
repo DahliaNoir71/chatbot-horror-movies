@@ -1,0 +1,77 @@
+[
+  {
+    "id": "Q21",
+    "query": "Parle-moi du film Hereditary",
+    "expected_tmdb_ids": [493922]
+  },
+  {
+    "id": "Q22",
+    "query": "Que se passe-t-il dans Get Out ?",
+    "expected_tmdb_ids": [419430]
+  },
+  {
+    "id": "Q23",
+    "query": "Raconte-moi le film Saw",
+    "expected_tmdb_ids": [176]
+  },
+  {
+    "id": "Q24",
+    "query": "Je veux en savoir plus sur Sans un bruit",
+    "expected_tmdb_ids": [447332, 520763]
+  },
+  {
+    "id": "Q25",
+    "query": "Résumé de Scream 1996",
+    "expected_tmdb_ids": [4232]
+  },
+  {
+    "id": "Q26",
+    "query": "Films de maison hantée où la famille ne peut pas partir",
+    "expected_tmdb_ids": [694, 11449, 609]
+  },
+  {
+    "id": "Q27",
+    "query": "Films d'horreur avec des enfants possédés",
+    "expected_tmdb_ids": [9552, 794, 49018]
+  },
+  {
+    "id": "Q28",
+    "query": "Des slashers avec un tueur masqué",
+    "expected_tmdb_ids": [948, 4488, 4232]
+  },
+  {
+    "id": "Q29",
+    "query": "Films d'horreur sur l'isolement et la paranoïa",
+    "expected_tmdb_ids": [1091, 694, 418078]
+  },
+  {
+    "id": "Q30",
+    "query": "Films de loup-garou récents",
+    "expected_tmdb_ids": [262840, 254193, 301846]
+  },
+  {
+    "id": "Q31",
+    "query": "Films d'horreur réalisés par James Wan",
+    "expected_tmdb_ids": [176, 49018, 138843]
+  },
+  {
+    "id": "Q32",
+    "query": "Dans quels films d'horreur joue Sigourney Weaver ?",
+    "expected_tmdb_ids": [348]
+  },
+  {
+    "id": "Q33",
+    "query": "Filmographie horreur de Jordan Peele",
+    "expected_tmdb_ids": [419430, 458723, 762504]
+  },
+  {
+    "id": "Q34",
+    "query": "Quels films d'horreur avec Toni Collette ?",
+    "expected_tmdb_ids": [493922]
+  },
+  {
+    "id": "Q35",
+    "query": "Les films de Dario Argento",
+    "expected_tmdb_ids": [11906, 20126, 16395]
+  }
+]
