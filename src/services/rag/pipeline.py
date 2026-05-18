@@ -16,12 +16,15 @@ from src.monitoring.metrics import (
     LLM_REQUESTS_TOTAL,
     LLM_TOKENS_GENERATED,
     LLM_TOKENS_PER_SECOND,
+    RAG_NO_CONTEXT_RESPONSES_TOTAL,
 )
 from src.services.llm.llm_service import LLMService, get_llm_service
 from src.services.rag.hybrid_retriever import HybridRetriever, get_hybrid_retriever
 from src.services.rag.prompt_builder import RAGPromptBuilder
 from src.services.rag.reranker import RerankerService, get_reranker_service
 from src.services.rag.retriever import DocumentRetriever, RetrievedDocument
+from src.settings import settings
+from src.settings.retrieval import RetrievalSettings
 
 logger = setup_logger("services.rag.pipeline")
 
@@ -74,6 +77,7 @@ class RAGPipeline:
         retriever: HybridRetriever | DocumentRetriever | None = None,
         reranker: RerankerService | None = None,
         llm_service: LLMService | None = None,
+        retrieval_settings: RetrievalSettings | None = None,
     ) -> None:
         """Initialize pipeline with injectable dependencies.
 
@@ -84,10 +88,12 @@ class RAGPipeline:
                 `DocumentRetriever`.
             reranker: Override reranker service (for testing).
             llm_service: Override LLM service (for testing).
+            retrieval_settings: Override retrieval settings (for testing).
         """
         self._retriever = retriever or get_hybrid_retriever()
         self._reranker = reranker or get_reranker_service()
         self._llm = llm_service or get_llm_service()
+        self._settings = retrieval_settings or settings.retrieval
         self._logger = logger
 
     def execute(
@@ -114,10 +120,20 @@ class RAGPipeline:
         documents = self._reranker.rerank(user_message, documents)
         rerank_ms = (time.perf_counter() - rerank_start) * 1000
 
+        trusted_docs = [
+            d
+            for d in documents
+            if d.rerank_score is None or d.rerank_score >= self._settings.min_rerank_score
+        ]
+
+        if not trusted_docs:
+            RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
+            return self._build_no_context_response(intent)
+
         messages = RAGPromptBuilder.build(
             intent=intent,
             user_message=user_message,
-            documents=documents,
+            documents=trusted_docs,
             history=history,
         )
 
@@ -132,7 +148,7 @@ class RAGPipeline:
             self._logger.info(
                 f"RAG pipeline complete: "
                 f"retrieval={round(retrieval_ms)}ms, "
-                f"rerank={round(rerank_ms)}ms ({len(documents)} docs), "
+                f"rerank={round(rerank_ms)}ms ({len(trusted_docs)} docs), "
                 f"generation={round(gen_ms)}ms, "
                 f"tokens={result.get('usage', {}).get('completion_tokens', '?')}, "
                 f"total={round(retrieval_ms + rerank_ms + gen_ms)}ms"
@@ -141,7 +157,7 @@ class RAGPipeline:
             return RAGResult(
                 text=result["text"],
                 intent=intent,
-                documents=documents,
+                documents=trusted_docs,
                 usage=result.get("usage", {}),
                 retrieval_time_ms=retrieval_ms,
                 rerank_time_ms=rerank_ms,
@@ -188,6 +204,27 @@ class RAGPipeline:
 
         token_stream = self._llm.generate_stream(messages)
         return token_stream, documents
+
+    def _build_no_context_response(self, intent: str) -> RAGResult:
+        """Build response when no document passed rerank confidence threshold.
+
+        This is the anti-hallucination circuit breaker: when the retriever
+        fails to find grounded context, we refuse to answer rather than let
+        the LLM fabricate from pre-training.
+
+        Args:
+            intent: The intent that triggered this pipeline execution.
+
+        Returns:
+            RAGResult with a templated refusal message and no documents.
+        """
+        return RAGResult(
+            text=(
+                "Je n'ai pas trouvé d'information fiable dans ma base de films "
+                "sur ce sujet. Peux-tu reformuler ou préciser ta question ?"
+            ),
+            intent=intent,
+        )
 
     @staticmethod
     def _record_llm_metrics(usage: dict[str, Any], duration_s: float) -> None:

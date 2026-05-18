@@ -110,6 +110,11 @@ RAG_TOP_SIMILARITY = Histogram(
     buckets=[0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0],
 )
 
+RAG_NO_CONTEXT_RESPONSES_TOTAL = Counter(
+    "horrorbot_rag_no_context_responses_total",
+    "RAG responses returned when no document passed rerank confidence threshold",
+)
+
 # =============================================================================
 # CHAT ENDPOINT METRICS
 # =============================================================================
