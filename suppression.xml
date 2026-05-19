@@ -32,4 +32,89 @@
     <cve>CVE-2026-35029</cve>
   </suppress>
 
+  <suppress>
+    <notes>CVE-2026-42271 (CVSS 8.7): unclecode-litellm — transitive dep bundled by crawl4ai; not imported or exposed. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
+    <cve>CVE-2026-42271</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42203 (CVSS 8.6): unclecode-litellm — transitive dep bundled by crawl4ai; not imported or exposed. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
+    <cve>CVE-2026-42203</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-40217 (CVSS 8.8): unclecode-litellm — transitive dep bundled by crawl4ai; not imported or exposed. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
+    <cve>CVE-2026-40217</cve>
+  </suppress>
+
+  <!-- =================================================================
+       lxml — Transitive dependency of Crawl4AI (>=5.4.0)
+       =================================================================
+       5.4.0 is the latest available release; no upstream patch exists.
+       lxml is used by Crawl4AI's HTML parser, not by HorrorBot directly.
+  -->
+  <suppress>
+    <notes>CVE-2026-41066 (CVSS 7.5): lxml 5.4.0 — transitive dep via crawl4ai; latest available version, no fix. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/lxml@.*$</packageUrl>
+    <cve>CVE-2026-41066</cve>
+  </suppress>
+
+  <!-- =================================================================
+       axios — Direct npm dependency (^1.13.5, resolved 1.15.0)
+       =================================================================
+       1.15.0 is the latest 1.x release; no upstream patch available as
+       of 2026-05-19. Not exposed server-side; used only in the frontend
+       browser bundle for API calls to the local FastAPI backend.
+  -->
+  <suppress>
+    <notes>CVE-2026-42043 (CVSS 10.0): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42043</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42044 (CVSS 9.1): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42044</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42264 (CVSS 9.1): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42264</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42038 (CVSS 7.5): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42038</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42035 (CVSS 7.4): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42035</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-42033 (CVSS 7.4): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
+    <cve>CVE-2026-42033</cve>
+  </suppress>
+
+  <!-- =================================================================
+       basic-ftp — Transitive npm dependency via lighthouse (devDep)
+       =================================================================
+       Not used at runtime; brought in by lighthouse (perf/a11y testing).
+       No override available without breaking the lighthouse integration.
+  -->
+  <suppress>
+    <notes>CVE-2026-41324 (CVSS 7.5): basic-ftp — transitive devDep via lighthouse; not used at runtime. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/basic-ftp@.*$</packageUrl>
+    <cve>CVE-2026-41324</cve>
+  </suppress>
+
 </suppressions>
