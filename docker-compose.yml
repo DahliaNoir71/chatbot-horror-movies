@@ -126,6 +126,14 @@ services:
       - horrorbot_models:/app/models
       # ETL outputs (rag_films.json, processed datasets) consumed by importers
       - ./data:/app/data
+      # Hot reload — src/ mounted so code changes don't require a rebuild.
+      - ./src:/app/src
+      # HuggingFace cache — persisted across rebuilds so MiniLM / DeBERTa /
+      # cross-encoder are downloaded once. Path matches HF_HOME set in the
+      # Dockerfile and the CI cache convention (mlops.yml).
+      - horrorbot_hf_cache:/root/.cache/huggingface
+
+    command: ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
     depends_on:
       db:
@@ -350,6 +358,8 @@ volumes:
     name: horrorbot_grafana_test
   horrorbot_models:
     name: horrorbot_models
+  horrorbot_hf_cache:
+    name: horrorbot_hf_cache
 
 # =============================================================================
 # Networks

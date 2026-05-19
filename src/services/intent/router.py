@@ -30,7 +30,7 @@ logger = setup_logger("services.intent.router")
 # =============================================================================
 
 RAG_INTENTS = {"needs_database"}
-TEMPLATE_INTENTS = {"conversational", "off_topic"}
+TEMPLATE_INTENTS = {"conversational", "thanks", "off_topic"}
 
 
 # =============================================================================

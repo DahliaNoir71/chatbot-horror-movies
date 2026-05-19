@@ -125,7 +125,7 @@ class TestIntentClassifier:
     @staticmethod
     def test_conversational_precheck_farewell(classifier) -> None:
         """Short farewell bypasses zero-shot and returns conversational."""
-        result = classifier.classify("Au revoir, merci")
+        result = classifier.classify("Au revoir")
 
         assert result["intent"] == "conversational"
 
@@ -161,8 +161,8 @@ class TestIntentLabels:
 
     @staticmethod
     def test_all_expected_labels_present() -> None:
-        """All 3 expected intents are defined."""
-        expected = {"needs_database", "conversational", "off_topic"}
+        """All expected intents are defined."""
+        expected = {"needs_database", "conversational", "thanks", "off_topic"}
         assert set(INTENT_LABELS) == expected
 
     @staticmethod

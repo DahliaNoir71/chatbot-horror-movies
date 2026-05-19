@@ -66,8 +66,11 @@ _FAREWELL_TEMPLATE = (
     "Revenez quand vous voudrez une bonne frayeur. Restez sur vos gardes !"
 )
 
+TEMPLATE_THANKS = "Avec plaisir ! N'hesite pas si tu as d'autres questions sur les films d'horreur."
+
 TEMPLATE_RESPONSES: dict[str, str] = {
     "conversational": _GREETING_TEMPLATE,
+    "thanks": TEMPLATE_THANKS,
     "off_topic": (
         "J'apprecie votre question, mais je suis specialise dans les films d'horreur ! "
         "Je peux vous aider avec des recommandations de films d'horreur, des details sur des films, "

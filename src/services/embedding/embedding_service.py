@@ -49,7 +49,11 @@ class EmbeddingService:
 
             device = "cpu"
             self._logger.info(f"Loading model: {self._model_name} on {device}")
-            self._model = SentenceTransformer(self._model_name, device=device)
+            self._model = SentenceTransformer(
+                self._model_name,
+                device=device,
+                revision=settings.embedding.revision,
+            )
             self._logger.info("Model loaded successfully")
         return self._model
 

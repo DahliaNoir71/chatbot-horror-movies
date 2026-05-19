@@ -39,7 +39,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # ── Dependencies (cached layer) ─────────────────────────────────────────────
 # Only the ml-api group is installed (no pyspark, no playwright).
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --group ml-api
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --group ml-api
 
 # ── Application code ─────────────────────────────────────────────────────────
 COPY src/ src/
@@ -48,6 +49,9 @@ COPY src/ src/
 # CPU-only inference
 ENV LLM_N_GPU_LAYERS=0
 ENV PYTHONUNBUFFERED=1
+# Explicit HF cache location — matches the named volume mounted in
+# docker-compose.yml and the CI convention (.github/workflows/mlops.yml).
+ENV HF_HOME=/root/.cache/huggingface
 
 EXPOSE 8000
 

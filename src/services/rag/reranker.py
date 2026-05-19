@@ -43,7 +43,10 @@ class RerankerService:
             from sentence_transformers import CrossEncoder
 
             logger.info("Loading cross-encoder model: %s", self._model_name)
-            self._model = CrossEncoder(self._model_name)
+            self._model = CrossEncoder(
+                self._model_name,
+                revision=settings.reranker.revision,
+            )
             logger.info("Cross-encoder model loaded")
         return self._model
 

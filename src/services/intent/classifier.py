@@ -16,6 +16,7 @@ logger = setup_logger("services.intent.classifier")
 INTENT_LABELS = [
     "needs_database",
     "conversational",
+    "thanks",
     "off_topic",
 ]
 
@@ -110,6 +111,17 @@ _CONVERSATIONAL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Thanks/gratitude keywords for pre-check — detected before the generic
+# conversational pre-check so "merci" routes to "thanks", not "farewell".
+_THANKS_KEYWORDS = {"merci", "thanks", "thank you"}
+
+_THANKS_PATTERN = re.compile(
+    r"\b(?:"
+    + "|".join(re.escape(kw) for kw in sorted(_THANKS_KEYWORDS, key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
+
 # Secondary confidence threshold — between this and the main threshold,
 # always route to needs_database (benefit of the doubt).
 _SECONDARY_THRESHOLD = 0.35
@@ -123,6 +135,7 @@ _SECONDARY_THRESHOLD = 0.35
 CANDIDATE_LABEL_MAP: dict[str, str] = {
     "needs_database": "question about horror films or movie recommendations",
     "conversational": "social greeting or farewell",
+    "thanks": "expressing gratitude or saying thank you",
     "off_topic": "question about science, math, cooking, or other non-movie topic",
 }
 
@@ -179,6 +192,7 @@ class IntentClassifier:
                 "zero-shot-classification",
                 model=self._model_name,
                 device=device,
+                revision=settings.classifier.revision,
             )
             self._logger.info("Classifier loaded successfully")
         return self._pipeline
@@ -208,6 +222,15 @@ class IntentClassifier:
                 "intent": FALLBACK_INTENT,
                 "confidence": 0.0,
                 "all_scores": {},
+            }
+
+        # Pre-check: thanks messages bypass zero-shot (must run before the
+        # generic conversational check since "merci" is in both keyword sets).
+        if self._is_thanks(text):
+            return {
+                "intent": "thanks",
+                "confidence": 1.0,
+                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"thanks": 1.0},
             }
 
         # Pre-check: short greeting/farewell messages bypass zero-shot.
@@ -290,6 +313,23 @@ class IntentClassifier:
         if any(kw in lower for kw in _HORROR_DOMAIN_KEYWORDS):
             return False
         return bool(_CONVERSATIONAL_PATTERN.search(lower))
+
+    @staticmethod
+    def _is_thanks(text: str) -> bool:
+        """Check if text is a short gratitude expression.
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message expresses thanks without horror domain keywords.
+        """
+        lower = text.lower()
+        if len(lower.split()) > _CONVERSATIONAL_MAX_WORDS:
+            return False
+        if any(kw in lower for kw in _HORROR_DOMAIN_KEYWORDS):
+            return False
+        return bool(_THANKS_PATTERN.search(lower))
 
     @staticmethod
     def _has_domain_keyword(text: str) -> bool:

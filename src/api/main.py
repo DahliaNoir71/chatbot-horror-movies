@@ -4,6 +4,7 @@ Creates and configures the HorrorBot REST API with
 authentication, rate limiting, and OpenAPI documentation.
 """
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -128,47 +129,87 @@ def _seed_chatbot_users() -> None:
         session.close()
 
 
+def _load_embedding_model(logger: logging.Logger) -> None:
+    """Load embedding singleton into memory."""
+    from src.services.embedding.embedding_service import get_embedding_service
+
+    logger.info("Pre-loading embedding model...")
+    _ = get_embedding_service().model
+    logger.info("Embedding model loaded.")
+
+
+def _load_classifier_model(logger: logging.Logger) -> None:
+    """Load intent classifier singleton into memory."""
+    from src.services.intent.classifier import get_intent_classifier
+
+    logger.info("Pre-loading intent classifier...")
+    _ = get_intent_classifier().pipeline
+    logger.info("Intent classifier loaded.")
+
+
+def _load_reranker_model(logger: logging.Logger) -> None:
+    """Load cross-encoder reranker singleton into memory."""
+    from src.services.rag.reranker import get_reranker_service
+
+    logger.info("Pre-loading reranker model...")
+    get_reranker_service()._load_model()
+    logger.info("Reranker model loaded.")
+
+
+def _load_llm_model(logger: logging.Logger) -> None:
+    """Load LLM singleton into memory."""
+    from src.services.llm.llm_service import get_llm_service
+
+    logger.info("Pre-loading LLM...")
+    _ = get_llm_service().llm
+    logger.info("LLM loaded.")
+
+
+def _warmup_ml_imports(logger: logging.Logger) -> None:
+    """Force-import the HF stack in the main thread.
+
+    huggingface_hub exposes most of its surface through lazy ``__getattr__``
+    which is not thread-safe: parallel first-time imports from worker
+    threads trigger circular-import races (partially-initialized submodules).
+    Importing in the main thread populates ``sys.modules`` so subsequent
+    worker imports are pure cache hits.
+    """
+    logger.info("Pre-importing ML stack (HF + transformers)...")
+    import sentence_transformers  # noqa: F401
+    import transformers  # noqa: F401
+
+    logger.info("ML stack imported.")
+
+
 def _preload_models() -> None:
-    """Pre-load AI models so they're ready for first request."""
-    import logging
+    """Pre-load AI models in parallel for fast first-request latency.
+
+    Each loader runs in its own thread. Services are independent singletons
+    (separate lru_cache instances, no shared state), and the heavy phase
+    (tensor allocation, file I/O, native llama.cpp calls) releases the GIL,
+    so true parallelism is achieved on multi-core hosts. The HF stack is
+    pre-imported in the main thread to avoid lazy-import races (see
+    [_warmup_ml_imports][]).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     logger = logging.getLogger("horrorbot.warmup")
+    _warmup_ml_imports(logger)
+    loaders = {
+        "embedding model": _load_embedding_model,
+        "intent classifier": _load_classifier_model,
+        "reranker model": _load_reranker_model,
+        "LLM": _load_llm_model,
+    }
 
-    try:
-        from src.services.embedding.embedding_service import get_embedding_service
-
-        logger.info("Pre-loading embedding model...")
-        _ = get_embedding_service().model
-        logger.info("Embedding model loaded.")
-    except Exception:
-        logger.warning("Failed to pre-load embedding model", exc_info=True)
-
-    try:
-        from src.services.intent.classifier import get_intent_classifier
-
-        logger.info("Pre-loading intent classifier...")
-        _ = get_intent_classifier().pipeline
-        logger.info("Intent classifier loaded.")
-    except Exception:
-        logger.warning("Failed to pre-load intent classifier", exc_info=True)
-
-    try:
-        from src.services.rag.reranker import get_reranker_service
-
-        logger.info("Pre-loading reranker model...")
-        get_reranker_service()._load_model()
-        logger.info("Reranker model loaded.")
-    except Exception:
-        logger.warning("Failed to pre-load reranker model", exc_info=True)
-
-    try:
-        from src.services.llm.llm_service import get_llm_service
-
-        logger.info("Pre-loading LLM...")
-        _ = get_llm_service().llm
-        logger.info("LLM loaded.")
-    except Exception:
-        logger.warning("Failed to pre-load LLM", exc_info=True)
+    with ThreadPoolExecutor(max_workers=len(loaders)) as executor:
+        futures = {executor.submit(fn, logger): name for name, fn in loaders.items()}
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                future.result()
+            except Exception:
+                logger.warning("Failed to pre-load %s", name, exc_info=True)
 
 
 # =============================================================================
