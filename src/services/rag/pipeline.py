@@ -17,7 +17,9 @@ from src.monitoring.metrics import (
     LLM_REQUESTS_TOTAL,
     LLM_TOKENS_GENERATED,
     LLM_TOKENS_PER_SECOND,
+    RAG_NO_CONTEXT_RESPONSES,
     RAG_NO_CONTEXT_RESPONSES_TOTAL,
+    RAG_TRUSTED_DOCS_AFTER_RERANK,
 )
 from src.services.llm.llm_service import LLMService, get_llm_service
 from src.services.rag.hybrid_retriever import HybridRetriever, get_hybrid_retriever
@@ -129,6 +131,7 @@ class RAGPipeline:
             for d in documents
             if d.rerank_score is None or d.rerank_score >= self._settings.min_rerank_score
         ]
+        RAG_TRUSTED_DOCS_AFTER_RERANK.observe(len(trusted_docs))
 
         if not trusted_docs:
             RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
@@ -236,6 +239,7 @@ class RAGPipeline:
         Returns:
             RAGResult with a templated refusal message and no documents.
         """
+        RAG_NO_CONTEXT_RESPONSES.inc()
         return RAGResult(
             text=(
                 "Je n'ai pas trouvé d'information fiable dans ma base de films "

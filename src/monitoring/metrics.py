@@ -169,3 +169,42 @@ DB_CONNECTION_POOL_SIZE = Gauge(
     "Database connection pool size by state",
     ["state"],  # active, idle
 )
+
+# =============================================================================
+# RAG BM25 / HYBRID METRICS
+# =============================================================================
+
+RAG_BM25_DURATION = Histogram(
+    "rag_bm25_duration_seconds",
+    "Duration of BM25 full-text search",
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
+RAG_RRF_FUSION_DURATION = Histogram(
+    "rag_rrf_fusion_duration_seconds",
+    "Duration of RRF fusion between vector and BM25 results",
+    buckets=(0.001, 0.005, 0.01, 0.025, 0.05),
+)
+
+RAG_BM25_RESULTS_COUNT = Histogram(
+    "rag_bm25_results_count",
+    "Number of BM25 results before fusion",
+    buckets=(0, 1, 5, 10, 20, 50),
+)
+
+RAG_TRUSTED_DOCS_AFTER_RERANK = Histogram(
+    "rag_trusted_docs_after_rerank",
+    "Number of documents passing the rerank confidence threshold",
+    buckets=(0, 1, 2, 3, 5, 10),
+)
+
+RAG_NO_CONTEXT_RESPONSES = Counter(
+    "rag_no_context_responses_total",
+    "Queries answered without context due to rerank threshold",
+)
+
+RAG_QUERY_LANGUAGE = Counter(
+    "rag_query_language_total",
+    "Detected query language for BM25 routing",
+    ["language"],
+)

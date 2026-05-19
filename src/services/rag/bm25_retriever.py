@@ -13,6 +13,7 @@ directly with `rag_documents.source_id` for hybrid retrieval.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
@@ -20,6 +21,7 @@ from typing import Literal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.monitoring.metrics import RAG_BM25_DURATION, RAG_BM25_RESULTS_COUNT, RAG_QUERY_LANGUAGE
 from src.services.rag.language_detector import LanguageDetector
 
 # Reciprocal Rank Fusion constant (Cormack et al. 2009). k=60 is the
@@ -107,11 +109,17 @@ class BM25MultilingualRetriever:
         if not query or not query.strip():
             return []
         lang = self._language_detector.detect(query)
+        RAG_QUERY_LANGUAGE.labels(lang).inc()
+        t0 = time.perf_counter()
         if lang == "fr":
-            return await self._search_fr(query, top_k)
-        if lang == "en":
-            return await self._search_en(query, top_k)
-        return await self._search_mixed(query, top_k)
+            results = await self._search_fr(query, top_k)
+        elif lang == "en":
+            results = await self._search_en(query, top_k)
+        else:
+            results = await self._search_mixed(query, top_k)
+        RAG_BM25_DURATION.observe(time.perf_counter() - t0)
+        RAG_BM25_RESULTS_COUNT.observe(len(results))
+        return results
 
     # -------------------------------------------------------------------------
     # Per-language search

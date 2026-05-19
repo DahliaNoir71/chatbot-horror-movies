@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -26,6 +27,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from src.monitoring.metrics import RAG_RRF_FUSION_DURATION
 from src.services.rag.bm25_retriever import BM25MultilingualRetriever, BM25Result
 from src.services.rag.retriever import DocumentRetriever, RetrievedDocument, get_document_retriever
 from src.settings import settings
@@ -120,7 +122,9 @@ class HybridRetriever:
         """
         top_k = top_k or self._settings.final_top_k
         vector_results, bm25_results = await self._fetch_parallel(query)
+        t0 = time.perf_counter()
         fused = self._rrf_fuse(vector_results, bm25_results, self._settings)
+        RAG_RRF_FUSION_DURATION.observe(time.perf_counter() - t0)
         if not fused:
             return []
         final = await self._apply_popularity_boost(fused)
