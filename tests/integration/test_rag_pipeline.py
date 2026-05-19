@@ -24,14 +24,14 @@ from src.services.rag.retriever import RetrievedDocument
 
 
 class TestRAGPipelineExecute:
-    """RAGPipeline.execute() — Synchronous RAG execution."""
+    """RAGPipeline.execute() — RAG execution."""
 
     @staticmethod
-    def test_rag_execute_returns_rag_result(
+    async def test_rag_execute_returns_rag_result(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that execute() returns a valid RAGResult."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Recommend me a scary movie",
             history=[],
@@ -43,11 +43,11 @@ class TestRAGPipelineExecute:
         assert result.intent == "needs_database"
 
     @staticmethod
-    def test_rag_execute_horror_recommendation_intent(
+    async def test_rag_execute_horror_recommendation_intent(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test RAG execution with horror_recommendation intent."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="What's a good horror film?",
             history=[],
@@ -59,11 +59,11 @@ class TestRAGPipelineExecute:
         assert len(result.documents) > 0
 
     @staticmethod
-    def test_rag_execute_horror_trivia_intent(
+    async def test_rag_execute_horror_trivia_intent(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test RAG execution with horror_trivia intent."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Tell me about horror movie history",
             history=[],
@@ -73,11 +73,11 @@ class TestRAGPipelineExecute:
         assert result.text is not None
 
     @staticmethod
-    def test_rag_execute_includes_documents(
+    async def test_rag_execute_includes_documents(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that retrieved documents are included in result."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Recommend horror",
             history=[],
@@ -92,11 +92,11 @@ class TestRAGPipelineExecute:
             assert doc.similarity >= 0.0
 
     @staticmethod
-    def test_rag_execute_records_usage_stats(
+    async def test_rag_execute_records_usage_stats(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that LLM usage stats are recorded in result."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Recommend a movie",
             history=[],
@@ -109,11 +109,11 @@ class TestRAGPipelineExecute:
         assert result.usage["completion_tokens"] >= 0
 
     @staticmethod
-    def test_rag_execute_records_timing(
+    async def test_rag_execute_records_timing(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that retrieval and generation timings are recorded."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Recommend a movie",
             history=[],
@@ -123,7 +123,7 @@ class TestRAGPipelineExecute:
         assert result.generation_time_ms >= 0.0
 
     @staticmethod
-    def test_rag_execute_with_conversation_history(
+    async def test_rag_execute_with_conversation_history(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that RAG includes conversation history in prompt."""
@@ -132,7 +132,7 @@ class TestRAGPipelineExecute:
             {"role": "assistant", "content": "I recommend The Shining."},
         ]
 
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Tell me more",
             history=history,
@@ -143,11 +143,11 @@ class TestRAGPipelineExecute:
         assert len(result.text) > 0
 
     @staticmethod
-    def test_rag_execute_with_empty_history(
+    async def test_rag_execute_with_empty_history(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test RAG execution with empty conversation history."""
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Recommend a movie",
             history=[],
@@ -156,7 +156,7 @@ class TestRAGPipelineExecute:
         assert result.text is not None
 
     @staticmethod
-    def test_rag_execute_with_empty_documents(
+    async def test_rag_execute_with_empty_documents(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test RAG execution when no documents are retrieved.
@@ -166,7 +166,7 @@ class TestRAGPipelineExecute:
         # Mock retriever to return empty documents
         rag_pipeline._retriever.retrieve.return_value = []
 
-        result = rag_pipeline.execute(
+        result = await rag_pipeline.execute(
             intent="needs_database",
             user_message="Very obscure query with no matches",
             history=[],
@@ -176,14 +176,14 @@ class TestRAGPipelineExecute:
         assert len(result.documents) == 0
 
     @staticmethod
-    def test_rag_execute_calls_retriever(
+    async def test_rag_execute_calls_retriever(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that RAG execution calls the document retriever."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test query",
             history=[],
@@ -195,14 +195,14 @@ class TestRAGPipelineExecute:
         assert "Test query" in call_args[0]
 
     @staticmethod
-    def test_rag_execute_calls_llm(
+    async def test_rag_execute_calls_llm(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that RAG execution calls the LLM service."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test query",
             history=[],
@@ -224,11 +224,11 @@ class TestRAGPipelineStream:
     """RAGPipeline.execute_stream() — Streaming RAG execution."""
 
     @staticmethod
-    def test_rag_stream_returns_iterator_and_documents(
+    async def test_rag_stream_returns_iterator_and_documents(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that execute_stream returns (iterator, documents) tuple."""
-        token_stream, documents = rag_pipeline.execute_stream(
+        token_stream, documents = await rag_pipeline.execute_stream(
             intent="needs_database",
             user_message="Recommend a movie",
             history=[],
@@ -239,11 +239,11 @@ class TestRAGPipelineStream:
         assert isinstance(documents, list)
 
     @staticmethod
-    def test_rag_stream_tokens_can_be_consumed(
+    async def test_rag_stream_tokens_can_be_consumed(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that token stream can be iterated."""
-        token_stream, _ = rag_pipeline.execute_stream(
+        token_stream, _ = await rag_pipeline.execute_stream(
             intent="needs_database",
             user_message="Recommend a movie",
             history=[],
@@ -255,14 +255,14 @@ class TestRAGPipelineStream:
         assert all(isinstance(t, str) for t in tokens)
 
     @staticmethod
-    def test_rag_stream_retrieval_before_streaming(
+    async def test_rag_stream_retrieval_before_streaming(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that documents are retrieved before streaming starts."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        _, documents = pipeline.execute_stream(
+        _, documents = await pipeline.execute_stream(
             intent="needs_database",
             user_message="Test query",
             history=[],
@@ -273,7 +273,7 @@ class TestRAGPipelineStream:
         assert isinstance(documents[0], RetrievedDocument)
 
     @staticmethod
-    def test_rag_stream_with_conversation_history(
+    async def test_rag_stream_with_conversation_history(
         rag_pipeline: RAGPipeline,
     ) -> None:
         """Test that streaming respects conversation history."""
@@ -282,7 +282,7 @@ class TestRAGPipelineStream:
             {"role": "assistant", "content": "Previous answer"},
         ]
 
-        token_stream, documents = rag_pipeline.execute_stream(
+        token_stream, documents = await rag_pipeline.execute_stream(
             intent="needs_database",
             user_message="Follow-up question",
             history=history,
@@ -302,14 +302,14 @@ class TestRAGPipelineIntegration:
     """Integration between retriever, prompt builder, and LLM."""
 
     @staticmethod
-    def test_rag_pipeline_uses_retriever(
+    async def test_rag_pipeline_uses_retriever(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that RAG pipeline uses the document retriever."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -319,14 +319,14 @@ class TestRAGPipelineIntegration:
         assert mock_retriever.retrieve.called
 
     @staticmethod
-    def test_rag_pipeline_uses_llm(
+    async def test_rag_pipeline_uses_llm(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that RAG pipeline uses the LLM service."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -336,14 +336,14 @@ class TestRAGPipelineIntegration:
         assert mock_llm_service.generate_chat.called
 
     @staticmethod
-    def test_rag_pipeline_prompt_includes_context(
+    async def test_rag_pipeline_prompt_includes_context(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
         """Test that prompt builder includes retrieved documents in context."""
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test query",
             history=[],
@@ -363,7 +363,7 @@ class TestRAGPipelineIntegration:
         assert retrieved_content in all_content or len(messages) >= 2
 
     @staticmethod
-    def test_rag_pipeline_respects_intent(
+    async def test_rag_pipeline_respects_intent(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
@@ -371,13 +371,13 @@ class TestRAGPipelineIntegration:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         # Execute with different intents
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test",
             history=[],
         )
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -396,7 +396,7 @@ class TestRAGPipelineErrorHandling:
     """Error handling and edge cases."""
 
     @staticmethod
-    def test_rag_execute_llm_failure_propagates(
+    async def test_rag_execute_llm_failure_propagates(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
@@ -405,14 +405,14 @@ class TestRAGPipelineErrorHandling:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         with pytest.raises(RuntimeError, match="LLM failure"):
-            pipeline.execute(
+            await pipeline.execute(
                 intent="needs_database",
                 user_message="Test",
                 history=[],
             )
 
     @staticmethod
-    def test_rag_execute_retriever_empty_list_handling(
+    async def test_rag_execute_retriever_empty_list_handling(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
@@ -420,7 +420,7 @@ class TestRAGPipelineErrorHandling:
         mock_retriever.retrieve.return_value = []
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        result = pipeline.execute(
+        result = await pipeline.execute(
             intent="needs_database",
             user_message="Obscure query",
             history=[],
@@ -431,7 +431,7 @@ class TestRAGPipelineErrorHandling:
         assert len(result.documents) == 0
 
     @staticmethod
-    def test_rag_stream_llm_failure_propagates(
+    async def test_rag_stream_llm_failure_propagates(
         mock_retriever: MagicMock,
         mock_llm_service: MagicMock,
     ) -> None:
@@ -440,7 +440,7 @@ class TestRAGPipelineErrorHandling:
         pipeline = RAGPipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         with pytest.raises(RuntimeError, match="Stream failure"):
-            token_stream, _ = pipeline.execute_stream(
+            token_stream, _ = await pipeline.execute_stream(
                 intent="needs_database",
                 user_message="Test",
                 history=[],

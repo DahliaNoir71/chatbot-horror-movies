@@ -3,6 +3,7 @@
 Routes classified intents to: template responses or RAG+LLM pipeline.
 """
 
+import asyncio
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -109,13 +110,13 @@ class IntentRouter:
         self._session_manager = session_manager or get_session_manager()
         self._logger = logger
 
-    def handle(
+    async def handle(
         self,
         user_message: str,
         session_id: UUID | None,
         user_id: str,
     ) -> ChatResult:
-        """Handle a user message (synchronous response).
+        """Handle a user message and return a complete response.
 
         Args:
             user_message: The user's query text.
@@ -127,7 +128,7 @@ class IntentRouter:
         """
         total_start = time.perf_counter()
 
-        classification = self._classify_with_metrics(user_message)
+        classification = await self._classify_with_metrics(user_message)
         intent = classification["intent"]
         confidence = classification["confidence"]
         classification_ms = classification["duration_ms"]
@@ -144,7 +145,7 @@ class IntentRouter:
         if intent in TEMPLATE_INTENTS:
             text = get_template_response(intent, user_message) or ""
         elif intent in RAG_INTENTS:
-            rag_result = self._rag_pipeline.execute(intent, user_message, history)
+            rag_result = await self._rag_pipeline.execute(intent, user_message, history)
             text = rag_result.text
             documents = rag_result.documents
             usage = rag_result.usage
@@ -173,7 +174,7 @@ class IntentRouter:
             total_ms=total_ms,
         )
 
-    def handle_stream(
+    async def handle_stream(
         self,
         user_message: str,
         session_id: UUID | None,
@@ -196,7 +197,7 @@ class IntentRouter:
             (empty for template intents); needed by the SSE endpoint
             to expose sources to the frontend.
         """
-        classification = self._classify_with_metrics(user_message)
+        classification = await self._classify_with_metrics(user_message)
         intent = classification["intent"]
         confidence = classification["confidence"]
 
@@ -212,7 +213,7 @@ class IntentRouter:
             return None, intent, confidence, session.session_id, text, []
 
         if intent in RAG_INTENTS:
-            token_stream, docs = self._rag_pipeline.execute_stream(
+            token_stream, docs = await self._rag_pipeline.execute_stream(
                 intent,
                 user_message,
                 history,
@@ -228,8 +229,8 @@ class IntentRouter:
     # PRIVATE METHODS
     # =========================================================================
 
-    def _classify_with_metrics(self, text: str) -> dict:
-        """Classify intent and record metrics.
+    async def _classify_with_metrics(self, text: str) -> dict:
+        """Classify intent (CPU-bound, offloaded to a thread) and record metrics.
 
         Args:
             text: User query text.
@@ -238,7 +239,7 @@ class IntentRouter:
             Classification result dict with intent, confidence, duration_ms.
         """
         start = time.perf_counter()
-        result = self._classifier.classify(text)
+        result = await asyncio.to_thread(self._classifier.classify, text)
         duration = time.perf_counter() - start
         duration_ms = duration * 1000
 

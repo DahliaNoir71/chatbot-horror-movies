@@ -58,7 +58,7 @@ class TestRAGPipelineExecute:
     """T3 — Synchronous execute() orchestration."""
 
     @staticmethod
-    def test_execute_calls_retriever_with_message(
+    async def test_execute_calls_retriever_with_message(
         sample_documents, mock_llm_service
     ):
         """Retriever is called with the user message."""
@@ -66,7 +66,7 @@ class TestRAGPipelineExecute:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Recommande un film d'horreur",
             history=[],
@@ -76,7 +76,7 @@ class TestRAGPipelineExecute:
 
     @staticmethod
     @patch("src.services.rag.pipeline.RAGPromptBuilder.build")
-    def test_execute_passes_docs_to_prompt_builder(
+    async def test_execute_passes_docs_to_prompt_builder(
         mock_build, sample_documents, mock_llm_service
     ):
         """Prompt builder receives intent, message, documents, and history."""
@@ -86,7 +86,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         history = [{"role": "user", "content": "Salut"}]
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Recommande un film",
             history=history,
@@ -101,7 +101,7 @@ class TestRAGPipelineExecute:
 
     @staticmethod
     @patch("src.services.rag.pipeline.RAGPromptBuilder.build")
-    def test_execute_calls_llm_with_built_messages(
+    async def test_execute_calls_llm_with_built_messages(
         mock_build, sample_documents, mock_llm_service
     ):
         """LLM generate_chat is called with messages from prompt builder."""
@@ -114,7 +114,7 @@ class TestRAGPipelineExecute:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Recommande un film",
             history=[],
@@ -124,7 +124,7 @@ class TestRAGPipelineExecute:
 
     @staticmethod
     @patch("src.services.rag.pipeline.time.perf_counter")
-    def test_execute_timing_uses_perf_counter(
+    async def test_execute_timing_uses_perf_counter(
         mock_perf, sample_documents, mock_llm_service
     ):
         """Timing measurements use perf_counter for retrieval and generation."""
@@ -134,7 +134,7 @@ class TestRAGPipelineExecute:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        result = pipeline.execute(
+        result = await pipeline.execute(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -144,13 +144,13 @@ class TestRAGPipelineExecute:
         assert result.generation_time_ms == pytest.approx(200.0, abs=0.1)
 
     @staticmethod
-    def test_execute_assembles_rag_result(sample_documents, mock_llm_service):
+    async def test_execute_assembles_rag_result(sample_documents, mock_llm_service):
         """RAGResult fields are correctly populated from pipeline outputs."""
         mock_retriever = MagicMock()
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        result = pipeline.execute(
+        result = await pipeline.execute(
             intent="needs_database",
             user_message="Qui a realise L'Exorciste ?",
             history=[],
@@ -165,13 +165,13 @@ class TestRAGPipelineExecute:
         assert result.generation_time_ms >= 0.0
 
     @staticmethod
-    def test_execute_with_empty_documents(mock_llm_service):
+    async def test_execute_with_empty_documents(mock_llm_service):
         """Pipeline handles empty retriever results without crashing."""
         mock_retriever = MagicMock()
         mock_retriever.retrieve.return_value = []
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        result = pipeline.execute(
+        result = await pipeline.execute(
             intent="needs_database",
             user_message="Film tres obscur",
             history=[],
@@ -181,7 +181,7 @@ class TestRAGPipelineExecute:
         assert len(result.documents) == 0
 
     @staticmethod
-    def test_execute_calls_reranker_after_retrieval(
+    async def test_execute_calls_reranker_after_retrieval(
         sample_documents, mock_llm_service
     ):
         """Reranker is called with user message and retrieved documents."""
@@ -194,7 +194,7 @@ class TestRAGPipelineExecute:
             llm_service=mock_llm_service,
         )
 
-        pipeline.execute(
+        await pipeline.execute(
             intent="needs_database",
             user_message="Recommande un film",
             history=[],
@@ -206,7 +206,7 @@ class TestRAGPipelineExecute:
 
     @staticmethod
     @patch("src.services.rag.pipeline.LLM_REQUESTS_TOTAL")
-    def test_execute_increments_success_metric(
+    async def test_execute_increments_success_metric(
         mock_metric, sample_documents, mock_llm_service
     ):
         """Success counter is incremented on successful execution."""
@@ -214,14 +214,14 @@ class TestRAGPipelineExecute:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute(intent="needs_database", user_message="Test", history=[])
+        await pipeline.execute(intent="needs_database", user_message="Test", history=[])
 
         mock_metric.labels.assert_called_with(status="success")
         mock_metric.labels(status="success").inc.assert_called_once()
 
     @staticmethod
     @patch("src.services.rag.pipeline.LLM_REQUESTS_TOTAL")
-    def test_execute_increments_error_metric_on_failure(
+    async def test_execute_increments_error_metric_on_failure(
         mock_metric, sample_documents
     ):
         """Error counter is incremented when LLM raises an exception."""
@@ -232,7 +232,7 @@ class TestRAGPipelineExecute:
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm)
 
         with pytest.raises(RuntimeError, match="OOM"):
-            pipeline.execute(intent="needs_database", user_message="Test", history=[])
+            await pipeline.execute(intent="needs_database", user_message="Test", history=[])
 
         mock_metric.labels.assert_called_with(status="error")
         mock_metric.labels(status="error").inc.assert_called_once()
@@ -247,13 +247,13 @@ class TestRAGPipelineStream:
     """T3 — Streaming execute_stream() orchestration."""
 
     @staticmethod
-    def test_stream_calls_retriever(sample_documents, mock_llm_service):
+    async def test_stream_calls_retriever(sample_documents, mock_llm_service):
         """Retriever is called before streaming starts."""
         mock_retriever = MagicMock()
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute_stream(
+        await pipeline.execute_stream(
             intent="needs_database",
             user_message="Recommande un film",
             history=[],
@@ -262,13 +262,13 @@ class TestRAGPipelineStream:
         mock_retriever.retrieve.assert_called_once_with("Recommande un film")
 
     @staticmethod
-    def test_stream_returns_iterator_and_documents(sample_documents, mock_llm_service):
+    async def test_stream_returns_iterator_and_documents(sample_documents, mock_llm_service):
         """execute_stream returns (Iterator[str], list[RetrievedDocument])."""
         mock_retriever = MagicMock()
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        token_stream, documents = pipeline.execute_stream(
+        token_stream, documents = await pipeline.execute_stream(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -281,7 +281,7 @@ class TestRAGPipelineStream:
 
     @staticmethod
     @patch("src.services.rag.pipeline.RAGPromptBuilder.build")
-    def test_stream_passes_built_messages_to_llm(
+    async def test_stream_passes_built_messages_to_llm(
         mock_build, sample_documents, mock_llm_service
     ):
         """LLM generate_stream is called with messages from prompt builder."""
@@ -291,7 +291,7 @@ class TestRAGPipelineStream:
         mock_retriever.retrieve.return_value = sample_documents
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
-        pipeline.execute_stream(
+        await pipeline.execute_stream(
             intent="needs_database",
             user_message="Test",
             history=[],
@@ -300,14 +300,14 @@ class TestRAGPipelineStream:
         mock_llm_service.generate_stream.assert_called_once_with(built_messages)
 
     @staticmethod
-    def test_stream_propagates_retriever_error(mock_llm_service):
+    async def test_stream_propagates_retriever_error(mock_llm_service):
         """Retriever errors propagate to caller."""
         mock_retriever = MagicMock()
         mock_retriever.retrieve.side_effect = ConnectionError("DB down")
         pipeline = _make_pipeline(retriever=mock_retriever, llm_service=mock_llm_service)
 
         with pytest.raises(ConnectionError, match="DB down"):
-            pipeline.execute_stream(
+            await pipeline.execute_stream(
                 intent="needs_database",
                 user_message="Test",
                 history=[],

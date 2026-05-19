@@ -56,42 +56,42 @@ class TestIntentRouterDispatch:
     """T2 — Verify handle() routes each intent to the correct pipeline."""
 
     @staticmethod
-    def test_handle_conversational_returns_template(
+    async def test_handle_conversational_returns_template(
         mock_rag_pipeline, mock_session_manager
     ):
         """conversational intent returns a template response (no RAG call)."""
         classifier = _make_classifier("conversational")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        result = router.handle("Bonjour", session_id=None, user_id="user1")
+        result = await router.handle("Bonjour", session_id=None, user_id="user1")
 
         assert result.intent == "conversational"
         assert len(result.text) > 0
         mock_rag_pipeline.execute.assert_not_called()
 
     @staticmethod
-    def test_handle_off_topic_returns_template(
+    async def test_handle_off_topic_returns_template(
         mock_rag_pipeline, mock_session_manager
     ):
         """off_topic intent returns a redirection template."""
         classifier = _make_classifier("off_topic")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        result = router.handle("Quelle est la capitale ?", session_id=None, user_id="user1")
+        result = await router.handle("Quelle est la capitale ?", session_id=None, user_id="user1")
 
         assert result.intent == "off_topic"
         assert len(result.text) > 0
         mock_rag_pipeline.execute.assert_not_called()
 
     @staticmethod
-    def test_handle_needs_database_calls_rag(
+    async def test_handle_needs_database_calls_rag(
         mock_rag_pipeline, mock_session_manager
     ):
         """needs_database intent triggers RAG pipeline."""
         classifier = _make_classifier("needs_database")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        result = router.handle("Recommande un film", session_id=None, user_id="user1")
+        result = await router.handle("Recommande un film", session_id=None, user_id="user1")
 
         assert result.intent == "needs_database"
         mock_rag_pipeline.execute.assert_called_once()
@@ -106,14 +106,14 @@ class TestIntentRouterStream:
     """T2 — Verify handle_stream() routes correctly."""
 
     @staticmethod
-    def test_stream_template_returns_direct_text(
+    async def test_stream_template_returns_direct_text(
         mock_rag_pipeline, mock_session_manager
     ):
         """Template intents return direct text (no iterator)."""
         classifier = _make_classifier("conversational")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text, _ = router.handle_stream(
+        iterator, intent, _, _, direct_text, _ = await router.handle_stream(
             "Bonjour", session_id=None, user_id="user1"
         )
 
@@ -122,14 +122,14 @@ class TestIntentRouterStream:
         assert intent == "conversational"
 
     @staticmethod
-    def test_stream_rag_returns_iterator(
+    async def test_stream_rag_returns_iterator(
         mock_rag_pipeline, mock_session_manager
     ):
         """RAG intents return a token iterator."""
         classifier = _make_classifier("needs_database")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text, _ = router.handle_stream(
+        iterator, intent, _, _, direct_text, _ = await router.handle_stream(
             "Recommande un film", session_id=None, user_id="user1"
         )
 
@@ -147,33 +147,33 @@ class TestIntentRouterFallback:
     """T2 — Fallback and edge-case behavior."""
 
     @staticmethod
-    def test_unknown_intent_returns_template(
+    async def test_unknown_intent_returns_template(
         mock_rag_pipeline, mock_session_manager
     ):
         """An unknown intent falls back to off_topic template."""
         classifier = _make_classifier("totally_unknown_intent")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        result = router.handle("random text", session_id=None, user_id="user1")
+        result = await router.handle("random text", session_id=None, user_id="user1")
 
         assert len(result.text) > 0
         mock_rag_pipeline.execute.assert_not_called()
 
     @staticmethod
-    def test_session_messages_stored(
+    async def test_session_messages_stored(
         mock_rag_pipeline, mock_session_manager
     ):
         """User and assistant messages are stored in session after handle()."""
         classifier = _make_classifier("conversational")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        router.handle("Bonjour", session_id=None, user_id="user1")
+        await router.handle("Bonjour", session_id=None, user_id="user1")
 
         # Should have stored both user and assistant messages
         assert mock_session_manager.add_message.call_count == 2
 
     @staticmethod
-    def test_existing_session_reused(
+    async def test_existing_session_reused(
         mock_rag_pipeline, mock_session_manager
     ):
         """An existing session_id is passed to session manager."""
@@ -181,7 +181,7 @@ class TestIntentRouterFallback:
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
         existing_id = uuid4()
 
-        router.handle("Bonjour", session_id=existing_id, user_id="user1")
+        await router.handle("Bonjour", session_id=existing_id, user_id="user1")
 
         mock_session_manager.get_or_create.assert_called_once_with(existing_id, "user1")
 

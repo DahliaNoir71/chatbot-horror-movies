@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -105,21 +105,29 @@ def mock_classifier():
 
 @pytest.fixture
 def mock_rag_pipeline():
-    """Mock RAGPipeline with default execute/execute_stream behavior."""
+    """Mock RAGPipeline with default execute/execute_stream behavior.
+
+    `execute` and `execute_stream` are now async on the real pipeline,
+    so the mocks use `AsyncMock` to be awaitable from the router.
+    """
     from src.services.rag.pipeline import RAGResult
 
     mock = MagicMock()
-    mock.execute.return_value = RAGResult(
-        text="Je vous recommande The Conjuring (2013).",
-        intent="needs_database",
-        documents=[],
-        usage={"prompt_tokens": 150, "completion_tokens": 40},
-        retrieval_time_ms=50.0,
-        generation_time_ms=200.0,
+    mock.execute = AsyncMock(
+        return_value=RAGResult(
+            text="Je vous recommande The Conjuring (2013).",
+            intent="needs_database",
+            documents=[],
+            usage={"prompt_tokens": 150, "completion_tokens": 40},
+            retrieval_time_ms=50.0,
+            generation_time_ms=200.0,
+        )
     )
-    mock.execute_stream.return_value = (
-        iter(["Je ", "vous ", "recommande ", "The ", "Conjuring."]),
-        [],
+    mock.execute_stream = AsyncMock(
+        return_value=(
+            iter(["Je ", "vous ", "recommande ", "The ", "Conjuring."]),
+            [],
+        )
     )
     return mock
 

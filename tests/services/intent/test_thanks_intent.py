@@ -28,7 +28,7 @@ class _FakeSessionManager:
         return []
 
     def add_message(self, session_id, role, text):
-        pass
+        return None
 
 
 class _FakeThanksClassifier:
@@ -37,10 +37,12 @@ class _FakeThanksClassifier:
 
 
 class _FakeRAGPipeline:
-    def execute(self, intent, text, history):
-        pass
+    # Async to match the real RAGPipeline interface; thanks intent never
+    # reaches the pipeline, so these stubs are only here for protocol shape.
+    async def execute(self, intent, text, history):  # noqa: S7503
+        return None
 
-    def execute_stream(self, intent, text, history):
+    async def execute_stream(self, intent, text, history):  # noqa: S7503
         return None, []
 
 
@@ -71,24 +73,24 @@ class TestThanksIntent:
         result = classifier.classify("Merci pour toute ton aide sur ce sujet")
         assert result["intent"] == "thanks"
 
-    def test_router_maps_thanks_to_template(self) -> None:
+    async def test_router_maps_thanks_to_template(self) -> None:
         """Intent 'thanks' is routed to TEMPLATE_THANKS, not TEMPLATE_FAREWELL."""
         router = IntentRouter(
             classifier=_FakeThanksClassifier(),
             rag_pipeline=_FakeRAGPipeline(),
             session_manager=_FakeSessionManager(),
         )
-        result = router.handle("Merci beaucoup", None, "test_user")
+        result = await router.handle("Merci beaucoup", None, "test_user")
         assert result.text == TEMPLATE_THANKS
 
-    def test_router_distinguishes_thanks_from_farewell(self) -> None:
+    async def test_router_distinguishes_thanks_from_farewell(self) -> None:
         """'Merci et au revoir' returns a non-default template response."""
         router = IntentRouter(
             classifier=IntentClassifier(),
             rag_pipeline=_FakeRAGPipeline(),
             session_manager=_FakeSessionManager(),
         )
-        result = router.handle("Merci et au revoir", None, "test_user")
+        result = await router.handle("Merci et au revoir", None, "test_user")
         off_topic = TEMPLATE_RESPONSES.get("off_topic", "")
         assert result.text != off_topic
         assert result.text == TEMPLATE_THANKS

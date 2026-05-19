@@ -4,6 +4,7 @@ Combines DocumentRetriever, RAGPromptBuilder, and LLMService
 into a single pipeline for RAG-based intents.
 """
 
+import asyncio
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -96,13 +97,16 @@ class RAGPipeline:
         self._settings = retrieval_settings or settings.retrieval
         self._logger = logger
 
-    def execute(
+    async def execute(
         self,
         intent: str,
         user_message: str,
         history: list[dict[str, str]] | None = None,
     ) -> RAGResult:
-        """Execute full RAG pipeline (synchronous).
+        """Execute full RAG pipeline.
+
+        Retrieval is awaited directly (async). CPU-bound rerank + LLM
+        steps run via `asyncio.to_thread` so they don't block the loop.
 
         Args:
             intent: Classified intent.
@@ -113,11 +117,11 @@ class RAGPipeline:
             RAGResult with generated text and metadata.
         """
         retrieval_start = time.perf_counter()
-        documents = self._retriever.retrieve(user_message)
+        documents = await self._retrieve(user_message)
         retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
 
         rerank_start = time.perf_counter()
-        documents = self._reranker.rerank(user_message, documents)
+        documents = await asyncio.to_thread(self._reranker.rerank, user_message, documents)
         rerank_ms = (time.perf_counter() - rerank_start) * 1000
 
         trusted_docs = [
@@ -139,7 +143,7 @@ class RAGPipeline:
 
         gen_start = time.perf_counter()
         try:
-            result = self._llm.generate_chat(messages)
+            result = await asyncio.to_thread(self._llm.generate_chat, messages)
             gen_ms = (time.perf_counter() - gen_start) * 1000
 
             self._record_llm_metrics(result.get("usage", {}), gen_ms / 1000)
@@ -167,7 +171,7 @@ class RAGPipeline:
             LLM_REQUESTS_TOTAL.labels(status="error").inc()
             raise
 
-    def execute_stream(
+    async def execute_stream(
         self,
         intent: str,
         user_message: str,
@@ -175,7 +179,9 @@ class RAGPipeline:
     ) -> tuple[Iterator[str], list[RetrievedDocument]]:
         """Execute RAG pipeline with streaming LLM output.
 
-        The retrieval step is synchronous; only LLM generation streams.
+        Retrieval + rerank are async; the returned LLM token iterator is
+        sync (consumed downstream by the SSE generator, which runs in
+        Starlette's thread pool so the event loop stays free).
 
         Args:
             intent: Classified intent.
@@ -185,8 +191,8 @@ class RAGPipeline:
         Returns:
             Tuple of (token iterator, retrieved documents).
         """
-        documents = self._retriever.retrieve(user_message)
-        documents = self._reranker.rerank(user_message, documents)
+        documents = await self._retrieve(user_message)
+        documents = await asyncio.to_thread(self._reranker.rerank, user_message, documents)
 
         self._logger.info(
             f"RAG stream retrieval: "
@@ -204,6 +210,18 @@ class RAGPipeline:
 
         token_stream = self._llm.generate_stream(messages)
         return token_stream, documents
+
+    async def _retrieve(self, user_message: str) -> list[RetrievedDocument]:
+        """Dispatch to the retriever's async `search()` or sync `retrieve()`.
+
+        `HybridRetriever` exposes an async `search()`; legacy/test mocks
+        expose only sync `retrieve()`. The sync path is bridged via
+        `asyncio.to_thread` so neither blocks the event loop.
+        """
+        search = getattr(self._retriever, "search", None)
+        if search is not None and asyncio.iscoroutinefunction(search):
+            return await search(user_message)
+        return await asyncio.to_thread(self._retriever.retrieve, user_message)
 
     def _build_no_context_response(self, intent: str) -> RAGResult:
         """Build response when no document passed rerank confidence threshold.

@@ -48,21 +48,21 @@ def _make_pipeline(
 
 class TestRAGPipelineRerankThreshold:
     @pytest.mark.unit
-    def test_all_below_threshold_returns_no_context(self) -> None:
+    async def test_all_below_threshold_returns_no_context(self) -> None:
         docs = [_make_doc(-3.0), _make_doc(-2.5), _make_doc(-2.1)]
         pipeline, llm = _make_pipeline(docs, min_score=-2.0)
 
-        result = pipeline.execute("rag", "scary movie")
+        result = await pipeline.execute("rag", "scary movie")
 
         assert "reformuler" in result.text
         llm.generate_chat.assert_not_called()
 
     @pytest.mark.unit
-    def test_mixed_filters_low_confidence(self) -> None:
+    async def test_mixed_filters_low_confidence(self) -> None:
         docs = [_make_doc(-3.0), _make_doc(-1.0), _make_doc(0.0)]
         pipeline, llm = _make_pipeline(docs, min_score=-2.0)
 
-        result = pipeline.execute("rag", "scary movie")
+        result = await pipeline.execute("rag", "scary movie")
 
         assert len(result.documents) == 2
         assert all(
@@ -72,20 +72,20 @@ class TestRAGPipelineRerankThreshold:
         llm.generate_chat.assert_called_once()
 
     @pytest.mark.unit
-    def test_all_above_threshold_unchanged(self) -> None:
+    async def test_all_above_threshold_unchanged(self) -> None:
         docs = [_make_doc(0.5), _make_doc(1.0), _make_doc(-1.5)]
         pipeline, llm = _make_pipeline(docs, min_score=-2.0)
 
-        result = pipeline.execute("rag", "scary movie")
+        result = await pipeline.execute("rag", "scary movie")
 
         assert len(result.documents) == 3
         llm.generate_chat.assert_called_once()
 
     @pytest.mark.unit
-    def test_metric_incremented(self) -> None:
+    async def test_metric_incremented(self) -> None:
         docs = [_make_doc(-5.0)]
         pipeline, _llm = _make_pipeline(docs, min_score=-2.0)
 
         with patch("src.services.rag.pipeline.RAG_NO_CONTEXT_RESPONSES_TOTAL") as mock_counter:
-            pipeline.execute("rag", "scary movie")
+            await pipeline.execute("rag", "scary movie")
             mock_counter.inc.assert_called_once()

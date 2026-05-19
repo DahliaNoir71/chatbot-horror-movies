@@ -78,11 +78,11 @@ def _parse_session_id(session_id: str | None) -> UUID | None:
     summary="Chat with HorrorBot",
     description="Send a message and get a synchronous response.",
 )
-def chat(
+async def chat(
     request: ChatRequest,
     user: CurrentUser,
 ) -> ChatResponse:
-    """Synchronous chat endpoint.
+    """Chat endpoint returning a complete response.
 
     Args:
         request: Chat request with message and optional session_id.
@@ -96,7 +96,7 @@ def chat(
 
     start = time.perf_counter()
     try:
-        result = intent_router.handle(
+        result = await intent_router.handle(
             user_message=request.message,
             session_id=session_id,
             user_id=user.sub,
@@ -158,7 +158,7 @@ def chat(
     summary="Stream chat with HorrorBot",
     description="Send a message and receive a streamed SSE response.",
 )
-def chat_stream(
+async def chat_stream(
     request: ChatRequest,
     user: CurrentUser,
 ) -> EventSourceResponse:
@@ -176,7 +176,14 @@ def chat_stream(
 
     start = time.perf_counter()
     try:
-        token_iter, intent, confidence, sid, direct_text, documents = intent_router.handle_stream(
+        (
+            token_iter,
+            intent,
+            confidence,
+            sid,
+            direct_text,
+            documents,
+        ) = await intent_router.handle_stream(
             user_message=request.message,
             session_id=session_id,
             user_id=user.sub,

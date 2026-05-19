@@ -13,7 +13,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -41,15 +41,17 @@ def _make_stream_router(
     sid = session_id or uuid4()
     mock = MagicMock()
     if raise_exc:
-        mock.handle_stream.side_effect = raise_exc
+        mock.handle_stream = AsyncMock(side_effect=raise_exc)
     else:
-        mock.handle_stream.return_value = (
-            token_iter,
-            intent,
-            confidence,
-            sid,
-            direct_text,
-            [],
+        mock.handle_stream = AsyncMock(
+            return_value=(
+                token_iter,
+                intent,
+                confidence,
+                sid,
+                direct_text,
+                [],
+            )
         )
     return mock, sid
 

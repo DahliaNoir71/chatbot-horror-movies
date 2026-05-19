@@ -282,44 +282,6 @@ class HybridRetriever:
         pop_norm = math.log1p(popularity) / _POPULARITY_DIVISOR
         return _VOTE_WEIGHT * vote_norm + _POP_WEIGHT * pop_norm
 
-    # -------------------------------------------------------------------------
-    # Sync adapter — preserves the DocumentRetriever interface used by
-    # RAGPipeline so the swap is transparent to existing sync callers.
-    # -------------------------------------------------------------------------
-
-    def retrieve(
-        self,
-        query: str,
-        match_count: int | None = None,
-        **_ignored: Any,
-    ) -> list[RetrievedDocument]:
-        """Sync wrapper around `search()` for compatibility with `RAGPipeline`.
-
-        Must NOT be invoked from inside a running event loop — use the
-        async `search()` method directly in async contexts.
-
-        Args:
-            query: User query.
-            match_count: Optional override for `final_top_k`.
-            **_ignored: Swallows extra DocumentRetriever-style kwargs
-                (`similarity_threshold`, `source_type`) that don't apply here.
-
-        Returns:
-            Retrieved documents ordered by `final_score` desc.
-
-        Raises:
-            RuntimeError: When called from within a running event loop.
-        """
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.search(query, top_k=match_count))
-        msg = (
-            "HybridRetriever.retrieve() called from a running event loop. "
-            "Use `await retriever.search(query, top_k=...)` instead."
-        )
-        raise RuntimeError(msg)
-
 
 # -----------------------------------------------------------------------------
 # Pure helpers

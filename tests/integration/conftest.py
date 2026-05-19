@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -79,9 +79,12 @@ def make_chat_result(
 
 
 def make_mock_router(chat_result: ChatResult | None = None):
-    """Return a mock IntentRouter whose ``.handle()`` returns *chat_result*."""
+    """Return a mock IntentRouter whose ``.handle()`` returns *chat_result*.
+
+    ``handle`` is awaited by the (async) chat endpoint, so use ``AsyncMock``.
+    """
     mock = MagicMock()
-    mock.handle.return_value = chat_result or make_chat_result()
+    mock.handle = AsyncMock(return_value=chat_result or make_chat_result())
     return mock
 
 
