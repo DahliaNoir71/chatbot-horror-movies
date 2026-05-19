@@ -20,6 +20,7 @@ from src.monitoring.metrics import (
     RAG_DOCUMENTS_RETRIEVED,
     RAG_RETRIEVAL_DURATION,
     RAG_TOP_SIMILARITY,
+    RAG_VECTOR_DURATION,
 )
 from src.services.embedding.embedding_service import get_embedding_service
 from src.settings import settings
@@ -201,6 +202,7 @@ class DocumentRetriever:
         retrieval_duration = time.perf_counter() - retrieval_start
 
         RAG_RETRIEVAL_DURATION.observe(retrieval_duration)
+        RAG_VECTOR_DURATION.observe(retrieval_duration)
         RAG_DOCUMENTS_RETRIEVED.observe(len(documents))
         if documents:
             RAG_TOP_SIMILARITY.observe(documents[0].similarity)

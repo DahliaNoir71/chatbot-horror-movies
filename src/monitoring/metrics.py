@@ -180,6 +180,12 @@ RAG_BM25_DURATION = Histogram(
     buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
 )
 
+RAG_VECTOR_DURATION = Histogram(
+    "rag_vector_duration_seconds",
+    "Duration of pgvector similarity search",
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+)
+
 RAG_RRF_FUSION_DURATION = Histogram(
     "rag_rrf_fusion_duration_seconds",
     "Duration of RRF fusion between vector and BM25 results",

@@ -12,6 +12,7 @@
 
 global:
   scrape_interval: 15s
+  scrape_timeout: 14s
   evaluation_interval: 15s
 
 rule_files:
