@@ -53,6 +53,12 @@
   {"query": "À la prochaine !", "expected_intent": "conversational", "language": "fr"},
   {"query": "That's all, thank you!", "expected_intent": "conversational", "language": "en"},
 
+  {"query": "Merci beaucoup !", "expected_intent": "thanks", "language": "fr"},
+  {"query": "Thank you so much for your help!", "expected_intent": "thanks", "language": "en"},
+  {"query": "Merci pour les recommandations, c'est super !", "expected_intent": "thanks", "language": "fr"},
+  {"query": "Thanks, that was really helpful.", "expected_intent": "thanks", "language": "en"},
+  {"query": "Je vous remercie pour ces informations.", "expected_intent": "thanks", "language": "fr"},
+
   {"query": "Quelle est la capitale de la France ?", "expected_intent": "off_topic", "language": "fr"},
   {"query": "What's the weather like today?", "expected_intent": "off_topic", "language": "en"},
   {"query": "Peux-tu m'aider avec mes devoirs de maths ?", "expected_intent": "off_topic", "language": "fr"},

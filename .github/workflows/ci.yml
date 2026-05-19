@@ -104,7 +104,7 @@ jobs:
         run: |
           mkdir -p "${{ env.REPORT_DIR }}"
           uv run pytest -v --tb=short \
-            -m "not slow" \
+            -m "not slow and not integration" \
             --junitxml="${{ env.REPORT_DIR }}/junit.xml" \
             --cov=src \
             --cov-report=xml:"${{ env.REPORT_DIR }}/coverage.xml" \

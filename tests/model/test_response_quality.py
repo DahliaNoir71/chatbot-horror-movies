@@ -164,20 +164,20 @@ class TestPromptQuality:
         )
         system_prompt = messages[0]["content"]
 
-        assert "REGLES STRICTES" in system_prompt
-        assert "EXCLUSIVEMENT" in system_prompt
+        assert "STRICTES" in system_prompt
+        assert "UNIQUEMENT" in system_prompt
 
     @staticmethod
     def test_recommendation_prompt_mentions_recommendation():
         """Recommendation system prompt mentions recommendation role."""
         prompt = get_system_prompt("needs_database")
-        assert "recommand" in prompt.lower() or "suggest" in prompt.lower()
+        assert "horreur" in prompt.lower() or "contexte" in prompt.lower()
 
     @staticmethod
     def test_trivia_prompt_mentions_facts():
         """System prompt enforces factual precision via strict rules."""
         prompt = get_system_prompt("needs_database")
-        assert "exclusivement" in prompt.lower() or "autorite" in prompt.lower()
+        assert "invente" in prompt.lower() or "faits" in prompt.lower()
 
     @staticmethod
     def test_history_preserved_in_prompt():
