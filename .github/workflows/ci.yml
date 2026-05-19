@@ -304,11 +304,17 @@ jobs:
 
       - name: Export requirements for pip-audit
         run: |
+          # Strip crawl4ai: its metadata pins `lxml~=5.3` which conflicts with
+          # our [tool.uv] override-dependencies = ["lxml>=6.1.0"]. pip's dry-run
+          # resolver (invoked by pip-audit) does not honour uv overrides and
+          # fails the whole audit. Crawl4ai's own CVEs are covered by OWASP DC
+          # (suppression.xml) and safety, so dropping it here is loss-free.
           uv export --frozen --all-groups --all-extras --no-hashes \
             | grep -v "^torch==" \
             | grep -v "^nvidia-" \
             | grep -v "^cuda-" \
             | grep -v "^triton==" \
+            | grep -v "^crawl4ai==" \
             | grep -v "^horrorbot" \
             | grep -v "^-e " \
             | grep -v "^\./" \

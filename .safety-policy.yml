@@ -1,0 +1,27 @@
+# Safety CLI policy file for HorrorBot
+#
+# Required by safety 3.x at CLI startup. Lists vulnerabilities suppressed
+# because no upstream fix exists OR the affected code path is not reachable
+# in HorrorBot's architecture. Each entry MUST include a justification.
+# Reviewed alongside suppression.xml (OWASP) on each pipeline update.
+security:
+  ignore-cvss-severity-below: 0
+  ignore-cvss-unknown-severity: false
+  continue-on-vulnerability-error: false
+  ignore-vulnerabilities:
+    # --- ecdsa 0.19.2 (transitive via python-jose) ---
+    # Vendor explicitly refuses to fix: side-channel-secure code is
+    # impossible in pure Python (project's stated security policy).
+    # We use python-jose for JWT signing/verification on a CPU-only,
+    # localhost-only deployment — Minerva-class timing attacks require
+    # network observation that is not in our threat model.
+    "64459":
+      reason: "ecdsa Minerva side-channel (CVE-2024-23342) — vendor won't fix, not exploitable on localhost-only deployment"
+    "64396":
+      reason: "ecdsa generic side-channel — same root cause as 64459, vendor won't fix"
+
+    # --- diskcache 5.6.3 (transitive via llama-cpp-python) ---
+    # Already ignored in pip-audit (CVE-2025-69872). No upstream fix.
+    # Cache directory is local-only and not exposed to attacker writes.
+    "86338":
+      reason: "diskcache pickle deserialization (CVE-2025-69872) — transitive via llama-cpp-python, cache dir local-only, no upstream fix"
