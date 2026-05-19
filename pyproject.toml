@@ -48,7 +48,7 @@ dependencies = [
     # --- Web Scraping ---
     "beautifulsoup4>=4.14.3",
     "Crawl4AI>=0.8.0",
-    "lxml>=5.4.0",
+    "lxml>=6.1.0",  # CVE-2026-41066: XXE via default resolve_entities=True, fixed in 6.1.0
     # --- Utilities ---
     "python-dotenv>=1.2.1",
     "structlog>=25.5.0",
@@ -142,6 +142,10 @@ ml = [
 # Installer dev par défaut (pas ml, trop lourd)
 default-groups = ["dev"]
 package = false
+# Override Crawl4AI's pin `lxml~=5.3` to pull lxml >=6.1.0 (CVE-2026-41066 fix).
+# Crawl4AI uses the HTML parser path, unaffected by the XML entity-resolution
+# default change in lxml 6.0. Validated via smoke test on Rotten Tomatoes scraper.
+override-dependencies = ["lxml>=6.1.0"]
 
 # Index PyTorch CPU-only (évite les dépendances nvidia-* transitives)
 [[tool.uv.index]]
