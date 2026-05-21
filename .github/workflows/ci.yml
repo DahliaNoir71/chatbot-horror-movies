@@ -329,6 +329,7 @@ jobs:
 
           # -- pip-audit: scans via requirements file only --
           # uvx runs in isolated env, avoids editable horrorbot in venv
+          # pip-audit scans ALL installed packages, not just requirements.txt; torch is in venv despite uv export filtering.
           # --ignore-vuln entries: all have NO upstream fix as of 2026-05-21.
           #   CVE-2025-69872  diskcache: pickle deserialization — transitive via llama-cpp-python, local cache only
           #   GHSA-wj6h-64fc-37mp  ecdsa: Minerva timing attack — vendor refuses to fix; not exploitable on localhost-only
@@ -338,7 +339,10 @@ jobs:
           #   CVE-2026-0846   nltk: filestring() arbitrary read — HorrorBot does not call filestring() with user input
           #   CVE-2025-14920..14930  transformers: deserialization/code-injection on untrusted model loading —
           #     HorrorBot loads only fixed HuggingFace models (MiniLM, mMiniLMv2) at startup; affected model types
-          #     (Perceiver, Transformer-XL, megatron_gpt2, SEW, X-CLIP, GLM4) are not used. Review 2026-11-19.
+          #     (Perceiver, Transformer-XL, megatron_gpt2, SEW, X-CLIP, GLM4) are not used.
+          #   CVE-2025-63396, CVE-2025-3000..3001, CVE-2025-2998..2999, CVE-2025-2953, CVE-2025-3121, CVE-2025-3136, CVE-2025-2148..2149, CVE-2026-4538
+          #     pytorch ×11: JIT memory corruption, LSTM/RNN ops, DoS — local-only, no untrusted model loading in HorrorBot.
+          # Review 2026-11-19.
           echo "--- pip-audit vulnerability scan ---"
           set +e
           uvx pip-audit --strict \
@@ -358,6 +362,17 @@ jobs:
             --ignore-vuln CVE-2025-14928 \
             --ignore-vuln CVE-2025-14929 \
             --ignore-vuln CVE-2025-14930 \
+            --ignore-vuln CVE-2025-63396 \
+            --ignore-vuln CVE-2025-3000 \
+            --ignore-vuln CVE-2025-3121 \
+            --ignore-vuln CVE-2025-3001 \
+            --ignore-vuln CVE-2025-2999 \
+            --ignore-vuln CVE-2025-2998 \
+            --ignore-vuln CVE-2026-4538 \
+            --ignore-vuln CVE-2025-2953 \
+            --ignore-vuln CVE-2025-3136 \
+            --ignore-vuln CVE-2025-2148 \
+            --ignore-vuln CVE-2025-2149 \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?
