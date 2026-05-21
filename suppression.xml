@@ -51,58 +51,29 @@
   </suppress>
 
   <!-- =================================================================
-       lxml — Transitive dependency of Crawl4AI (>=5.4.0)
+       prometheus-client — Direct Python dependency (>=0.23.1, locked 0.25.0)
        =================================================================
-       5.4.0 is the latest available release; no upstream patch exists.
-       lxml is used by Crawl4AI's HTML parser, not by HorrorBot directly.
+       Used for local Prometheus metrics exposition (/metrics endpoint).
+       HorrorBot is localhost-only; the endpoint is never publicly exposed.
+       0.25.0 is the latest release (2026-04-09); no upstream patch available.
   -->
   <suppress>
-    <notes>CVE-2026-41066 (CVSS 7.5): lxml 5.4.0 — transitive dep via crawl4ai; latest available version, no fix. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:pypi/lxml@.*$</packageUrl>
-    <cve>CVE-2026-41066</cve>
+    <notes>CVE-2026-42154 (CVSS 7.5): prometheus-client 0.25.0 — metrics endpoint is localhost-only, not publicly exposed; no fix available. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/prometheus.client@.*$</packageUrl>
+    <cve>CVE-2026-42154</cve>
   </suppress>
 
   <!-- =================================================================
-       axios — Direct npm dependency (^1.13.5, resolved 1.15.0)
+       ws — Transitive npm devDep via puppeteer-core → chromium-bidi
        =================================================================
-       1.15.0 is the latest 1.x release; no upstream patch available as
-       of 2026-05-19. Not exposed server-side; used only in the frontend
-       browser bundle for API calls to the local FastAPI backend.
+       ws@8.19.0 is pulled by chromium-bidi (devDep), used only by
+       puppeteer-core for lighthouse a11y/perf testing. Not bundled or
+       exposed in the production build; no public WebSocket endpoint.
   -->
   <suppress>
-    <notes>CVE-2026-42043 (CVSS 10.0): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42043</cve>
-  </suppress>
-
-  <suppress>
-    <notes>CVE-2026-42044 (CVSS 9.1): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42044</cve>
-  </suppress>
-
-  <suppress>
-    <notes>CVE-2026-42264 (CVSS 9.1): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42264</cve>
-  </suppress>
-
-  <suppress>
-    <notes>CVE-2026-42038 (CVSS 7.5): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42038</cve>
-  </suppress>
-
-  <suppress>
-    <notes>CVE-2026-42035 (CVSS 7.4): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42035</cve>
-  </suppress>
-
-  <suppress>
-    <notes>CVE-2026-42033 (CVSS 7.4): axios 1.15.0 — frontend-only, local API calls; no fix in 1.x. Review 2026-11-19.</notes>
-    <packageUrl regex="true">^pkg:npm/axios@.*$</packageUrl>
-    <cve>CVE-2026-42033</cve>
+    <notes>CVE-2026-45736 (CVSS 7.5): ws 8.19.0 — transitive devDep via puppeteer-core/chromium-bidi; not in production runtime, no public WS endpoint. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:npm/ws@.*$</packageUrl>
+    <cve>CVE-2026-45736</cve>
   </suppress>
 
   <!-- =================================================================

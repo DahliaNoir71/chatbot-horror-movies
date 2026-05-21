@@ -329,14 +329,35 @@ jobs:
 
           # -- pip-audit: scans via requirements file only --
           # uvx runs in isolated env, avoids editable horrorbot in venv
-          # --ignore-vuln: diskcache CVE-2025-69872 has no fix available,
-          # it is a transitive dep of Crawl4AI, not directly used
+          # --ignore-vuln entries: all have NO upstream fix as of 2026-05-21.
+          #   CVE-2025-69872  diskcache: pickle deserialization — transitive via llama-cpp-python, local cache only
+          #   GHSA-wj6h-64fc-37mp  ecdsa: Minerva timing attack — vendor refuses to fix; not exploitable on localhost-only
+          #   CVE-2024-34997  joblib: deserialization in NumpyArrayWrapper — transitive ML dep; disputed, HorrorBot loads only trusted local models
+          #   CVE-2025-45768  pyjwt: weak encryption — DISPUTED by supplier; key length is application-controlled, not a library bug
+          #   CVE-2024-29370  python-jose: JWE DoS — HorrorBot uses JWT only (not JWE), localhost-only deployment
+          #   CVE-2026-0846   nltk: filestring() arbitrary read — HorrorBot does not call filestring() with user input
+          #   CVE-2025-14920..14930  transformers: deserialization/code-injection on untrusted model loading —
+          #     HorrorBot loads only fixed HuggingFace models (MiniLM, mMiniLMv2) at startup; affected model types
+          #     (Perceiver, Transformer-XL, megatron_gpt2, SEW, X-CLIP, GLM4) are not used. Review 2026-11-19.
           echo "--- pip-audit vulnerability scan ---"
           set +e
           uvx pip-audit --strict \
             -r /tmp/requirements-audit.txt \
             --no-deps \
             --ignore-vuln CVE-2025-69872 \
+            --ignore-vuln GHSA-wj6h-64fc-37mp \
+            --ignore-vuln CVE-2024-34997 \
+            --ignore-vuln CVE-2025-45768 \
+            --ignore-vuln CVE-2024-29370 \
+            --ignore-vuln CVE-2026-0846 \
+            --ignore-vuln CVE-2025-14920 \
+            --ignore-vuln CVE-2025-14921 \
+            --ignore-vuln CVE-2025-14924 \
+            --ignore-vuln CVE-2025-14926 \
+            --ignore-vuln CVE-2025-14927 \
+            --ignore-vuln CVE-2025-14928 \
+            --ignore-vuln CVE-2025-14929 \
+            --ignore-vuln CVE-2025-14930 \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?
