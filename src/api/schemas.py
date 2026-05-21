@@ -239,6 +239,7 @@ class SearchResponse(BaseModel):
 class ChatSourceDocument(BaseModel):
     """A retrieved document returned as context source."""
 
+    tmdb_id: int | None = Field(default=None, description="TMDB film ID (rag_documents.source_id)")
     title: str = Field(description="Film title")
     year: int | None = Field(default=None, description="Release year")
     similarity_score: float = Field(description="Vector similarity (0-1)")

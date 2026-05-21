@@ -112,6 +112,7 @@ async def chat(
 
         sources = [
             ChatSourceDocument(
+                tmdb_id=doc.source_id,
                 title=doc.metadata.get("title", "Unknown"),
                 year=doc.metadata.get("year"),
                 similarity_score=round(doc.similarity, 4),
@@ -232,6 +233,7 @@ async def chat_stream(
 
             sources = [
                 ChatSourceDocument(
+                    tmdb_id=doc.source_id,
                     title=doc.metadata.get("title", "Unknown"),
                     year=doc.metadata.get("year"),
                     similarity_score=round(doc.similarity, 4),
