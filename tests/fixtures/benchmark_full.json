@@ -1,0 +1,452 @@
+[
+  {
+    "id": "Q1",
+    "axis": 1,
+    "question": "Recommande-moi un bon film de vampire des années 80",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q2",
+    "axis": 1,
+    "question": "Quel est le meilleur film de zombie de tous les temps ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q3",
+    "axis": 1,
+    "question": "De quoi parle le film L'Exorciste ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q4",
+    "axis": 1,
+    "question": "Qui a réalisé Halloween ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q5",
+    "axis": 1,
+    "question": "Donne-moi des films d'horreur avec un twist final",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q6",
+    "axis": 1,
+    "question": "Quels films d'horreur se passent dans l'espace ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q7",
+    "axis": 1,
+    "question": "Quels sont les films d'horreur les mieux notés ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q8",
+    "axis": 1,
+    "question": "Je cherche un film d'horreur japonais effrayant",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q9",
+    "axis": 1,
+    "question": "Parle-moi de Nosferatu 1922",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q10",
+    "axis": 1,
+    "question": "Dans quels films d'horreur joue Bruce Campbell ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q11",
+    "axis": 1,
+    "question": "Bonjour !",
+    "expected_intent": "conversational",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q12",
+    "axis": 1,
+    "question": "Salut, comment tu vas ?",
+    "expected_intent": "conversational",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q13",
+    "axis": 1,
+    "question": "Merci beaucoup pour ton aide",
+    "expected_intent": "thanks",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q14",
+    "axis": 1,
+    "question": "Au revoir !",
+    "expected_intent": "conversational",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q15",
+    "axis": 1,
+    "question": "Coucou",
+    "expected_intent": "conversational",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q16",
+    "axis": 1,
+    "question": "Quel temps fait-il à Paris ?",
+    "expected_intent": "off_topic",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q17",
+    "axis": 1,
+    "question": "Peux-tu m'écrire un code Python ?",
+    "expected_intent": "off_topic",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q18",
+    "axis": 1,
+    "question": "Qui a gagné la Coupe du Monde en 2022 ?",
+    "expected_intent": "off_topic",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q19",
+    "axis": 1,
+    "question": "Quelle est la recette de la ratatouille ?",
+    "expected_intent": "off_topic",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q20",
+    "axis": 1,
+    "question": "Explique-moi la physique quantique",
+    "expected_intent": "off_topic",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q21",
+    "axis": 2,
+    "question": "Parle-moi du film Hereditary",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [493922],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q22",
+    "axis": 2,
+    "question": "Que se passe-t-il dans Get Out ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [419430],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q23",
+    "axis": 2,
+    "question": "Raconte-moi le film Saw",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [176],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q24",
+    "axis": 2,
+    "question": "Je veux en savoir plus sur Sans un bruit",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [447332, 520763],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q25",
+    "axis": 2,
+    "question": "Résumé de Scream 1996",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [4232],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q26",
+    "axis": 2,
+    "question": "Films de maison hantée où la famille ne peut pas partir",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [694, 11449, 609],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q27",
+    "axis": 2,
+    "question": "Films d'horreur avec des enfants possédés",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [9552, 794, 49018],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q28",
+    "axis": 2,
+    "question": "Des slashers avec un tueur masqué",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [948, 4488, 4232],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q29",
+    "axis": 2,
+    "question": "Films d'horreur sur l'isolement et la paranoïa",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [1091, 694, 418078],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q30",
+    "axis": 2,
+    "question": "Films de loup-garou récents",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [262840, 254193, 301846],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q31",
+    "axis": 2,
+    "question": "Films d'horreur réalisés par James Wan",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [176, 49018, 138843],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q32",
+    "axis": 2,
+    "question": "Dans quels films d'horreur joue Sigourney Weaver ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [348],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q33",
+    "axis": 2,
+    "question": "Filmographie horreur de Jordan Peele",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [419430, 458723, 762504],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q34",
+    "axis": 2,
+    "question": "Quels films d'horreur avec Toni Collette ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [493922],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q35",
+    "axis": 2,
+    "question": "Les films de Dario Argento",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [11906, 20126, 16395],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q36",
+    "axis": 3,
+    "question": "Compare Shining (1980) et Hereditary (2018)",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q37",
+    "axis": 3,
+    "question": "Pourquoi Mister Babadook est considéré comme un chef-d'œuvre ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q38",
+    "axis": 3,
+    "question": "Est-ce que Midsommar est vraiment un film d'horreur ? Explique pourquoi",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q39",
+    "axis": 3,
+    "question": "Qu'est-ce qui rend Alien (1979) effrayant par rapport à l'horreur moderne ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q40",
+    "axis": 3,
+    "question": "Explique-moi le sous-texte social de Get Out",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q41",
+    "axis": 3,
+    "question": "Recommande-moi 3 films d'horreur pour quelqu'un qui n'aime pas le gore",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q42",
+    "axis": 3,
+    "question": "Quelle est la différence entre un slasher et un giallo ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q43",
+    "axis": 3,
+    "question": "Je veux un film d'horreur romantique, ça existe ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q44",
+    "axis": 3,
+    "question": "Classe les 5 meilleurs films d'horreur surnaturels des années 2010",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q45",
+    "axis": 3,
+    "question": "Pourquoi Psychose (1960) est considéré comme révolutionnaire ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q46",
+    "axis": 4,
+    "question": "Recommande-moi un bon film d'horreur en found footage",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": "multi_turn_1",
+    "expect_422": false
+  },
+  {
+    "id": "Q47",
+    "axis": 4,
+    "question": "Lequel de ceux-là est le plus effrayant ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": "multi_turn_1",
+    "expect_422": false
+  },
+  {
+    "id": "Q48",
+    "axis": 4,
+    "question": "Et il y a une suite à celui-là ?",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": "multi_turn_1",
+    "expect_422": false
+  },
+  {
+    "id": "Q49",
+    "axis": 5,
+    "question": "zzzzz horreur film blabla recommande",
+    "expected_intent": "needs_database",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": false
+  },
+  {
+    "id": "Q50",
+    "axis": 5,
+    "question": "",
+    "expected_intent": "",
+    "expected_tmdb_ids": [],
+    "session_group": null,
+    "expect_422": true
+  }
+]
