@@ -7,7 +7,7 @@ with JWT authentication and rate limiting.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.api.database import get_db
@@ -191,51 +191,50 @@ def _execute_vector_search(
     query: str,
     limit: int,
 ) -> list[SearchResultItem]:
-    """Execute vector similarity search.
+    """Execute vector similarity search against horrorbot_vectors.
 
-    Uses pgvector cosine distance for semantic search.
+    Retrieves documents from rag_documents (horrorbot_vectors) then
+    fetches film metadata from films (horrorbot) via tmdb_id.
 
     Args:
-        db: Database session.
+        db: Database session for horrorbot (film metadata).
         query: Search query text.
         limit: Maximum results.
 
     Returns:
         List of search results with similarity scores.
     """
-    # Import here to avoid circular dependency
-    from src.services.embedding.embedding_service import get_embedding_service
+    from src.services.rag.retriever import get_document_retriever
 
-    embedding_service = get_embedding_service()
-    query_embedding = embedding_service.generate(query)
+    retriever = get_document_retriever()
+    # Over-fetch to account for multiple rag_documents per film
+    docs = retriever.retrieve(query, match_count=limit * 3, similarity_threshold=0.1)
 
-    # pgvector cosine distance: 1 - cosine_similarity
-    sql = text("""
-               SELECT id,
-                      tmdb_id,
-                      title,
-                      overview,
-                      release_date,
-                      1 - (embedding <=> :embedding::vector) AS score
-               FROM films
-               WHERE embedding IS NOT NULL
-               ORDER BY embedding <=> :embedding::vector
-               LIMIT :limit
-               """)
+    # Deduplicate by tmdb_id, keep best similarity per film
+    best_score: dict[int, float] = {}
+    for doc in docs:
+        if doc.source_id not in best_score or doc.similarity > best_score[doc.source_id]:
+            best_score[doc.source_id] = doc.similarity
 
-    result = db.execute(
-        sql,
-        {"embedding": str(query_embedding), "limit": limit},
-    )
+    # Sort by score desc and take top-limit tmdb_ids
+    ranked_ids = sorted(best_score, key=lambda tid: best_score[tid], reverse=True)[:limit]
+
+    if not ranked_ids:
+        return []
+
+    films_map: dict[int, Film] = {
+        f.tmdb_id: f for f in db.scalars(select(Film).where(Film.tmdb_id.in_(ranked_ids))).all()
+    }
 
     return [
         SearchResultItem(
-            id=row.id,
-            tmdb_id=row.tmdb_id,
-            title=row.title,
-            overview=row.overview,
-            release_date=row.release_date,
-            score=round(float(row.score), 4),
+            id=film.id,
+            tmdb_id=film.tmdb_id,
+            title=film.title,
+            overview=film.overview,
+            release_date=film.release_date,
+            score=round(best_score[tmdb_id], 4),
         )
-        for row in result
+        for tmdb_id in ranked_ids
+        if (film := films_map.get(tmdb_id)) is not None
     ]
