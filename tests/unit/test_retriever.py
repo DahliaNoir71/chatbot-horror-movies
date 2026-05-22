@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.services.embedding.embedding_service import EMBEDDING_DIMENSION
 from src.services.rag.retriever import DocumentRetriever
 
 
@@ -61,7 +62,7 @@ class TestRetrieverIndexGuard:
     def test_execute_search_never_disables_indexscan(retriever, mock_session):
         """_execute_search must NOT execute SET LOCAL enable_indexscan = off."""
         retriever._execute_search(
-            embedding=[0.1] * 384,
+            embedding=[0.1] * EMBEDDING_DIMENSION,
             match_count=5,
             threshold=0.7,
             source_type=None,
@@ -82,7 +83,7 @@ class TestRetrieverIndexGuard:
     def test_execute_search_never_disables_bitmapscan(retriever, mock_session):
         """_execute_search must NOT execute SET LOCAL enable_bitmapscan = off."""
         retriever._execute_search(
-            embedding=[0.1] * 384,
+            embedding=[0.1] * EMBEDDING_DIMENSION,
             match_count=5,
             threshold=0.7,
             source_type=None,
@@ -103,7 +104,7 @@ class TestRetrieverIndexGuard:
     def test_execute_search_only_runs_search_query(retriever, mock_session):
         """_execute_search should execute exactly ONE SQL statement."""
         retriever._execute_search(
-            embedding=[0.1] * 384,
+            embedding=[0.1] * EMBEDDING_DIMENSION,
             match_count=5,
             threshold=0.7,
             source_type=None,
@@ -119,7 +120,7 @@ class TestRetrieverIndexGuard:
     def test_execute_search_calls_search_function(retriever, mock_session):
         """_execute_search calls the search_similar_documents SQL function."""
         retriever._execute_search(
-            embedding=[0.1] * 384,
+            embedding=[0.1] * EMBEDDING_DIMENSION,
             match_count=5,
             threshold=0.7,
             source_type=None,
@@ -132,7 +133,7 @@ class TestRetrieverIndexGuard:
     def test_execute_search_closes_session(retriever, mock_session):
         """Session is always closed after search."""
         retriever._execute_search(
-            embedding=[0.1] * 384,
+            embedding=[0.1] * EMBEDDING_DIMENSION,
             match_count=5,
             threshold=0.7,
             source_type=None,
@@ -147,7 +148,7 @@ class TestRetrieverIndexGuard:
 
         with pytest.raises(RuntimeError, match="DB error"):
             retriever._execute_search(
-                embedding=[0.1] * 384,
+                embedding=[0.1] * EMBEDDING_DIMENSION,
                 match_count=5,
                 threshold=0.7,
                 source_type=None,

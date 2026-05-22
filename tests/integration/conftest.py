@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from src.api.database import get_db
 from src.api.dependencies.rate_limit import check_rate_limit
 from src.database.models.base import Base
+from src.services.embedding.embedding_service import EMBEDDING_DIMENSION
 from src.services.intent.router import ChatResult
 
 
@@ -237,11 +238,11 @@ def parse_sse_events(text: str) -> list[dict]:
 def mock_embedding_service():
     """Mock EmbeddingService to avoid loading ML model.
 
-    Returns a mock that encodes text as a fixed 384-dimensional vector.
+    Returns a mock that encodes text as a fixed-dimension vector.
     """
     with patch("src.services.embedding.embedding_service.get_embedding_service") as mock:
         mock_service = MagicMock()
-        mock_service.encode.return_value = [0.1] * 384  # Fixed 384-dim vector
+        mock_service.encode.return_value = [0.1] * EMBEDDING_DIMENSION
         mock.return_value = mock_service
         yield mock
 

@@ -94,8 +94,8 @@ class TestEmbeddingProperties:
     """T8 — Verify real model embedding properties."""
 
     @staticmethod
-    def test_embedding_dimension_384(embedding_service):
-        """Real model produces 384-dimensional vectors."""
+    def test_embedding_dimension_matches_settings(embedding_service):
+        """Real model produces vectors of the configured dimension."""
         vec = embedding_service.generate("test horror movie query")
         assert len(vec) == EMBEDDING_DIMENSION
 

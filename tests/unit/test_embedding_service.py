@@ -13,6 +13,7 @@ import pytest
 from pytest import approx
 
 from src.services.embedding.embedding_service import (
+    _PASSAGE_PREFIX,
     EMBEDDING_DIMENSION,
     EmbeddingService,
 )
@@ -28,8 +29,8 @@ from src.settings import settings
 def mock_model():
     """Mock SentenceTransformer model with deterministic encode()."""
     mock = MagicMock()
-    # Single text: return a normalized 384-dim vector
-    single_vector = np.random.default_rng(42).random(384, dtype=np.float32)
+    # Single text: return a normalized vector of the configured dimension.
+    single_vector = np.random.default_rng(42).random(EMBEDDING_DIMENSION, dtype=np.float32)
     single_vector /= np.linalg.norm(single_vector)
     mock.encode.return_value = single_vector
     return mock
@@ -60,8 +61,8 @@ class TestEmbeddingServiceGenerate:
         assert all(isinstance(x, float) for x in result)
 
     @staticmethod
-    def test_dimension_is_384(embedding_service):
-        """Output vector has 384 dimensions."""
+    def test_dimension_matches_settings(embedding_service):
+        """Output vector matches the configured embedding dimension."""
         result = embedding_service.generate("test text")
 
         assert len(result) == EMBEDDING_DIMENSION
@@ -110,14 +111,14 @@ class TestEmbeddingServiceBatch:
     @staticmethod
     def test_batch_returns_list_of_lists(embedding_service, mock_model):
         """generate_batch() returns a list of embedding vectors."""
-        batch_result = np.random.default_rng(42).random((3, 384), dtype=np.float32)
+        batch_result = np.random.default_rng(42).random((3, EMBEDDING_DIMENSION), dtype=np.float32)
         mock_model.encode.return_value = batch_result
 
         result = embedding_service.generate_batch(["text1", "text2", "text3"])
 
         assert isinstance(result, list)
         assert len(result) == 3
-        assert all(len(vec) == 384 for vec in result)
+        assert all(len(vec) == EMBEDDING_DIMENSION for vec in result)
 
     @staticmethod
     def test_empty_list_returns_empty(embedding_service):
@@ -129,15 +130,15 @@ class TestEmbeddingServiceBatch:
     @staticmethod
     def test_handles_mixed_empty_texts(embedding_service, mock_model):
         """Batch with empty/None texts replaces them with empty strings."""
-        batch_result = np.random.default_rng(42).random((3, 384), dtype=np.float32)
+        batch_result = np.random.default_rng(42).random((3, EMBEDDING_DIMENSION), dtype=np.float32)
         mock_model.encode.return_value = batch_result
 
         result = embedding_service.generate_batch(["valid", "", "  "])
 
         assert len(result) == 3
-        # Verify the clean_texts logic: empty/whitespace replaced with ""
+        # Non-empty texts gain the e5 passage prefix; empty/whitespace collapse to "".
         call_args = mock_model.encode.call_args[0][0]
-        assert call_args == ["valid", "", ""]
+        assert call_args == [f"{_PASSAGE_PREFIX}valid", "", ""]
 
 
 # =========================================================================
@@ -150,9 +151,9 @@ class TestEmbeddingServiceProperties:
 
     @staticmethod
     def test_dimension_property():
-        """dimension property returns EMBEDDING_DIMENSION (384)."""
+        """dimension property returns EMBEDDING_DIMENSION."""
         service = EmbeddingService()
-        assert service.dimension == 384
+        assert service.dimension == EMBEDDING_DIMENSION
 
     @staticmethod
     def test_model_name_property():
