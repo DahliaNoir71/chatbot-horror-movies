@@ -136,7 +136,7 @@ CANDIDATE_LABEL_MAP: dict[str, str] = {
     "needs_database": "question about horror films or movie recommendations",
     "conversational": "social greeting or farewell",
     "thanks": "expressing gratitude or saying thank you",
-    "off_topic": "question about science, math, cooking, or other non-movie topic",
+    "off_topic": "question about a non-film topic such as weather, sports, cooking, science or history",
 }
 
 _CANDIDATE_LABELS = list(CANDIDATE_LABEL_MAP.values())
