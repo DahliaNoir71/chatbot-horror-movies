@@ -28,7 +28,10 @@ from src.settings import settings
 from src.settings.retrieval import RetrievalSettings
 
 _FIXTURE = Path(__file__).parents[2] / "tests" / "fixtures" / "axis2_benchmark.json"
-_DEFAULT_WEIGHTS: list[float] = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30]
+# RRF scores span ~0.006-0.016; a popularity term above that magnitude
+# overrides semantic rank entirely. The calibrated range is 0.001-0.01
+# (see RetrievalSettings.popularity_weight) — the sweep must stay there.
+_DEFAULT_WEIGHTS: list[float] = [0.0, 0.003, 0.005, 0.01, 0.02, 0.05]
 _TOP_K = 5
 
 
