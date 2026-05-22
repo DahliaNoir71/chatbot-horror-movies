@@ -1,6 +1,6 @@
 """Embedding generation service using sentence-transformers.
 
-Generates 384-dimensional vectors for RAG semantic search.
+Generates 768-dimensional vectors for RAG semantic search.
 Model name is sourced from settings.embedding.model_name (env var
 EMBEDDING_MODEL_NAME), dimension from EMBEDDING_DIMENSIONS — both
 must match the pgvector schema.
@@ -15,6 +15,12 @@ from src.etl.utils.logger import setup_logger
 from src.settings import settings
 
 EMBEDDING_DIMENSION = settings.embedding.dimensions
+
+# intfloat/multilingual-e5 models require an asymmetric prefix on every input:
+# "query: " for search queries, "passage: " for indexed documents. Omitting
+# them measurably degrades retrieval — see the model card.
+_QUERY_PREFIX = "query: "
+_PASSAGE_PREFIX = "passage: "
 
 logger = setup_logger("services.embedding")
 
@@ -58,29 +64,33 @@ class EmbeddingService:
         return self._model
 
     def generate(self, text: str) -> list[float]:
-        """Generate embedding for a single text.
+        """Generate an embedding for a single search query.
+
+        The text is prefixed with the e5 `query:` marker before encoding.
 
         Args:
-            text: Input text to embed.
+            text: Query text to embed.
 
         Returns:
-            List of floats (384 dimensions).
+            List of floats (768 dimensions).
         """
         if not text or not text.strip():
             return self._zero_vector()
 
         embedding: NDArray[np.float32] = self.model.encode(
-            text,
+            _QUERY_PREFIX + text,
             convert_to_numpy=True,
             normalize_embeddings=True,
         )
         return embedding.tolist()
 
     def generate_batch(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for multiple texts.
+        """Generate embeddings for multiple documents (passages).
+
+        Each non-empty text is prefixed with the e5 `passage:` marker.
 
         Args:
-            texts: List of input texts.
+            texts: List of document texts to embed.
 
         Returns:
             List of embedding vectors.
@@ -89,7 +99,7 @@ class EmbeddingService:
             return []
 
         self._logger.debug(f"Generating embeddings for {len(texts)} texts")
-        clean_texts = [t if t and t.strip() else "" for t in texts]
+        clean_texts = [_PASSAGE_PREFIX + t if t and t.strip() else "" for t in texts]
         embeddings: NDArray[np.float32] = self.model.encode(
             clean_texts,
             convert_to_numpy=True,

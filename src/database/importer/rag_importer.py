@@ -47,14 +47,22 @@ METADATA_CAST_LIMIT = 10
 class RAGDocument:
     """Document prepared for RAG insertion.
 
+    `content` and `embed_text` are deliberately distinct: `content` is the
+    rich text stored for the reranker and LLM grounding, while `embed_text`
+    is a focused subset (synopsis + genres + keywords, no cast/director)
+    sent to the embedding model — short enough to stay inside its
+    128-token window so the synopsis is not truncated away.
+
     Attributes:
-        content: Text content for embedding.
+        content: Rich text stored for reranking and LLM grounding.
+        embed_text: Focused text actually sent to the embedding model.
         source_type: Document type (film_overview, critics_consensus).
         source_id: TMDB film ID.
         metadata: Additional searchable metadata.
     """
 
     content: str
+    embed_text: str
     source_type: str
     source_id: int
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -300,6 +308,7 @@ class RAGImporter:
 
         return RAGDocument(
             content=header,
+            embed_text=cls._build_embed_text(film, None),
             source_type="film_metadata",
             source_id=tmdb_id,
             metadata=metadata,
@@ -360,6 +369,32 @@ class RAGImporter:
         return "\n".join(lines)
 
     @classmethod
+    def _build_embed_text(cls, film: dict[str, Any], body: str | None) -> str:
+        """Build the focused text fed to the embedding model.
+
+        Unlike `content`, this drops director, cast and alternative
+        titles — named-entity signals already carried by the relational
+        `search_vector` for BM25. The embedding then concentrates on the
+        synopsis, genres and keywords that drive thematic retrieval, and
+        stays within the model's 128-token window.
+
+        Args:
+            film: Film dictionary.
+            body: Synopsis or critics consensus (already stripped), or
+                None for metadata-only films with no prose.
+
+        Returns:
+            Single embedding-input string.
+        """
+        parts = [cls._format_title_line(film)]
+        if body:
+            parts.append(body)
+        keywords = ", ".join(film.get("keywords", [])[:CONTENT_KEYWORDS_LIMIT])
+        if keywords:
+            parts.append(f"Keywords: {keywords}")
+        return "\n".join(parts)
+
+    @classmethod
     def _create_overview_doc(
         cls,
         film: dict[str, Any],
@@ -381,10 +416,12 @@ class RAGImporter:
             return None
 
         content = f"{cls._build_header(film)}\n{overview.strip()}"
+        body_parts = [overview.strip()]
 
         overview_fr = film.get("overview_fr")
         if overview_fr and overview_fr.strip() and overview_fr.strip() != overview.strip():
             content += f"\n{overview_fr.strip()}"
+            body_parts.append(overview_fr.strip())
 
         tagline = film.get("tagline")
         if tagline and tagline.strip():
@@ -392,6 +429,7 @@ class RAGImporter:
 
         return RAGDocument(
             content=content,
+            embed_text=cls._build_embed_text(film, "\n".join(body_parts)),
             source_type="film_overview",
             source_id=tmdb_id,
             metadata=metadata,
@@ -418,10 +456,12 @@ class RAGImporter:
         if not consensus or not consensus.strip():
             return None
 
-        content = f"{cls._build_header(film)}\nCritique: {consensus.strip()}"
+        critique = f"Critique: {consensus.strip()}"
+        content = f"{cls._build_header(film)}\n{critique}"
 
         return RAGDocument(
             content=content,
+            embed_text=cls._build_embed_text(film, critique),
             source_type="critics_consensus",
             source_id=tmdb_id,
             metadata=metadata,
@@ -524,8 +564,8 @@ class RAGImporter:
         Returns:
             Number of documents inserted.
         """
-        # Generate embeddings for batch
-        texts = [d.content for d in documents]
+        # Embed the focused text; the rich `content` is stored as-is.
+        texts = [d.embed_text for d in documents]
         embeddings = self._embedding_service.generate_batch(texts)
 
         # Bulk insert

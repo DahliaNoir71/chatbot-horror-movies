@@ -25,18 +25,18 @@ class RetrievalSettings(BaseSettings):
             is dropped to prevent LLM hallucinations.
         popularity_weight: Scale applied to the popularity boost. RRF scores
             are ~0.01–0.05 while normalized popularity is in ~[0, 1.4], so a
-            calibrated value is typically in the 0.001–0.01 range.
+            calibrated value is typically in the 0.001–0.02 range.
     """
 
     vector_weight: float = Field(default=0.5, alias="RETRIEVAL_VECTOR_WEIGHT")
     bm25_weight: float = Field(default=0.5, alias="RETRIEVAL_BM25_WEIGHT")
     rrf_k: int = Field(default=60, alias="RETRIEVAL_RRF_K")
-    vector_top_k: int = Field(default=20, alias="RETRIEVAL_VECTOR_TOP_K")
+    vector_top_k: int = Field(default=50, alias="RETRIEVAL_VECTOR_TOP_K")
     bm25_top_k: int = Field(default=20, alias="RETRIEVAL_BM25_TOP_K")
     final_top_k: int = Field(default=5, alias="RETRIEVAL_FINAL_TOP_K")
     min_similarity: float = Field(default=0.3, alias="RETRIEVAL_MIN_SIMILARITY")
-    min_rerank_score: float = Field(default=-2.0, alias="RETRIEVAL_MIN_RERANK_SCORE")
-    popularity_weight: float = Field(default=0.15, alias="RETRIEVAL_POPULARITY_WEIGHT")
+    min_rerank_score: float = Field(default=-5.0, alias="RETRIEVAL_MIN_RERANK_SCORE")
+    popularity_weight: float = Field(default=0.02, alias="RETRIEVAL_POPULARITY_WEIGHT")
 
     model_config = SettingsConfigDict(
         env_file=".env",
