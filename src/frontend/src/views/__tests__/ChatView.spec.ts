@@ -15,6 +15,7 @@ const isStreaming = ref(false)
 const error = ref<string | null>(null)
 const sessionId = ref<string | null>(null)
 const currentStreamContent = ref('')
+const currentStage = ref<string | null>(null)
 const hasMessages = computed(() => messages.value.length > 0)
 
 const mockStore = {
@@ -25,6 +26,7 @@ const mockStore = {
   hasMessages,
   sessionId,
   currentStreamContent,
+  currentStage,
   sendMessageStream: vi.fn(),
   clearConversation: vi.fn(),
 }
@@ -45,6 +47,7 @@ vi.mock('pinia', async () => {
       hasMessages,
       sessionId,
       currentStreamContent,
+      currentStage,
     }),
   }
 })
@@ -100,6 +103,7 @@ function resetStore() {
   error.value = null
   sessionId.value = null
   currentStreamContent.value = ''
+  currentStage.value = null
 }
 
 describe('ChatView', () => {
@@ -159,21 +163,29 @@ describe('ChatView', () => {
     })
   })
 
-  describe('loading state', () => {
-    it('shows spinner and thinking text when isLoading', () => {
-      isLoading.value = true
+  describe('streaming indicator', () => {
+    it('shows spinner with default text while streaming before any token', () => {
+      isStreaming.value = true
       const wrapper = mountChat()
       expect(wrapper.find('.loading-spinner').exists()).toBe(true)
       expect(wrapper.text()).toContain('HorrorBot réfléchit')
     })
 
-    it('shows spinner when isStreaming', () => {
+    it('shows the current pipeline stage label', () => {
       isStreaming.value = true
+      currentStage.value = 'retrieval'
       const wrapper = mountChat()
-      expect(wrapper.find('.loading-spinner').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Recherche dans la base de films')
     })
 
-    it('hides spinner when not loading', () => {
+    it('hides the indicator once response text streams in', () => {
+      isStreaming.value = true
+      currentStreamContent.value = 'Voici un film'
+      const wrapper = mountChat()
+      expect(wrapper.find('.loading-spinner').exists()).toBe(false)
+    })
+
+    it('hides the indicator when idle', () => {
       const wrapper = mountChat()
       expect(wrapper.find('.loading-spinner').exists()).toBe(false)
     })

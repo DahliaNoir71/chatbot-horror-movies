@@ -297,12 +297,17 @@ class ChatResponse(BaseModel):
 
 
 class StreamChunk(BaseModel):
-    """SSE stream chunk schema.
+    """SSE stream event schema.
 
-    type='chunk' for text fragments, type='done' for final metadata.
+    type='stage' for pipeline-progress markers, 'chunk' for text
+    fragments, 'done' for final metadata, 'error' for failures.
     """
 
-    type: str = Field(description="Event type: 'chunk' or 'done'")
+    type: str = Field(description="Event type: 'stage', 'chunk', 'done' or 'error'")
+    stage: str | None = Field(
+        default=None,
+        description="Pipeline stage label (for type='stage')",
+    )
     content: str | None = Field(default=None, description="Text chunk (for type='chunk')")
     intent: str | None = Field(default=None, description="Intent (for type='done')")
     confidence: float | None = Field(default=None, description="Confidence (for type='done')")

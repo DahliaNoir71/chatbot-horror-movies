@@ -103,39 +103,50 @@ class TestIntentRouterDispatch:
 
 
 class TestIntentRouterStream:
-    """T2 — Verify handle_stream() routes correctly."""
+    """T2 — Verify handle_stream() emits the expected event sequence."""
 
     @staticmethod
-    async def test_stream_template_returns_direct_text(
+    async def test_stream_template_emits_chunk_then_done(
         mock_rag_pipeline, mock_session_manager
     ):
-        """Template intents return direct text (no iterator)."""
+        """Template intents stream: classification stage, chunk, done."""
         classifier = _make_classifier("conversational")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text, _ = await router.handle_stream(
-            "Bonjour", session_id=None, user_id="user1"
-        )
+        events = [
+            ev
+            async for ev in router.handle_stream(
+                "Bonjour", session_id=None, user_id="user1"
+            )
+        ]
 
-        assert iterator is None
-        assert direct_text is not None
-        assert intent == "conversational"
+        assert events[0].type == "stage"
+        assert events[0].stage == "classification"
+        assert any(ev.type == "chunk" and ev.content for ev in events)
+        assert events[-1].type == "done"
+        assert events[-1].intent == "conversational"
+        mock_rag_pipeline.execute_stream.assert_not_called()
 
     @staticmethod
-    async def test_stream_rag_returns_iterator(
+    async def test_stream_rag_emits_all_stages(
         mock_rag_pipeline, mock_session_manager
     ):
-        """RAG intents return a token iterator."""
+        """RAG intents stream classification, retrieval, generation stages."""
         classifier = _make_classifier("needs_database")
         router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
 
-        iterator, intent, _, _, direct_text, _ = await router.handle_stream(
-            "Recommande un film", session_id=None, user_id="user1"
-        )
+        events = [
+            ev
+            async for ev in router.handle_stream(
+                "Recommande un film", session_id=None, user_id="user1"
+            )
+        ]
 
-        assert iterator is not None
-        assert direct_text is None
-        assert intent == "needs_database"
+        stages = [ev.stage for ev in events if ev.type == "stage"]
+        assert stages == ["classification", "retrieval", "generation"]
+        assert events[-1].type == "done"
+        assert events[-1].intent == "needs_database"
+        mock_rag_pipeline.execute_stream.assert_called_once()
 
 
 # =========================================================================

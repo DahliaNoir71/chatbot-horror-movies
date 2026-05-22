@@ -46,7 +46,8 @@ export interface ChatMessage {
 
 // -- SSE stream events --
 export interface StreamEvent {
-  type: 'chunk' | 'done' | 'error'
+  type: 'stage' | 'chunk' | 'done' | 'error'
+  stage?: string
   content?: string
   intent?: string
   confidence?: number

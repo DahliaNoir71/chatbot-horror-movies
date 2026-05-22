@@ -10,6 +10,7 @@ export const useChatStore = defineStore('chat', () => {
   const error = ref<string | null>(null)
   const sessionId = ref<string | null>(null)
   const currentStreamContent = ref('')
+  const currentStage = ref<string | null>(null)
   const currentIntent = ref<string | null>(null)
   const abortController = ref<AbortController | null>(null)
 
@@ -72,6 +73,7 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming.value = true
     error.value = null
     currentStreamContent.value = ''
+    currentStage.value = null
     currentIntent.value = null
 
     const controller = new AbortController()
@@ -91,6 +93,9 @@ export const useChatStore = defineStore('chat', () => {
       if (!msg) return
 
       switch (event.type) {
+        case 'stage':
+          currentStage.value = event.stage ?? null
+          break
         case 'chunk':
           if (event.content) {
             currentStreamContent.value += event.content
@@ -143,6 +148,7 @@ export const useChatStore = defineStore('chat', () => {
     sessionId.value = null
     error.value = null
     currentStreamContent.value = ''
+    currentStage.value = null
     currentIntent.value = null
   }
 
@@ -157,6 +163,7 @@ export const useChatStore = defineStore('chat', () => {
     error,
     sessionId,
     currentStreamContent,
+    currentStage,
     currentIntent,
     hasMessages,
     lastMessage,

@@ -29,7 +29,7 @@ from src.monitoring.metrics import (
     SESSION_MESSAGE_COUNT,
 )
 from src.services.chat.session import get_session_manager
-from src.services.intent.router import get_intent_router
+from src.services.intent.router import StreamEvent, get_intent_router
 
 logger = setup_logger("api.routers.chat")
 
@@ -66,6 +66,28 @@ def _parse_session_id(session_id: str | None) -> UUID | None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid session_id format: {session_id}. Must be a UUID.",
         ) from None
+
+
+def _build_sources(documents: list) -> list[ChatSourceDocument]:
+    """Map retrieved RAG documents to source DTOs for the API response.
+
+    Args:
+        documents: Retrieved documents with `source_id`, `metadata`,
+            `similarity` and optional `rerank_score`.
+
+    Returns:
+        List of ChatSourceDocument, one per document.
+    """
+    return [
+        ChatSourceDocument(
+            tmdb_id=doc.source_id,
+            title=doc.metadata.get("title", "Unknown"),
+            year=doc.metadata.get("year"),
+            similarity_score=round(doc.similarity, 4),
+            rerank_score=(round(doc.rerank_score, 4) if doc.rerank_score is not None else None),
+        )
+        for doc in documents
+    ]
 
 
 # =============================================================================
@@ -110,16 +132,7 @@ async def chat(
         session_history = get_session_manager().get_history_as_messages(result.session_id)
         SESSION_MESSAGE_COUNT.observe(len(session_history))
 
-        sources = [
-            ChatSourceDocument(
-                tmdb_id=doc.source_id,
-                title=doc.metadata.get("title", "Unknown"),
-                year=doc.metadata.get("year"),
-                similarity_score=round(doc.similarity, 4),
-                rerank_score=(round(doc.rerank_score, 4) if doc.rerank_score is not None else None),
-            )
-            for doc in result.documents
-        ]
+        sources = _build_sources(result.documents)
 
         timings = ChatTimings(
             classification_ms=round(result.classification_ms, 1),
@@ -154,6 +167,43 @@ async def chat(
         ) from None
 
 
+def _record_stream_metrics(intent: str, start: float) -> None:
+    """Record request count, duration and active sessions for a stream.
+
+    Args:
+        intent: Intent label of the completed stream.
+        start: perf_counter timestamp captured when the request began.
+    """
+    CHAT_REQUESTS_TOTAL.labels(intent=intent, mode="stream").inc()
+    CHAT_REQUEST_DURATION.labels(intent=intent).observe(time.perf_counter() - start)
+    ACTIVE_SESSIONS.set(get_session_manager().active_count())
+
+
+def _event_to_sse(event: StreamEvent) -> str:
+    """Serialise a domain StreamEvent into an SSE JSON payload.
+
+    Args:
+        event: Domain event from IntentRouter.handle_stream.
+
+    Returns:
+        JSON string for one SSE `data:` frame.
+    """
+    if event.type == "stage":
+        chunk = StreamChunk(type="stage", stage=event.stage)
+    elif event.type == "chunk":
+        chunk = StreamChunk(type="chunk", content=event.content)
+    else:
+        confidence = round(event.confidence, 4) if event.confidence is not None else None
+        chunk = StreamChunk(
+            type="done",
+            intent=event.intent,
+            confidence=confidence,
+            session_id=str(event.session_id),
+            sources=_build_sources(event.documents) or None,
+        )
+    return json.dumps(chunk.model_dump(exclude_none=True))
+
+
 @router.post(
     "/stream",
     summary="Stream chat with HorrorBot",
@@ -165,99 +215,38 @@ async def chat_stream(
 ) -> EventSourceResponse:
     """Streaming chat endpoint via Server-Sent Events.
 
+    Pipeline stage markers, text chunks and final metadata are pushed as
+    SSE events. Once the stream is open an HTTP status can no longer be
+    sent, so failures surface as a terminal `error` event.
+
     Args:
         request: Chat request with message and optional session_id.
         user: Authenticated user from JWT.
 
     Returns:
-        EventSourceResponse streaming JSON chunks.
+        EventSourceResponse streaming JSON-encoded StreamChunk events.
     """
     session_id = _parse_session_id(request.session_id)
     intent_router = get_intent_router()
-
     start = time.perf_counter()
-    try:
-        (
-            token_iter,
-            intent,
-            confidence,
-            sid,
-            direct_text,
-            documents,
-        ) = await intent_router.handle_stream(
-            user_message=request.message,
-            session_id=session_id,
-            user_id=user.sub,
-        )
 
-        CHAT_REQUESTS_TOTAL.labels(intent=intent, mode="stream").inc()
-
-    except TimeoutError:
-        CHAT_ERRORS_TOTAL.labels(error_type="timeout").inc()
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Le LLM a mis trop de temps a repondre.",
-        ) from None
-    except Exception as exc:
-        CHAT_ERRORS_TOTAL.labels(error_type="llm_crash").inc()
-        logger.error(f"Chat stream error: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Le service de chat est temporairement indisponible.",
-        ) from None
-
-    # Sync generator — EventSourceResponse runs it in a thread pool
-    def event_generator():
-        """Generate SSE events from token stream."""
-        accumulated_text = ""
-
+    async def event_generator():
+        """Map domain stream events to SSE frames, recording metrics."""
+        intent_label = "unknown"
         try:
-            if direct_text is not None:
-                chunk = StreamChunk(type="chunk", content=direct_text)
-                yield json.dumps(chunk.model_dump(exclude_none=True))
-                accumulated_text = direct_text
-            else:
-                for token in token_iter:
-                    chunk = StreamChunk(type="chunk", content=token)
-                    yield json.dumps(chunk.model_dump(exclude_none=True))
-                    accumulated_text += token
-
-            # Store assistant response in session
-            session_mgr = get_session_manager()
-            if accumulated_text:
-                session_mgr.add_message(sid, "assistant", accumulated_text)
-
-            duration = time.perf_counter() - start
-            CHAT_REQUEST_DURATION.labels(intent=intent).observe(duration)
-            ACTIVE_SESSIONS.set(session_mgr.active_count())
-
-            sources = [
-                ChatSourceDocument(
-                    tmdb_id=doc.source_id,
-                    title=doc.metadata.get("title", "Unknown"),
-                    year=doc.metadata.get("year"),
-                    similarity_score=round(doc.similarity, 4),
-                    rerank_score=(
-                        round(doc.rerank_score, 4) if doc.rerank_score is not None else None
-                    ),
-                )
-                for doc in documents
-            ] or None
-
-            done = StreamChunk(
-                type="done",
-                intent=intent,
-                confidence=round(confidence, 4),
-                session_id=str(sid),
-                sources=sources,
-                timings=None,
-                token_usage=None,
-            )
-            yield json.dumps(done.model_dump(exclude_none=True))
-
+            async for event in intent_router.handle_stream(
+                user_message=request.message,
+                session_id=session_id,
+                user_id=user.sub,
+            ):
+                if event.type == "done":
+                    intent_label = event.intent or intent_label
+                yield _event_to_sse(event)
+            _record_stream_metrics(intent_label, start)
         except Exception as exc:
             CHAT_ERRORS_TOTAL.labels(error_type="stream_error").inc()
-            logger.error(f"Stream generation error: {exc}")
-            yield json.dumps({"type": "error", "content": "Stream interrompu."})
+            logger.error(f"Chat stream error: {exc}")
+            error = StreamChunk(type="error", content="Une erreur est survenue. Réessayez.")
+            yield json.dumps(error.model_dump(exclude_none=True))
 
     return EventSourceResponse(event_generator())

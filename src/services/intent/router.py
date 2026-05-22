@@ -5,7 +5,7 @@ Routes classified intents to: template responses or RAG+LLM pipeline.
 
 import asyncio
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -68,6 +68,34 @@ class ChatResult:
     rerank_ms: float = 0.0
     generation_ms: float = 0.0
     total_ms: float = 0.0
+
+
+@dataclass
+class StreamEvent:
+    """A domain-level event emitted while streaming a response.
+
+    Attributes:
+        type: Event kind — "stage", "chunk" or "done".
+        stage: Pipeline stage name (for type="stage").
+        content: Text fragment (for type="chunk").
+        intent: Classified intent (for type="done").
+        confidence: Classifier confidence (for type="done").
+        session_id: Session UUID (for type="done").
+        documents: RAG documents used as context (for type="done").
+    """
+
+    type: str
+    stage: str | None = None
+    content: str | None = None
+    intent: str | None = None
+    confidence: float | None = None
+    session_id: UUID | None = None
+    documents: list = field(default_factory=list)
+
+
+# Sentinel returned by next() when the blocking LLM token iterator is
+# exhausted — it is advanced one token at a time from a worker thread.
+_STREAM_END = object()
 
 
 # =============================================================================
@@ -179,55 +207,115 @@ class IntentRouter:
         user_message: str,
         session_id: UUID | None,
         user_id: str,
-    ) -> tuple[Iterator[str] | None, str, float, UUID, str | None, list]:
-        """Handle a user message with streaming response.
+    ) -> AsyncIterator[StreamEvent]:
+        """Handle a user message, streaming progress and response events.
 
-        For non-streamable intents (template), returns
-        the full text directly (iterator is None).
+        A `classification` stage marker is yielded before any slow work,
+        so the SSE client sees activity immediately; the method then
+        delegates to the template or RAG sub-stream.
 
         Args:
             user_message: The user's query text.
             session_id: Existing session ID, or None for new.
             user_id: Authenticated user identifier.
 
-        Returns:
-            Tuple of (token_iterator_or_None, intent, confidence,
-                      session_id, direct_text_or_None, documents).
-            `documents` is the list of RAG documents used for context
-            (empty for template intents); needed by the SSE endpoint
-            to expose sources to the frontend.
+        Yields:
+            StreamEvent objects: stage markers, text chunks, then done.
         """
+        yield StreamEvent(type="stage", stage="classification")
+
         classification = await self._classify_with_metrics(user_message)
         intent = classification["intent"]
         confidence = classification["confidence"]
 
         session = self._session_manager.get_or_create(session_id, user_id)
-        history = self._session_manager.get_history_as_messages(session.session_id)
-
-        # Store user message immediately
-        self._session_manager.add_message(session.session_id, "user", user_message)
-
-        if intent in TEMPLATE_INTENTS:
-            text = get_template_response(intent, user_message) or ""
-            self._session_manager.add_message(session.session_id, "assistant", text)
-            return None, intent, confidence, session.session_id, text, []
+        sid = session.session_id
+        history = self._session_manager.get_history_as_messages(sid)
+        self._session_manager.add_message(sid, "user", user_message)
 
         if intent in RAG_INTENTS:
-            token_stream, docs = await self._rag_pipeline.execute_stream(
-                intent,
-                user_message,
-                history,
-            )
-            return token_stream, intent, confidence, session.session_id, None, docs
-
-        # Fallback
-        text = get_template_response("off_topic", user_message) or ""
-        self._session_manager.add_message(session.session_id, "assistant", text)
-        return None, intent, confidence, session.session_id, text, []
+            substream = self._stream_rag(intent, confidence, sid, user_message, history)
+        else:
+            substream = self._stream_template(intent, confidence, sid, user_message)
+        async for event in substream:
+            yield event
 
     # =========================================================================
     # PRIVATE METHODS
     # =========================================================================
+
+    async def _stream_template(
+        self,
+        intent: str,
+        confidence: float,
+        session_id: UUID,
+        user_message: str,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a template intent as a single chunk followed by done.
+
+        Args:
+            intent: Classified intent.
+            confidence: Classifier confidence.
+            session_id: Session UUID.
+            user_message: The user's query (drives greeting/farewell pick).
+
+        Yields:
+            One chunk event with the template text, then a done event.
+        """
+        text = (
+            get_template_response(intent, user_message)
+            or get_template_response("off_topic", user_message)
+            or ""
+        )
+        self._session_manager.add_message(session_id, "assistant", text)
+        yield StreamEvent(type="chunk", content=text)
+        yield StreamEvent(type="done", intent=intent, confidence=confidence, session_id=session_id)
+
+    async def _stream_rag(
+        self,
+        intent: str,
+        confidence: float,
+        session_id: UUID,
+        user_message: str,
+        history: list[dict[str, str]],
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream the RAG pipeline: retrieval marker, generation, done.
+
+        The LLM token iterator is blocking; it is advanced one token at a
+        time via `asyncio.to_thread` so the event loop keeps flushing SSE.
+
+        Args:
+            intent: Classified intent.
+            confidence: Classifier confidence.
+            session_id: Session UUID.
+            user_message: The user's query text.
+            history: Conversation history messages.
+
+        Yields:
+            Stage markers, one chunk per token, then a done event.
+        """
+        yield StreamEvent(type="stage", stage="retrieval")
+        token_stream, documents = await self._rag_pipeline.execute_stream(
+            intent, user_message, history
+        )
+
+        yield StreamEvent(type="stage", stage="generation")
+        parts: list[str] = []
+        while True:
+            token = await asyncio.to_thread(next, token_stream, _STREAM_END)
+            if token is _STREAM_END:
+                break
+            parts.append(token)
+            yield StreamEvent(type="chunk", content=token)
+
+        self._session_manager.add_message(session_id, "assistant", "".join(parts))
+        yield StreamEvent(
+            type="done",
+            intent=intent,
+            confidence=confidence,
+            session_id=session_id,
+            documents=documents,
+        )
 
     async def _classify_with_metrics(self, text: str) -> dict:
         """Classify intent (CPU-bound, offloaded to a thread) and record metrics.

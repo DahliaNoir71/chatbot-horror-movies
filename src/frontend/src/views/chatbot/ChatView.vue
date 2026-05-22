@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat.store'
 import ChatMessageComponent from '@/components/chat/ChatMessage.vue'
@@ -17,9 +17,20 @@ const {
   hasMessages,
   sessionId,
   currentStreamContent,
+  currentStage,
 } = storeToRefs(chatStore)
 
 const messagesContainer = ref<HTMLElement | null>(null)
+
+const STAGE_LABELS: Record<string, string> = {
+  classification: 'Analyse de la question…',
+  retrieval: 'Recherche dans la base de films…',
+  generation: 'Rédaction de la réponse…',
+}
+
+const stageLabel = computed(
+  () => STAGE_LABELS[currentStage.value ?? ''] ?? 'HorrorBot réfléchit…'
+)
 
 function scrollToBottom() {
   const el = messagesContainer.value
@@ -101,11 +112,11 @@ onUnmounted(() => {
       />
 
       <div
-        v-if="isLoading || isStreaming"
+        v-if="isStreaming && !currentStreamContent"
         class="flex items-center gap-2 text-smoke-gray-400"
       >
         <LoadingSpinner size="sm" />
-        <span class="text-sm">HorrorBot réfléchit…</span>
+        <span class="text-sm">{{ stageLabel }}</span>
       </div>
     </div>
 

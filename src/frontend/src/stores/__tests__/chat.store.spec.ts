@@ -125,6 +125,17 @@ describe('Chat Store', () => {
 
       expect(store.error).toBe('Server overloaded')
     })
+
+    it('tracks the current pipeline stage from stage events', async () => {
+      vi.mocked(askStream).mockImplementation(async (_request, onEvent) => {
+        onEvent({ type: 'stage', stage: 'retrieval' })
+      })
+
+      const store = useChatStore()
+      await store.sendMessageStream('Hi')
+
+      expect(store.currentStage).toBe('retrieval')
+    })
   })
 
   describe('stopStreaming', () => {
