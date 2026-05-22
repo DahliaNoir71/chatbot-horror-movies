@@ -206,7 +206,7 @@ class FilmListResponse(BaseModel):
 class SearchRequest(BaseModel):
     """Semantic search request schema."""
 
-    query: str = Field(min_length=1, max_length=500)
+    query: str = Field(min_length=2, max_length=500)
     limit: int = Field(default=10, ge=1, le=50)
 
 
