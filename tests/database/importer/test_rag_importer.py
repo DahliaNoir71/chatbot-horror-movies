@@ -175,3 +175,28 @@ class TestBuildMetadata:
         assert meta["runtime"] is None
         assert meta["tomatometer_state"] is None
         assert meta["aggregated_score"] is None
+
+
+class TestShortFilmExclusion:
+    """RAGImporter._is_short_film — keep short films out of the corpus."""
+
+    @staticmethod
+    def test_short_film_is_excluded() -> None:
+        """A sub-40-minute film (e.g. the 2003 Saw short) is a short."""
+        assert RAGImporter._is_short_film(_make_film(runtime=10)) is True
+
+    @staticmethod
+    def test_feature_film_is_kept() -> None:
+        """A feature-length film is not a short."""
+        assert RAGImporter._is_short_film(_make_film(runtime=91)) is False
+
+    @staticmethod
+    def test_runtime_at_boundary_is_kept() -> None:
+        """A 40-minute film sits on the feature side of the boundary."""
+        assert RAGImporter._is_short_film(_make_film(runtime=40)) is False
+
+    @staticmethod
+    def test_unknown_runtime_is_kept() -> None:
+        """A 0 or missing runtime is unknown — the film is kept."""
+        assert RAGImporter._is_short_film(_make_film(runtime=0)) is False
+        assert RAGImporter._is_short_film({"tmdb_id": 1, "title": "X"}) is False

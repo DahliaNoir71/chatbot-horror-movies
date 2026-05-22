@@ -37,6 +37,12 @@ CONTENT_KEYWORDS_LIMIT = 15
 CONTENT_ALT_TITLES_LIMIT = 5
 METADATA_CAST_LIMIT = 10
 
+# Films shorter than this (minutes) are excluded from the corpus — the
+# chatbot recommends feature films, and a short like the 2003 Saw
+# proof-of-concept reads as a duplicate of its feature namesake. The
+# 40-minute mark is the standard short/feature boundary.
+MIN_FEATURE_RUNTIME = 40
+
 
 # =============================================================================
 # DATA STRUCTURES
@@ -252,17 +258,22 @@ class RAGImporter:
     def _film_to_documents(self, film: dict[str, Any]) -> list[RAGDocument]:
         """Convert film to RAG documents.
 
-        Falls back to a header-only metadata document when neither
-        overview nor critics consensus is available, so films extracted
-        from TMDB without a synopsis still reach the vector store.
+        Short films are excluded entirely. Otherwise, falls back to a
+        header-only metadata document when neither overview nor critics
+        consensus is available, so films extracted from TMDB without a
+        synopsis still reach the vector store.
 
         Args:
             film: Film dictionary.
 
         Returns:
-            List of documents (overview, consensus, or metadata fallback).
+            List of documents (overview, consensus, or metadata fallback);
+            empty for short films.
         """
         documents: list[RAGDocument] = []
+        if self._is_short_film(film):
+            return documents
+
         tmdb_id = film.get("tmdb_id", 0)
         metadata = self._build_metadata(film)
 
@@ -280,6 +291,22 @@ class RAGImporter:
                 documents.append(fallback_doc)
 
         return documents
+
+    @staticmethod
+    def _is_short_film(film: dict[str, Any]) -> bool:
+        """Return True for short films, which are kept out of the corpus.
+
+        A 0 or missing runtime is treated as unknown — the film is kept,
+        since the data (not the film) is what is missing.
+
+        Args:
+            film: Film dictionary.
+
+        Returns:
+            True if the runtime is known and below MIN_FEATURE_RUNTIME.
+        """
+        runtime = film.get("runtime") or 0
+        return 0 < runtime < MIN_FEATURE_RUNTIME
 
     @classmethod
     def _create_metadata_doc(
