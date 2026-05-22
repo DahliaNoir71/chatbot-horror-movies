@@ -9,7 +9,7 @@ from src.services.rag.retriever import RetrievedDocument
 
 # Maximum history messages to include (3 turns = 6 messages).
 # Budget: system (~300 tok) + context (~1500 tok) + history (~800 tok)
-# + user (~50 tok) + generation (1024 tok) ≈ 3674 < 4096 context window.
+# + user (~50 tok) + generation (300 tok) ≈ 2950 < 4096 context window.
 _MAX_HISTORY_MESSAGES = 6
 
 
