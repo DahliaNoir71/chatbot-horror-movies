@@ -18,6 +18,10 @@ from src.monitoring.metrics import (
     CLASSIFIER_REQUESTS_TOTAL,
 )
 from src.services.chat.session import SessionManager, get_session_manager
+from src.services.filmography.filmography_service import (
+    FilmographyService,
+    get_filmography_service,
+)
 from src.services.intent.classifier import IntentClassifier, get_intent_classifier
 from src.services.intent.prompts import get_template_response
 
@@ -31,7 +35,7 @@ logger = setup_logger("services.intent.router")
 # =============================================================================
 
 RAG_INTENTS = {"needs_database"}
-TEMPLATE_INTENTS = {"conversational", "thanks", "off_topic"}
+TEMPLATE_INTENTS = {"conversational", "thanks", "off_topic", "meta"}
 
 
 # =============================================================================
@@ -120,6 +124,7 @@ class IntentRouter:
         classifier: IntentClassifier | None = None,
         rag_pipeline: "RAGPipeline | None" = None,
         session_manager: SessionManager | None = None,
+        filmography: FilmographyService | None = None,
     ) -> None:
         """Initialize router with injectable dependencies.
 
@@ -136,6 +141,7 @@ class IntentRouter:
         else:
             self._rag_pipeline = rag_pipeline
         self._session_manager = session_manager or get_session_manager()
+        self._filmography = filmography or get_filmography_service()
         self._logger = logger
 
     async def handle(
@@ -172,6 +178,8 @@ class IntentRouter:
 
         if intent in TEMPLATE_INTENTS:
             text = get_template_response(intent, user_message) or ""
+        elif intent == "filmography":
+            text = await asyncio.to_thread(self._filmography.answer, user_message)
         elif intent in RAG_INTENTS:
             rag_result = await self._rag_pipeline.execute(intent, user_message, history)
             text = rag_result.text
@@ -235,6 +243,8 @@ class IntentRouter:
 
         if intent in RAG_INTENTS:
             substream = self._stream_rag(intent, confidence, sid, user_message, history)
+        elif intent == "filmography":
+            substream = self._stream_filmography(intent, confidence, sid, user_message)
         else:
             substream = self._stream_template(intent, confidence, sid, user_message)
         async for event in substream:
@@ -267,6 +277,29 @@ class IntentRouter:
             or get_template_response("off_topic", user_message)
             or ""
         )
+        self._session_manager.add_message(session_id, "assistant", text)
+        yield StreamEvent(type="chunk", content=text)
+        yield StreamEvent(type="done", intent=intent, confidence=confidence, session_id=session_id)
+
+    async def _stream_filmography(
+        self,
+        intent: str,
+        confidence: float,
+        session_id: UUID,
+        user_message: str,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a structured filmography answer as one chunk, then done.
+
+        Args:
+            intent: Classified intent ("filmography").
+            confidence: Classifier confidence.
+            session_id: Session UUID.
+            user_message: The user's query text.
+
+        Yields:
+            One chunk event with the film list, then a done event.
+        """
+        text = await asyncio.to_thread(self._filmography.answer, user_message)
         self._session_manager.add_message(session_id, "assistant", text)
         yield StreamEvent(type="chunk", content=text)
         yield StreamEvent(type="done", intent=intent, confidence=confidence, session_id=session_id)
@@ -308,7 +341,12 @@ class IntentRouter:
             parts.append(token)
             yield StreamEvent(type="chunk", content=token)
 
-        self._session_manager.add_message(session_id, "assistant", "".join(parts))
+        full_text = "".join(parts)
+        self._session_manager.add_message(session_id, "assistant", full_text)
+
+        from src.services.rag.pipeline import log_grounding
+
+        log_grounding(full_text, documents)
         yield StreamEvent(
             type="done",
             intent=intent,

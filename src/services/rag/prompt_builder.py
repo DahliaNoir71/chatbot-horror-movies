@@ -12,6 +12,10 @@ from src.services.rag.retriever import RetrievedDocument
 # + user (~50 tok) + generation (300 tok) ≈ 2950 < 4096 context window.
 _MAX_HISTORY_MESSAGES = 6
 
+# Per-document text cap injected into the prompt. The reranker still sees the
+# full content; only the LLM prompt is bounded, to shrink CPU prefill latency.
+_MAX_DOC_CHARS = 600
+
 
 class RAGPromptBuilder:
     """Builds LLM-ready message lists from RAG components.
@@ -95,6 +99,53 @@ class RAGPromptBuilder:
 
             parts.append(doc_header)
             parts.append(f"   Source: {doc.source_type}")
-            parts.append(f"   {doc.content}\n")
+            parts.append(f"   {RAGPromptBuilder._truncate(doc.content)}\n")
 
+        allowlist = RAGPromptBuilder._allowed_titles(documents)
+        parts.append(
+            "FILMS AUTORISÉS — tu ne peux nommer AUCUN autre film que ceux de "
+            f"cette liste exacte : {allowlist}"
+        )
         return "\n".join(parts)
+
+    @staticmethod
+    def _truncate(content: str) -> str:
+        """Cap a document's text to bound LLM prompt size (CPU prefill latency).
+
+        Args:
+            content: Raw document content.
+
+        Returns:
+            Content truncated to ``_MAX_DOC_CHARS`` (with an ellipsis) if needed.
+        """
+        if len(content) <= _MAX_DOC_CHARS:
+            return content
+        return content[:_MAX_DOC_CHARS] + "..."
+
+    @staticmethod
+    def _allowed_titles(documents: list[RetrievedDocument]) -> str:
+        """Build the explicit allow-list of citable film titles.
+
+        Small instruction-tuned models routinely ignore a generic "use only the
+        context" rule — a 7B was observed recommending films absent from the
+        retrieved set. Repeating the exact enumerated titles next to the data is
+        a far stronger grounding constraint than prose alone.
+
+        Args:
+            documents: Retrieved documents injected into the context.
+
+        Returns:
+            Comma-separated ``Title (year)`` labels, FR and EN where available.
+        """
+        labels: list[str] = []
+        for doc in documents:
+            meta = doc.metadata
+            year = meta.get("year")
+            for key in ("title", "title_fr"):
+                title = meta.get(key)
+                if not title:
+                    continue
+                label = f"{title} ({year})" if year else str(title)
+                if label not in labels:
+                    labels.append(label)
+        return ", ".join(labels)

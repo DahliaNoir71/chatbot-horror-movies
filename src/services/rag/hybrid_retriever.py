@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -41,6 +42,12 @@ _VOTE_COUNT_DIVISOR = 10.0
 _POPULARITY_DIVISOR = 6.0
 _VOTE_WEIGHT = 0.7
 _POP_WEIGHT = 0.3
+
+# Re-ranking boost when query terms hit a doc's structured genres/keywords
+# (BM25 ranks only title/director/cast — weight C keywords are otherwise
+# buried). Kept comparable to one RRF term so it nudges order without dominating.
+_KEYWORD_BOOST_WEIGHT = 0.01
+_TOKEN_RE = re.compile(r"\w+")
 
 
 @dataclass
@@ -127,7 +134,7 @@ class HybridRetriever:
         RAG_RRF_FUSION_DURATION.observe(time.perf_counter() - t0)
         if not fused:
             return []
-        final = await self._apply_popularity_boost(fused)
+        final = await self._apply_popularity_boost(query, fused)
         return sorted(final, key=lambda d: d.final_score or 0.0, reverse=True)[:top_k]
 
     # -------------------------------------------------------------------------
@@ -202,6 +209,7 @@ class HybridRetriever:
 
     async def _apply_popularity_boost(
         self,
+        query: str,
         fused: list[FusedCandidate],
     ) -> list[RetrievedDocument]:
         """Attach `final_score` to each candidate, fetching missing docs.
@@ -222,15 +230,16 @@ class HybridRetriever:
             self._fetch_popularity_metrics(tmdb_ids),
             self._fetch_supplementary_docs(missing_ids),
         )
-        return self._build_results(fused, metrics, extra_docs)
+        return self._build_results(query, fused, metrics, extra_docs)
 
     def _build_results(
         self,
+        query: str,
         fused: list[FusedCandidate],
         metrics: dict[int, tuple[int, float]],
         extra_docs: dict[int, RetrievedDocument],
     ) -> list[RetrievedDocument]:
-        """Stitch RRF scores + popularity boost into RetrievedDocuments."""
+        """Stitch RRF + popularity + keyword/genre boost into RetrievedDocuments."""
         results: list[RetrievedDocument] = []
         for c in fused:
             doc = c.base_doc or extra_docs.get(c.tmdb_id)
@@ -238,7 +247,11 @@ class HybridRetriever:
                 continue  # film has no rag_document — drop silently
             vote_count, popularity = metrics.get(c.tmdb_id, (0, 0.0))
             pop_score = self._compute_popularity_score(vote_count, popularity)
-            doc.final_score = c.rrf_score + self._settings.popularity_weight * pop_score
+            doc.final_score = (
+                c.rrf_score
+                + self._settings.popularity_weight * pop_score
+                + _keyword_overlap_boost(query, doc.metadata)
+            )
             results.append(doc)
         return results
 
@@ -316,6 +329,30 @@ def _rrf_score(
     if bm25_rank is not None:
         score += settings.bm25_weight / (settings.rrf_k + bm25_rank)
     return score
+
+
+def _keyword_overlap_boost(query: str, metadata: dict[str, Any]) -> float:
+    """Re-ranking boost when query terms match the doc's genres/keywords.
+
+    Uses the structured tags already stored in the corpus (no re-embedding):
+    a film tagged with a sub-genre/keyword the user asked for is lifted within
+    the candidate pool. It only re-orders existing candidates — it cannot add a
+    film the retrievers missed entirely.
+
+    Args:
+        query: Raw user query.
+        metadata: Retrieved document metadata (may hold ``genres``/``keywords``).
+
+    Returns:
+        Additive boost, capped at ``3 * _KEYWORD_BOOST_WEIGHT``.
+    """
+    terms = {t for t in _TOKEN_RE.findall(query.lower()) if len(t) > 2}
+    if not terms:
+        return 0.0
+    tags = [*metadata.get("keywords", []), *metadata.get("genres", [])]
+    tag_text = " ".join(str(tag).lower() for tag in tags)
+    hits = sum(1 for term in terms if term in tag_text)
+    return min(hits, 3) * _KEYWORD_BOOST_WEIGHT
 
 
 def _row_to_retrieved_doc(row: Any) -> RetrievedDocument:

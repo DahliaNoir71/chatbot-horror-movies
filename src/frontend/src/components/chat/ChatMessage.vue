@@ -117,10 +117,10 @@ const hasTokenUsage = computed(() =>
             <span class="font-medium">{{ src.title }}</span>
             <span v-if="src.year" class="text-smoke-gray-400">({{ src.year }})</span>
             <span class="text-smoke-gray-500">
-              sim {{ (src.similarity_score * 100).toFixed(1) }}%
-              <template v-if="src.rerank_score != null">
-                · rerank {{ src.rerank_score.toFixed(2) }}
+              <template v-if="src.similarity_score > 0">
+                sim {{ (src.similarity_score * 100).toFixed(1) }}%
               </template>
+              <template v-else>correspondance lexicale</template>
             </span>
           </li>
         </ul>

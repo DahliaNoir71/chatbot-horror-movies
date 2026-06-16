@@ -126,3 +126,6 @@ node_modules/
 /nul
 /AGILITE
 /integration_results.txt
+# Benchmark results (dated output files)
+scripts/benchmark/results_*.md
+scripts/benchmark/results_*.json

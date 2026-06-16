@@ -63,6 +63,21 @@ class TestIntentClassifier:
         assert result["intent"] == FALLBACK_INTENT
 
     @staticmethod
+    def test_classify_meta_question_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Self-referential meta-questions route to the 'meta' template, not RAG."""
+        result = classifier.classify("Sur quels critères as-tu choisi ces films ?")
+        assert result["intent"] == "meta"
+        assert result["confidence"] == approx(1.0)
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
+    def test_classify_filmography_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Director/actor filmography questions route to 'filmography', not RAG."""
+        result = classifier.classify("Films d'horreur réalisés par James Wan")
+        assert result["intent"] == "filmography"
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
     def test_classify_high_confidence(classifier, mock_pipeline) -> None:
         """High-confidence result returns the top label."""
         mock_pipeline.return_value = {

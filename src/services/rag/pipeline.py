@@ -31,6 +31,38 @@ from src.settings.retrieval import RetrievalSettings
 
 logger = setup_logger("services.rag.pipeline")
 
+# Templated refusal returned by the anti-hallucination circuit breaker when no
+# retrieved document clears the rerank confidence threshold.
+_NO_CONTEXT_MESSAGE = (
+    "Je n'ai pas trouvé d'information fiable dans ma base de films "
+    "sur ce sujet. Peux-tu reformuler ou préciser ta question ?"
+)
+
+
+def log_grounding(text: str, documents: list[RetrievedDocument]) -> None:
+    """Log how many injected source titles the response actually cites.
+
+    Faithfulness signal (log-only, never mutates the response): an answer that
+    names none of the retrieved films is most likely ungrounded — pulled from
+    the LLM's pre-training rather than the provided context.
+
+    Args:
+        text: The generated response text.
+        documents: The documents injected into the prompt.
+    """
+    if not documents:
+        return
+    lowered = text.lower()
+    cited = 0
+    for doc in documents:
+        meta = doc.metadata
+        titles = (str(meta.get("title", "")).lower(), str(meta.get("title_fr", "")).lower())
+        if any(title and title in lowered for title in titles):
+            cited += 1
+    logger.info("Grounding check: %d/%d injected source titles cited", cited, len(documents))
+    if cited == 0:
+        logger.warning("Ungrounded response: 0/%d injected sources cited", len(documents))
+
 
 # =============================================================================
 # DATA STRUCTURES
@@ -126,17 +158,14 @@ class RAGPipeline:
         documents = await asyncio.to_thread(self._reranker.rerank, user_message, documents)
         rerank_ms = (time.perf_counter() - rerank_start) * 1000
 
-        trusted_docs = [
-            d
-            for d in documents
-            if d.rerank_score is None or d.rerank_score >= self._settings.min_rerank_score
-        ]
+        trusted_docs = self._filter_trusted(documents)
         RAG_TRUSTED_DOCS_AFTER_RERANK.observe(len(trusted_docs))
 
         if not trusted_docs:
             RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
             return self._build_no_context_response(intent)
 
+        self._log_sources(trusted_docs)
         messages = RAGPromptBuilder.build(
             intent=intent,
             user_message=user_message,
@@ -161,6 +190,7 @@ class RAGPipeline:
                 f"total={round(retrieval_ms + rerank_ms + gen_ms)}ms"
             )
 
+            log_grounding(result["text"], trusted_docs)
             return RAGResult(
                 text=result["text"],
                 intent=intent,
@@ -204,15 +234,25 @@ class RAGPipeline:
             f"top_rerank={round(documents[0].rerank_score, 3) if documents and documents[0].rerank_score else 'N/A'})"
         )
 
+        trusted_docs = self._filter_trusted(documents)
+        RAG_TRUSTED_DOCS_AFTER_RERANK.observe(len(trusted_docs))
+        if not trusted_docs:
+            # Mirror execute(): the streaming path must honour the same
+            # anti-hallucination circuit breaker rather than feed weak context.
+            RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
+            RAG_NO_CONTEXT_RESPONSES.inc()
+            return self._no_context_stream(), []
+
+        self._log_sources(trusted_docs)
         messages = RAGPromptBuilder.build(
             intent=intent,
             user_message=user_message,
-            documents=documents,
+            documents=trusted_docs,
             history=history,
         )
 
         token_stream = self._llm.generate_stream(messages)
-        return token_stream, documents
+        return token_stream, trusted_docs
 
     async def _retrieve(self, user_message: str) -> list[RetrievedDocument]:
         """Dispatch to the retriever's async `search()` or sync `retrieve()`.
@@ -225,6 +265,57 @@ class RAGPipeline:
         if search is not None and asyncio.iscoroutinefunction(search):
             return await search(user_message)
         return await asyncio.to_thread(self._retriever.retrieve, user_message)
+
+    def _log_sources(self, documents: list[RetrievedDocument]) -> None:
+        """Log the sources injected into the prompt for faithfulness audits.
+
+        Records each document's TMDB id, title, similarity and rerank score so
+        a generated answer can be checked against the exact context it was
+        grounded on.
+
+        Args:
+            documents: Documents passed to the prompt builder.
+        """
+        sources = [
+            f"tmdb={d.source_id} "
+            f"'{d.metadata.get('title', '?')}' "
+            f"sim={round(d.similarity, 3)} "
+            f"rerank={round(d.rerank_score, 3) if d.rerank_score is not None else 'N/A'}"
+            for d in documents
+        ]
+        self._logger.info("RAG sources injected (%d): %s", len(sources), " | ".join(sources))
+
+    def _filter_trusted(self, documents: list[RetrievedDocument]) -> list[RetrievedDocument]:
+        """Keep only documents that clear the rerank confidence threshold.
+
+        Anti-hallucination gate shared by the buffered and streaming paths:
+        documents scoring below `min_rerank_score` are dropped so the LLM is
+        never grounded on weak context. Docs without a rerank score (e.g. test
+        doubles) are kept.
+
+        Args:
+            documents: Reranked documents.
+
+        Returns:
+            Documents trusted enough to inject into the prompt.
+        """
+        return [
+            d
+            for d in documents
+            if d.rerank_score is None or d.rerank_score >= self._settings.min_rerank_score
+        ]
+
+    @staticmethod
+    def _no_context_stream() -> Iterator[str]:
+        """Yield the templated refusal as a single-chunk stream.
+
+        Streaming counterpart of `_build_no_context_response`, so the circuit
+        breaker produces the same message whether or not the caller streams.
+
+        Yields:
+            The refusal message as one chunk.
+        """
+        yield _NO_CONTEXT_MESSAGE
 
     def _build_no_context_response(self, intent: str) -> RAGResult:
         """Build response when no document passed rerank confidence threshold.
@@ -240,13 +331,7 @@ class RAGPipeline:
             RAGResult with a templated refusal message and no documents.
         """
         RAG_NO_CONTEXT_RESPONSES.inc()
-        return RAGResult(
-            text=(
-                "Je n'ai pas trouvé d'information fiable dans ma base de films "
-                "sur ce sujet. Peux-tu reformuler ou préciser ta question ?"
-            ),
-            intent=intent,
-        )
+        return RAGResult(text=_NO_CONTEXT_MESSAGE, intent=intent)
 
     @staticmethod
     def _record_llm_metrics(usage: dict[str, Any], duration_s: float) -> None:

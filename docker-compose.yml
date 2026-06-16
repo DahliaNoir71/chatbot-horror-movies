@@ -128,6 +128,10 @@ services:
       - ./data:/app/data
       # Hot reload — src/ mounted so code changes don't require a rebuild.
       - ./src:/app/src
+      # Live logs — setup_logger() writes dated files to /app/logs (CWD-relative).
+      # Without this bind, chat/pipeline logs stay inside the container and never
+      # reach the host logs/ directory.
+      - ./logs:/app/logs
       # HuggingFace cache — persisted across rebuilds so MiniLM / DeBERTa /
       # cross-encoder are downloaded once. Path matches HF_HOME set in the
       # Dockerfile and the CI cache convention (mlops.yml).

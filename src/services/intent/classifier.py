@@ -97,6 +97,14 @@ _CONVERSATIONAL_KEYWORDS = {
     "bientot",
     "prochaine",
     "bye bye",
+    # Small talk / "how are you" pleasantries — route to conversational, not RAG.
+    "comment vas-tu",
+    "comment ça va",
+    "comment allez-vous",
+    "comment tu vas",
+    "ça va",
+    "how are you",
+    "quoi de neuf",
 }
 
 # Maximum word count for conversational keyword pre-check.
@@ -122,6 +130,29 @@ _THANKS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Meta / self-referential follow-ups about the bot's OWN previous answer
+# (e.g. "sur quels critères les as-tu choisis ?"). These must NOT hit RAG —
+# there is nothing to retrieve about the assistant's reasoning, so routing them
+# to needs_database yields irrelevant docs or a confusing circuit-breaker refusal.
+_META_PATTERN = re.compile(
+    r"as-tu chois|tu as chois|as-tu s[eé]lectionn|pourquoi ces (?:films|choix)|"
+    r"pourquoi avoir chois|comment as-tu chois|ta s[eé]lection|tes choix|"
+    r"why did you (?:choose|pick|select)|how did you (?:choose|pick)",
+    re.IGNORECASE,
+)
+
+# Director / actor filmography questions ("films réalisés par X", "filmographie
+# de X", "joue X", "avec <Name>"). Served by a structured SQL lookup (not RAG),
+# so a complete filmography is never truncated by the vector top_k cap.
+# Split in two (kept under SonarQube regex-complexity limit): role/verb cues are
+# case-insensitive; the "avec <Name>" cue requires a capitalised first letter to
+# avoid matching thematic queries like "films avec des enfants possédés".
+_FILMOGRAPHY_CUES = re.compile(
+    r"r[eé]alis[eé]s?\s+par|r[eé]alisateur|filmographie|\bjoue\b",
+    re.IGNORECASE,
+)
+_FILMOGRAPHY_ACTOR = re.compile(r"\bavec\s+[A-ZÀ-Ÿ]")
+
 # Secondary confidence threshold — between this and the main threshold,
 # always route to needs_database (benefit of the doubt).
 _SECONDARY_THRESHOLD = 0.35
@@ -134,7 +165,7 @@ _SECONDARY_THRESHOLD = 0.35
 # Mapped 1:1 with INTENT_LABELS.
 CANDIDATE_LABEL_MAP: dict[str, str] = {
     "needs_database": "question about horror films or movie recommendations",
-    "conversational": "social greeting or farewell",
+    "conversational": "social greeting, small talk such as 'how are you', or farewell",
     "thanks": "expressing gratitude or saying thank you",
     "off_topic": "question about a non-film topic such as weather, sports, cooking, science or history",
 }
@@ -231,6 +262,24 @@ class IntentClassifier:
                 "intent": "thanks",
                 "confidence": 1.0,
                 "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"thanks": 1.0},
+            }
+
+        # Pre-check: meta-questions about the bot's own prior answer bypass
+        # zero-shot and RAG; they are answered with a dedicated template.
+        if self._is_meta(text):
+            return {
+                "intent": "meta",
+                "confidence": 1.0,
+                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"meta": 1.0},
+            }
+
+        # Pre-check: director/actor filmography questions go to a structured
+        # SQL lookup (complete list) instead of the top_k-capped RAG path.
+        if self._is_filmography(text):
+            return {
+                "intent": "filmography",
+                "confidence": 1.0,
+                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"filmography": 1.0},
             }
 
         # Pre-check: short greeting/farewell messages bypass zero-shot.
@@ -330,6 +379,37 @@ class IntentClassifier:
         if any(kw in lower for kw in _HORROR_DOMAIN_KEYWORDS):
             return False
         return bool(_THANKS_PATTERN.search(lower))
+
+    @staticmethod
+    def _is_meta(text: str) -> bool:
+        """Check if text is a self-referential question about the bot's answer.
+
+        Detects follow-ups like "on what criteria did you choose these?" that ask
+        about the assistant's own prior selection. They have no answer in the film
+        corpus, so they are routed to a template instead of RAG.
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a meta-question about the bot's reasoning.
+        """
+        return bool(_META_PATTERN.search(text))
+
+    @staticmethod
+    def _is_filmography(text: str) -> bool:
+        """Check if text asks for a director's or actor's filmography.
+
+        Such questions need a complete list and are served by a structured SQL
+        lookup rather than the vector RAG path (whose top_k truncates lists).
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a filmography request.
+        """
+        return bool(_FILMOGRAPHY_CUES.search(text) or _FILMOGRAPHY_ACTOR.search(text))
 
     @staticmethod
     def _has_domain_keyword(text: str) -> bool:
