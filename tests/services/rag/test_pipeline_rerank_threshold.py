@@ -35,7 +35,7 @@ def _make_pipeline(
     llm = MagicMock()
     llm.generate_chat.return_value = {"text": "LLM response", "usage": {}}
 
-    retrieval_settings = RetrievalSettings(min_rerank_score=min_score)
+    retrieval_settings = RetrievalSettings(min_rerank_score=min_score, open_fallback_enabled=False)
 
     pipeline = RAGPipeline(
         retriever=retriever,
@@ -65,10 +65,7 @@ class TestRAGPipelineRerankThreshold:
         result = await pipeline.execute("rag", "scary movie")
 
         assert len(result.documents) == 2
-        assert all(
-            d.rerank_score is not None and d.rerank_score >= -2.0
-            for d in result.documents
-        )
+        assert all(d.rerank_score is not None and d.rerank_score >= -2.0 for d in result.documents)
         llm.generate_chat.assert_called_once()
 
     @pytest.mark.unit

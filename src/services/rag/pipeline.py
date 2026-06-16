@@ -21,6 +21,7 @@ from src.monitoring.metrics import (
     RAG_NO_CONTEXT_RESPONSES_TOTAL,
     RAG_TRUSTED_DOCS_AFTER_RERANK,
 )
+from src.services.intent.prompts import SYSTEM_PROMPT_GENRE
 from src.services.llm.llm_service import LLMService, get_llm_service
 from src.services.rag.hybrid_retriever import HybridRetriever, get_hybrid_retriever
 from src.services.rag.prompt_builder import RAGPromptBuilder
@@ -37,6 +38,21 @@ _NO_CONTEXT_MESSAGE = (
     "Je n'ai pas trouvé d'information fiable dans ma base de films "
     "sur ce sujet. Peux-tu reformuler ou préciser ta question ?"
 )
+
+# RRF constant for blending the cross-encoder rank with the retrieval-prior rank.
+# Smaller than the retrieval-level rrf_k (60): the reranked pool is short (~30),
+# so a small k keeps enough spread between adjacent ranks to matter.
+_BLEND_RRF_K = 10
+
+# Prefix prepended to every open-knowledge fallback answer so the user always
+# sees that it is NOT grounded in the film database (markdown italic).
+_OPEN_FALLBACK_PREFIX = (
+    "ℹ️ *Rien de fiable dans ma base de films sur ce point — voici ce que j'en "
+    "sais de manière générale, à vérifier :*\n\n"
+)
+
+# History turns carried into the open-knowledge fallback prompt (3 turns).
+_OPEN_HISTORY_MESSAGES = 6
 
 
 def log_grounding(text: str, documents: list[RetrievedDocument]) -> None:
@@ -155,14 +171,16 @@ class RAGPipeline:
         retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
 
         rerank_start = time.perf_counter()
-        documents = await asyncio.to_thread(self._reranker.rerank, user_message, documents)
+        trusted_docs = await self._rerank_and_select(user_message, documents)
         rerank_ms = (time.perf_counter() - rerank_start) * 1000
-
-        trusted_docs = self._filter_trusted(documents)
         RAG_TRUSTED_DOCS_AFTER_RERANK.observe(len(trusted_docs))
 
         if not trusted_docs:
             RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
+            if self._settings.open_fallback_enabled:
+                return await self._open_fallback(
+                    intent, user_message, history, retrieval_ms, rerank_ms
+                )
             return self._build_no_context_response(intent)
 
         self._log_sources(trusted_docs)
@@ -225,21 +243,22 @@ class RAGPipeline:
             Tuple of (token iterator, retrieved documents).
         """
         documents = await self._retrieve(user_message)
-        documents = await asyncio.to_thread(self._reranker.rerank, user_message, documents)
+        trusted_docs = await self._rerank_and_select(user_message, documents)
 
         self._logger.info(
             f"RAG stream retrieval: "
-            f"{len(documents)} docs after rerank "
-            f"(top_similarity={round(documents[0].similarity, 3) if documents else 'N/A'}, "
-            f"top_rerank={round(documents[0].rerank_score, 3) if documents and documents[0].rerank_score else 'N/A'})"
+            f"{len(trusted_docs)} docs after rerank+blend "
+            f"(top_similarity={round(trusted_docs[0].similarity, 3) if trusted_docs else 'N/A'}, "
+            f"top_rerank={round(trusted_docs[0].rerank_score, 3) if trusted_docs and trusted_docs[0].rerank_score is not None else 'N/A'})"
         )
 
-        trusted_docs = self._filter_trusted(documents)
         RAG_TRUSTED_DOCS_AFTER_RERANK.observe(len(trusted_docs))
         if not trusted_docs:
-            # Mirror execute(): the streaming path must honour the same
-            # anti-hallucination circuit breaker rather than feed weak context.
+            # Mirror execute(): open-knowledge fallback when enabled, else the
+            # anti-hallucination circuit breaker (templated refusal).
             RAG_NO_CONTEXT_RESPONSES_TOTAL.inc()
+            if self._settings.open_fallback_enabled:
+                return self._open_fallback_stream(user_message, history), []
             RAG_NO_CONTEXT_RESPONSES.inc()
             return self._no_context_stream(), []
 
@@ -260,11 +279,79 @@ class RAGPipeline:
         `HybridRetriever` exposes an async `search()`; legacy/test mocks
         expose only sync `retrieve()`. The sync path is bridged via
         `asyncio.to_thread` so neither blocks the event loop.
+
+        The async path requests `rerank_pool_top_k` candidates (not the final 5)
+        so the cross-encoder reranks a wide pool instead of re-scoring the 5
+        documents RRF already pre-selected.
         """
         search = getattr(self._retriever, "search", None)
         if search is not None and asyncio.iscoroutinefunction(search):
-            return await search(user_message)
+            return await search(user_message, top_k=self._settings.rerank_pool_top_k)
         return await asyncio.to_thread(self._retriever.retrieve, user_message)
+
+    async def _rerank_and_select(
+        self,
+        query: str,
+        documents: list[RetrievedDocument],
+    ) -> list[RetrievedDocument]:
+        """Rerank the whole pool, blend with the retrieval prior, then cut.
+
+        The cross-encoder scores every candidate; the final order is an RRF
+        blend of the rerank rank and the RRF+popularity rank (see
+        `_blend_rerank_with_prior`), so popular on-theme films the lexically
+        biased reranker would bury still survive. Trust-filtering and the
+        `final_top_k` cut are applied last.
+
+        Args:
+            query: User query.
+            documents: Candidate pool from retrieval (carrying `final_score`).
+
+        Returns:
+            Trusted documents to inject into the prompt (length <= final_top_k).
+        """
+        if not documents:
+            return []
+        reranked = await asyncio.to_thread(self._reranker.rerank, query, documents, len(documents))
+        blended = self._blend_rerank_with_prior(reranked)
+        return self._filter_trusted(blended)[: self._settings.final_top_k]
+
+    def _blend_rerank_with_prior(
+        self,
+        documents: list[RetrievedDocument],
+    ) -> list[RetrievedDocument]:
+        """Re-order reranked docs by RRF fusion of rerank rank and prior rank.
+
+        The cross-encoder rewards query-term lexical overlap, which misranks
+        thematic queries ("Body Snatcher" over "The Thing" for "body horror").
+        Fusing its rank with the RRF+popularity prior's rank lets popular
+        on-theme films survive. `rerank_blend_weight` tunes the balance
+        (1.0 = pure rerank, 0.0 = pure prior). Ranks use list indices, so
+        duplicate `source_id`s (test doubles) never collide.
+
+        Args:
+            documents: Reranked pool, each carrying `rerank_score` and the
+                retrieval `final_score`.
+
+        Returns:
+            Documents ordered by the blended score, descending.
+        """
+        n = len(documents)
+        if n <= 1:
+            return documents
+        by_rerank = sorted(range(n), key=lambda i: documents[i].rerank_score or 0.0, reverse=True)
+        by_prior = sorted(range(n), key=lambda i: documents[i].final_score or 0.0, reverse=True)
+        rerank_rank = [0] * n
+        prior_rank = [0] * n
+        for rank, i in enumerate(by_rerank, start=1):
+            rerank_rank[i] = rank
+        for rank, i in enumerate(by_prior, start=1):
+            prior_rank[i] = rank
+        w = self._settings.rerank_blend_weight
+
+        def _blended(i: int) -> float:
+            return w / (_BLEND_RRF_K + rerank_rank[i]) + (1.0 - w) / (_BLEND_RRF_K + prior_rank[i])
+
+        return [documents[i] for i in sorted(range(n), key=_blended, reverse=True)]
 
     def _log_sources(self, documents: list[RetrievedDocument]) -> None:
         """Log the sources injected into the prompt for faithfulness audits.
@@ -332,6 +419,91 @@ class RAGPipeline:
         """
         RAG_NO_CONTEXT_RESPONSES.inc()
         return RAGResult(text=_NO_CONTEXT_MESSAGE, intent=intent)
+
+    async def _open_fallback(
+        self,
+        intent: str,
+        user_message: str,
+        history: list[dict[str, str]] | None,
+        retrieval_ms: float,
+        rerank_ms: float,
+    ) -> RAGResult:
+        """Answer from the LLM's general knowledge when retrieval found nothing.
+
+        Deliberately un-grounded (no film allow-list); the response is prefixed
+        with an explicit "not from my database" notice so the relaxation stays
+        visible. Reached only when ``open_fallback_enabled`` is set.
+
+        Args:
+            intent: The triggering intent (kept in the result metadata).
+            user_message: The user's query.
+            history: Conversation history.
+            retrieval_ms: Retrieval time already spent (carried to the result).
+            rerank_ms: Rerank time already spent (carried to the result).
+
+        Returns:
+            RAGResult with the prefixed open-knowledge answer and no documents.
+        """
+        RAG_NO_CONTEXT_RESPONSES.inc()
+        self._logger.info("Open-knowledge fallback used (no trusted context)")
+        messages = self._build_open_messages(user_message, history)
+        gen_start = time.perf_counter()
+        result = await asyncio.to_thread(self._llm.generate_chat, messages)
+        gen_ms = (time.perf_counter() - gen_start) * 1000
+        self._record_llm_metrics(result.get("usage", {}), gen_ms / 1000)
+        LLM_REQUESTS_TOTAL.labels(status="success").inc()
+        return RAGResult(
+            text=_OPEN_FALLBACK_PREFIX + result["text"],
+            intent=intent,
+            usage=result.get("usage", {}),
+            retrieval_time_ms=retrieval_ms,
+            rerank_time_ms=rerank_ms,
+            generation_time_ms=gen_ms,
+        )
+
+    def _open_fallback_stream(
+        self,
+        user_message: str,
+        history: list[dict[str, str]] | None,
+    ) -> Iterator[str]:
+        """Stream the open-knowledge fallback: disclaimer prefix, then LLM tokens.
+
+        Args:
+            user_message: The user's query.
+            history: Conversation history.
+
+        Yields:
+            The disclaimer prefix, then each generated token.
+        """
+        RAG_NO_CONTEXT_RESPONSES.inc()
+        self._logger.info("Open-knowledge fallback used (no trusted context, stream)")
+        messages = self._build_open_messages(user_message, history)
+        yield _OPEN_FALLBACK_PREFIX
+        yield from self._llm.generate_stream(messages)
+
+    @staticmethod
+    def _build_open_messages(
+        user_message: str,
+        history: list[dict[str, str]] | None,
+    ) -> list[dict[str, str]]:
+        """Build the open-knowledge message list (system + bounded history + user).
+
+        No retrieved context block and no allow-list — this is the un-grounded
+        path. History is truncated to the last few turns for conversational
+        continuity.
+
+        Args:
+            user_message: The user's query.
+            history: Conversation history.
+
+        Returns:
+            Message list for the LLM.
+        """
+        messages: list[dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT_GENRE}]
+        if history:
+            messages.extend(history[-_OPEN_HISTORY_MESSAGES:])
+        messages.append({"role": "user", "content": user_message})
+        return messages
 
     @staticmethod
     def _record_llm_metrics(usage: dict[str, Any], duration_s: float) -> None:
