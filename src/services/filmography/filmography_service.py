@@ -67,22 +67,35 @@ class FilmographyService:
                 "Pour une filmographie, précise un nom : "
                 "« films réalisés par … » ou « films avec … »."
             )
-        films = self._lookup(name)
-        self._logger.info("Filmography lookup: name=%s, films=%d", name, len(films))
+        role = self._extract_role(user_message)
+        films = self._lookup(name, role)
+        self._logger.info("Filmography lookup: name=%s, role=%s, films=%d", name, role, len(films))
         return self._format(name, films)
 
-    def _lookup(self, name: str) -> list[tuple[str, int | None]]:
-        """Query films credited to a person (director or cast), by popularity.
+    def _lookup(self, name: str, role: str) -> list[tuple[str, int | None]]:
+        """Query films credited to a person, by popularity.
 
         Args:
             name: Person name extracted from the query.
+            role: Credit filter — ``"director"`` (réalisés par), ``"cast"``
+                (avec/joue) or ``"both"`` (ambiguous trigger). Keeps an acting
+                cameo (e.g. Cronenberg in "Ready or Not") from polluting — and,
+                via the popularity sort, topping — a "directed by" answer.
 
         Returns:
             List of ``(title, year)`` tuples.
         """
+        director = Film.director.ilike(f"%{name}%")
+        cast = Film.cast_names.any(name)
+        if role == "director":
+            condition = director
+        elif role == "cast":
+            condition = cast
+        else:
+            condition = or_(director, cast)
         stmt = (
             select(Film.title, Film.release_date)
-            .where(or_(Film.director.ilike(f"%{name}%"), Film.cast_names.any(name)))
+            .where(condition)
             .order_by(Film.popularity.desc())
             .limit(_FILMOGRAPHY_LIMIT)
         )
@@ -106,6 +119,27 @@ class FilmographyService:
         tail = message[matches[-1].end() :].strip(_STRIP_CHARS)
         tail = _LEADING_FILLER.sub("", tail).strip()
         return tail or None
+
+    @staticmethod
+    def _extract_role(message: str) -> str:
+        """Classify the credit filter implied by the last filmography trigger.
+
+        "réalisés par" → ``"director"``; "avec"/"joue" → ``"cast"``; anything
+        else (filmographie, de, par) stays inclusive (``"both"``).
+
+        Args:
+            message: Raw user query.
+
+        Returns:
+            One of ``"director"``, ``"cast"`` or ``"both"``.
+        """
+        matches = list(_TRIGGER_PATTERN.finditer(message))
+        trigger = matches[-1].group(0).lower() if matches else ""
+        if "alis" in trigger:
+            return "director"
+        if "avec" in trigger or "joue" in trigger:
+            return "cast"
+        return "both"
 
     @staticmethod
     def _format(name: str, films: list[tuple[str, int | None]]) -> str:

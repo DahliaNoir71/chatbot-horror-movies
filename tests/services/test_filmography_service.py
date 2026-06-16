@@ -28,6 +28,23 @@ class TestExtractName:
         assert FilmographyService._extract_name("Recommande un slasher") is None
 
 
+class TestExtractRole:
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("message", "expected"),
+        [
+            ("Films d'horreur réalisés par David Cronenberg", "director"),
+            ("Films realises par James Wan", "director"),
+            ("Quels films d'horreur avec Toni Collette ?", "cast"),
+            ("Dans quels films d'horreur joue Sigourney Weaver ?", "cast"),
+            ("Filmographie horreur de Jordan Peele", "both"),
+            ("Les films de Dario Argento", "both"),
+        ],
+    )
+    def test_classifies_trigger_role(message, expected) -> None:
+        assert FilmographyService._extract_role(message) == expected
+
+
 class TestFormat:
     @staticmethod
     def test_empty_films() -> None:
