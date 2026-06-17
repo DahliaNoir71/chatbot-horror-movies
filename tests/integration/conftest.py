@@ -319,7 +319,7 @@ def _patch_reranker(monkeypatch):
     loading the CrossEncoder model (sentence-transformers / xlm-roberta).
     """
     mock = MagicMock()
-    mock.rerank.side_effect = lambda query, docs: docs
+    mock.rerank.side_effect = lambda query, docs, top_k=None: docs
     monkeypatch.setattr("src.services.rag.pipeline.get_reranker_service", lambda: mock)
 
 
@@ -330,7 +330,7 @@ def mock_reranker():
     Avoids loading the CrossEncoder model (sentence-transformers) in tests.
     """
     mock = MagicMock()
-    mock.rerank.side_effect = lambda query, docs: docs
+    mock.rerank.side_effect = lambda query, docs, top_k=None: docs
     return mock
 
 

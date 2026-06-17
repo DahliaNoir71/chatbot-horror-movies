@@ -32,7 +32,7 @@ def _make_reranker_mock(passthrough: bool = True) -> MagicMock:
     """Create a mock reranker. If passthrough, returns documents unchanged."""
     mock = MagicMock()
     if passthrough:
-        mock.rerank.side_effect = lambda query, docs: docs
+        mock.rerank.side_effect = lambda query, docs, top_k=None: docs
     return mock
 
 
@@ -201,7 +201,7 @@ class TestRAGPipelineExecute:
         )
 
         mock_reranker.rerank.assert_called_once_with(
-            "Recommande un film", sample_documents
+            "Recommande un film", sample_documents, len(sample_documents)
         )
 
     @staticmethod
