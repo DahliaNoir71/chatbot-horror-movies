@@ -62,6 +62,9 @@ env:
   PYTHON_VERSION: "3.12"
   PYTHONUNBUFFERED: "1"
   HF_HOME: ~/.cache/huggingface
+  HF_HUB_DOWNLOAD_TIMEOUT: 300
+  HF_HUB_ETAG_TIMEOUT: 30
+  HF_HUB_MAX_RETRIES: 5
 
 # ===================================================
 # Permissions pour la creation de PR
@@ -106,6 +109,35 @@ jobs:
           key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
             huggingface-${{ hashFiles('uv.lock') }}-
+
+      - name: Pre-download embedding model (with retries)
+        env:
+          ENVIRONMENT: test
+        run: |
+          uv run python << 'EOF'
+          import sys
+          import time
+          from sentence_transformers import SentenceTransformer
+
+          model_name = "intfloat/multilingual-e5-base"
+          max_retries = 5
+
+          for attempt in range(max_retries):
+              try:
+                  print(f"[{attempt+1}/{max_retries}] Loading {model_name}...")
+                  SentenceTransformer(model_name, device="cpu")
+                  print(f"✓ Model loaded successfully on attempt {attempt+1}")
+                  sys.exit(0)
+              except Exception as e:
+                  if attempt < max_retries - 1:
+                      wait_time = 2 ** attempt  # exponential backoff
+                      print(f"✗ Attempt {attempt+1} failed: {e}")
+                      print(f"  Retrying in {wait_time}s...")
+                      time.sleep(wait_time)
+                  else:
+                      print(f"✗ All {max_retries} attempts failed")
+                      raise
+          EOF
 
       - name: Run data validation tests
         env:
@@ -160,6 +192,36 @@ jobs:
           restore-keys: |
             huggingface-${{ hashFiles('uv.lock') }}-
 
+      - name: Pre-download intent classifier model (with retries)
+        env:
+          ENVIRONMENT: test
+        run: |
+          uv run python << 'EOF'
+          import sys
+          import time
+          from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+          model_name = "MoritzLaurer/DeBERTa-v3-base-zeroshot-v2.0"
+          max_retries = 5
+
+          for attempt in range(max_retries):
+              try:
+                  print(f"[{attempt+1}/{max_retries}] Loading {model_name}...")
+                  AutoTokenizer.from_pretrained(model_name)
+                  AutoModelForSequenceClassification.from_pretrained(model_name)
+                  print(f"✓ Model loaded successfully on attempt {attempt+1}")
+                  sys.exit(0)
+              except Exception as e:
+                  if attempt < max_retries - 1:
+                      wait_time = 2 ** attempt
+                      print(f"✗ Attempt {attempt+1} failed: {e}")
+                      print(f"  Retrying in {wait_time}s...")
+                      time.sleep(wait_time)
+                  else:
+                      print(f"✗ All {max_retries} attempts failed")
+                      raise
+          EOF
+
       - name: Run intent accuracy tests
         env:
           ENVIRONMENT: test
@@ -213,6 +275,44 @@ jobs:
           key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
             huggingface-${{ hashFiles('uv.lock') }}-
+
+      - name: Pre-download embedding + reranker models (with retries)
+        env:
+          ENVIRONMENT: test
+        run: |
+          uv run python << 'EOF'
+          import sys
+          import time
+          from sentence_transformers import SentenceTransformer, CrossEncoder
+
+          models = [
+              ("embedding", "intfloat/multilingual-e5-base", "SentenceTransformer"),
+              ("reranker", "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1", "CrossEncoder"),
+          ]
+          max_retries = 5
+
+          for model_type, model_name, loader_type in models:
+              for attempt in range(max_retries):
+                  try:
+                      print(f"[{attempt+1}/{max_retries}] Loading {model_type}: {model_name}...")
+                      if loader_type == "SentenceTransformer":
+                          SentenceTransformer(model_name, device="cpu")
+                      else:
+                          CrossEncoder(model_name, device="cpu")
+                      print(f"✓ {model_type} model loaded successfully on attempt {attempt+1}")
+                      break
+                  except Exception as e:
+                      if attempt < max_retries - 1:
+                          wait_time = 2 ** attempt
+                          print(f"✗ Attempt {attempt+1} failed: {e}")
+                          print(f"  Retrying in {wait_time}s...")
+                          time.sleep(wait_time)
+                      else:
+                          print(f"✗ All {max_retries} attempts failed for {model_type}")
+                          sys.exit(1)
+          print("\n✓ All models pre-loaded successfully")
+          sys.exit(0)
+          EOF
 
       - name: Generate sample embeddings (equivalent entrainement)
         env:
@@ -276,6 +376,35 @@ jobs:
           key: huggingface-${{ hashFiles('uv.lock') }}-${{ hashFiles('.env.test') }}
           restore-keys: |
             huggingface-${{ hashFiles('uv.lock') }}-
+
+      - name: Pre-download embedding model (with retries)
+        env:
+          ENVIRONMENT: test
+        run: |
+          uv run python << 'EOF'
+          import sys
+          import time
+          from sentence_transformers import SentenceTransformer
+
+          model_name = "intfloat/multilingual-e5-base"
+          max_retries = 5
+
+          for attempt in range(max_retries):
+              try:
+                  print(f"[{attempt+1}/{max_retries}] Loading {model_name}...")
+                  SentenceTransformer(model_name, device="cpu")
+                  print(f"✓ Model loaded successfully on attempt {attempt+1}")
+                  sys.exit(0)
+              except Exception as e:
+                  if attempt < max_retries - 1:
+                      wait_time = 2 ** attempt
+                      print(f"✗ Attempt {attempt+1} failed: {e}")
+                      print(f"  Retrying in {wait_time}s...")
+                      time.sleep(wait_time)
+                  else:
+                      print(f"✗ All {max_retries} attempts failed")
+                      raise
+          EOF
 
       - name: Run response quality tests
         env:
