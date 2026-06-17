@@ -7,7 +7,7 @@
 # Date    : April 2026
 #
 # Adapted from GitLab CI 3-tier pipeline.
-# Branch model: single-branch (main only, no PR).
+# Branch model: runs on every branch push ('**') and on PRs targeting main.
 #
 # -- 2-tier architecture --
 #
@@ -20,18 +20,18 @@
 #
 # -- Execution strategy per job --
 #
-#   Job                     | push main | Blocking?
-#   ------------------------|-----------|----------------------------
-#   tests                   |     ✓     | Always
-#   frontend-tests          |     ✓     | Always
-#   security-bandit         |     ✓     | Always
-#   security-gitleaks       |     ✓     | Always
-#   security-python-deps    |     ✓     | Always
-#   security-hadolint       |     ✓     | Always (via .hadolint.yaml)
-#   prepare-export-deps     |     ✓     | —
-#   security-owasp          |     ✓     | Always (CVSS ≥ 7)
-#   security-docker-trivy   |     ✓     | Always (CRITICAL,HIGH)
-#   pipeline-status         |     ✓     | Single gate
+#   Job                     | push/PR | Blocking?
+#   ------------------------|---------|----------------------------
+#   tests                   |    ✓    | Always
+#   frontend-tests          |    ✓    | Always
+#   security-bandit         |    ✓    | Always
+#   security-gitleaks       |    ✓    | Always
+#   security-python-deps    |    ✓    | Always
+#   security-hadolint       |    ✓    | Always (via .hadolint.yaml)
+#   prepare-export-deps     |    ✓    | —
+#   security-owasp          |    ✓    | Always (CVSS ≥ 7)
+#   security-docker-trivy   |    ✓    | Always (CRITICAL,HIGH)
+#   pipeline-status         |    ✓    | Single gate
 #
 # -- Pre-commit / CI consistency --
 #
@@ -47,6 +47,8 @@ name: CI/CD Pipeline — DevSecOps
 
 on:
   push:
+    branches: ['**']
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
