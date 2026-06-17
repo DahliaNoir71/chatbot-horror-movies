@@ -273,6 +273,46 @@ class RAGPipeline:
         token_stream = self._llm.generate_stream(messages)
         return token_stream, trusted_docs
 
+    async def answer_open(
+        self,
+        user_message: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> str:
+        """Answer from open knowledge (no corpus grounding), with a disclaimer.
+
+        For intents the synopsis corpus cannot ground (e.g. genre definitions):
+        unlike the no-context fallback, the open path is chosen up front rather
+        than after a failed retrieval, so no retrieval/rerank runs.
+
+        Args:
+            user_message: The user's query.
+            history: Conversation history.
+
+        Returns:
+            The open-knowledge answer, prefixed with the "not from my database" notice.
+        """
+        messages = self._build_open_messages(user_message, history)
+        result = await asyncio.to_thread(self._llm.generate_chat, messages)
+        return _OPEN_FALLBACK_PREFIX + result["text"]
+
+    def answer_open_stream(
+        self,
+        user_message: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> Iterator[str]:
+        """Stream the open-knowledge answer: disclaimer prefix, then LLM tokens.
+
+        Args:
+            user_message: The user's query.
+            history: Conversation history.
+
+        Yields:
+            The disclaimer prefix, then each generated token.
+        """
+        messages = self._build_open_messages(user_message, history)
+        yield _OPEN_FALLBACK_PREFIX
+        yield from self._llm.generate_stream(messages)
+
     async def _retrieve(self, user_message: str) -> list[RetrievedDocument]:
         """Dispatch to the retriever's async `search()` or sync `retrieve()`.
 

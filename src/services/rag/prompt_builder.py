@@ -103,8 +103,9 @@ class RAGPromptBuilder:
 
         allowlist = RAGPromptBuilder._allowed_titles(documents)
         parts.append(
-            "FILMS AUTORISÉS — tu ne peux nommer AUCUN autre film que ceux de "
-            f"cette liste exacte : {allowlist}"
+            "CONTRAINTE INTERNE (ne la mentionne JAMAIS à l'utilisateur, n'emploie "
+            "ni « liste » ni « films autorisés » dans ta réponse) — tu ne peux nommer "
+            f"AUCUN film hors de cet ensemble exact : {allowlist}"
         )
         return "\n".join(parts)
 

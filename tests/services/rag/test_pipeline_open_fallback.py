@@ -87,3 +87,28 @@ class TestOpenFallback:
         assert "".join(chunks[1:]) == "Le slasher."
         assert documents == []
         llm.generate_stream.assert_called_once()
+
+
+class TestAnswerOpen:
+    """The up-front open-knowledge path (definitional intent), distinct from the
+    post-retrieval fallback: no retrieval runs, the disclaimer is still applied."""
+
+    @pytest.mark.unit
+    async def test_answer_open_prefixes_disclaimer(self) -> None:
+        pipeline, llm = _make_pipeline(enabled=True)
+
+        text = await pipeline.answer_open("qu'est-ce que la body horror ?")
+
+        llm.generate_chat.assert_called_once()
+        assert text.startswith(_OPEN_FALLBACK_PREFIX)
+        assert "Halloween" in text
+
+    @pytest.mark.unit
+    async def test_answer_open_stream_prefix_then_tokens(self) -> None:
+        pipeline, llm = _make_pipeline(enabled=True)
+
+        chunks = list(pipeline.answer_open_stream("qu'est-ce que la body horror ?"))
+
+        assert chunks[0] == _OPEN_FALLBACK_PREFIX
+        assert "".join(chunks[1:]) == "Le slasher."
+        llm.generate_stream.assert_called_once()
