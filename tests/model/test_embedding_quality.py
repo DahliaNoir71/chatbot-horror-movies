@@ -32,6 +32,16 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+def _pair_similarities(service, pairs: list[dict]) -> list[float]:
+    """Cosine similarity for each (query_a, query_b) pair via the query path."""
+    sims = []
+    for pair in pairs:
+        vec_a = service.generate(pair["query_a"])
+        vec_b = service.generate(pair["query_b"])
+        sims.append(_cosine_similarity(vec_a, vec_b))
+    return sims
+
+
 # =========================================================================
 # T8 — Cosine similarity coherence
 # =========================================================================
@@ -43,43 +53,27 @@ class TestEmbeddingSimilarity:
     """T8 — Validate semantic coherence of embedding vectors."""
 
     @staticmethod
-    def test_similar_queries_high_similarity(embedding_service, rag_test_data):
-        """Similar query pairs have cosine similarity above their threshold."""
-        failures = []
+    def test_related_pairs_rank_above_unrelated(embedding_service, rag_test_data):
+        """Related query pairs all score above every unrelated pair.
 
-        for pair in rag_test_data["similarity_pairs"]:
-            vec_a = embedding_service.generate(pair["query_a"])
-            vec_b = embedding_service.generate(pair["query_b"])
-            similarity = _cosine_similarity(vec_a, vec_b)
-
-            if similarity < pair["expected_min_similarity"]:
-                failures.append(
-                    f"  sim={similarity:.3f} < {pair['expected_min_similarity']} "
-                    f"| '{pair['query_a']}' vs '{pair['query_b']}'"
-                )
-
-        assert len(failures) == 0, (
-            f"{len(failures)} similar pairs below threshold:\n" + "\n".join(failures)
+        Replaces absolute, model-specific thresholds with the property that
+        retrieval actually depends on: related queries rank above unrelated
+        ones, regardless of the model's absolute similarity scale (e5 has a much
+        higher similarity floor than the previous MiniLM model, which broke the
+        old hard-coded thresholds).
+        """
+        related = _pair_similarities(
+            embedding_service, rag_test_data["similarity_pairs"]
         )
+        unrelated = _pair_similarities(
+            embedding_service, rag_test_data["dissimilar_pairs"]
+        )
+        min_related = min(related)
+        max_unrelated = max(unrelated)
 
-    @staticmethod
-    def test_dissimilar_queries_low_similarity(embedding_service, rag_test_data):
-        """Dissimilar query pairs have cosine similarity below their threshold."""
-        failures = []
-
-        for pair in rag_test_data["dissimilar_pairs"]:
-            vec_a = embedding_service.generate(pair["query_a"])
-            vec_b = embedding_service.generate(pair["query_b"])
-            similarity = _cosine_similarity(vec_a, vec_b)
-
-            if similarity > pair["expected_max_similarity"]:
-                failures.append(
-                    f"  sim={similarity:.3f} > {pair['expected_max_similarity']} "
-                    f"| '{pair['query_a']}' vs '{pair['query_b']}'"
-                )
-
-        assert len(failures) == 0, (
-            f"{len(failures)} dissimilar pairs above threshold:\n" + "\n".join(failures)
+        assert min_related > max_unrelated, (
+            f"No topical separation: weakest related pair ({min_related:.3f}) "
+            f"does not exceed strongest unrelated pair ({max_unrelated:.3f})"
         )
 
 
@@ -125,16 +119,25 @@ class TestEmbeddingProperties:
     @staticmethod
     @pytest.mark.slow
     def test_batch_consistency(embedding_service):
-        """Batch-generated embeddings match individually-generated ones."""
+        """Batched passage embeddings match single-passage encodings.
+
+        Holds the e5 ``passage:`` prefix constant and varies only batch size:
+        a text encoded alone must match its slot in a multi-text batch (padding
+        must not alter the result). Comparing against ``generate`` (the query
+        path) would falsely fail, since e5's query/passage prefixes are
+        asymmetric by design.
+        """
         texts = [
             "zombie apocalypse horror film",
+            "a quiet psychological ghost story set in an old manor",
+            "slasher",
         ]
 
-        individual = [embedding_service.generate(t) for t in texts]
+        single = [embedding_service.generate_batch([t])[0] for t in texts]
         batch = embedding_service.generate_batch(texts)
 
-        for i, (ind, bat) in enumerate(zip(individual, batch)):
-            sim = _cosine_similarity(ind, bat)
+        for i, (one, many) in enumerate(zip(single, batch)):
+            sim = _cosine_similarity(one, many)
             assert sim > 0.99, (
-                f"Batch vs individual mismatch for text {i}: similarity={sim:.4f}"
+                f"Batch vs single mismatch for text {i}: similarity={sim:.4f}"
             )

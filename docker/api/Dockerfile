@@ -1,56 +1,62 @@
 # =============================================================================
-# HORRORBOT API - Dockerfile
+# HORRORBOT API - Dockerfile (GPU / CUDA build)
 # =============================================================================
-# FastAPI backend with ML models (LLM, embeddings, classifier).
+# FastAPI backend with ML models. This variant offloads the LLM (llama-cpp) to
+# an NVIDIA GPU; the embedding / reranker / classifier stay on CPU to spare VRAM
+# (the LLM is ~95% of the latency and the 8 GB budget is tight).
 #
-# Scope: API runtime only. ETL pipelines (Spark, Playwright/Rotten Tomatoes
-# scraping) are executed offline and excluded from this image to minimize
-# CVE surface and image size.
-#
+# Prereq: NVIDIA Container Toolkit in the WSL Docker host — see docker/api/GPU.md.
 # Build:  docker compose build api
-# Run:    docker compose up -d api
-# Logs:   docker compose logs -f api
+# Run:    docker compose up -d --force-recreate api   (needs the GPU reservation
+#         block in docker-compose.yml on this branch)
 # =============================================================================
 
-FROM python:3.12-slim
+# CUDA 12.4 *runtime* base (ships libcudart + cuBLAS that the llama-cpp CUDA
+# wheel links against). Ubuntu 22.04 = a tag that always exists for 12.4;
+# Python 3.12 is provided by uv below, not by apt. Keep this CUDA minor (12.4)
+# aligned with the llama-cpp wheel index (cu124).
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 WORKDIR /app
 
 # ── System dependencies ──────────────────────────────────────────────────────
-# libpq-dev        : psycopg2 build headers
-# build-essential  : llama-cpp-python fallback build (wheel preferred)
-# cmake            : llama-cpp-python fallback build
-# curl             : healthcheck
-# musl             : required by llama-cpp-python CPU wheels (linked to musl libc)
+# ca-certificates : let uv fetch its managed CPython + wheels over HTTPS
+# libpq-dev       : psycopg build headers
+# build-essential : C-extension fallback builds
+# curl            : healthcheck
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
-        libpq-dev \
-        build-essential \
-        cmake \
-        curl \
-        musl \
-    && ln -sf /usr/lib/x86_64-linux-musl/libc.so /usr/lib/libc.musl-x86_64.so.1 \
+        ca-certificates libpq-dev build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Install uv ──────────────────────────────────────────────────────────────
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
+# uv provides CPython 3.12 (managed/standalone) regardless of the Ubuntu 22.04
+# system Python (3.10) — downloads it on first sync.
+ENV UV_PYTHON=3.12
+
 # ── Dependencies (cached layer) ─────────────────────────────────────────────
-# Only the ml-api group is installed (no pyspark, no playwright).
+# 1. Resolve from the (CPU-pinned) pyproject: torch CPU + CPU llama-cpp wheel.
+# 2. Swap the CPU llama-cpp wheel for the CUDA 12.4 prebuilt wheel (no nvcc /
+#    source build). torch stays CPU on purpose — only the LLM goes to the GPU.
+#    Same version pin as pyproject; --no-deps leaves resolved deps untouched.
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --group ml-api
+    uv sync --frozen --group ml-api && \
+    uv pip install --force-reinstall --no-deps \
+        "llama-cpp-python>=0.3.0,<0.4" \
+        --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 
 # ── Application code ─────────────────────────────────────────────────────────
 COPY src/ src/
 
 # ── Runtime config ───────────────────────────────────────────────────────────
-# CPU-only inference
-ENV LLM_N_GPU_LAYERS=0
+# -1 = offload ALL layers to the GPU. Drop to a partial count (e.g. 24) if the
+# 8 GB VRAM OOMs at load — see docker/api/GPU.md for the tuning ladder.
+ENV LLM_N_GPU_LAYERS=-1
 ENV PYTHONUNBUFFERED=1
-# Explicit HF cache location — matches the named volume mounted in
-# docker-compose.yml and the CI convention (.github/workflows/mlops.yml).
 ENV HF_HOME=/root/.cache/huggingface
 
 EXPOSE 8000

@@ -126,21 +126,40 @@ services:
       - horrorbot_models:/app/models
       # ETL outputs (rag_films.json, processed datasets) consumed by importers
       - ./data:/app/data
-      # Hot reload — src/ mounted so code changes don't require a rebuild.
+      # src/ mounted so code changes need only a container restart (no rebuild).
+      # uvicorn runs WITHOUT --reload on purpose: auto-reload re-loads every CPU
+      # model (LLM + reranker + classifier, several minutes) on each file event
+      # and could fire mid-demo. Apply code changes with: docker compose restart api
       - ./src:/app/src
+      # Live logs — setup_logger() writes dated files to /app/logs (CWD-relative).
+      # Without this bind, chat/pipeline logs stay inside the container and never
+      # reach the host logs/ directory.
+      - ./logs:/app/logs
       # HuggingFace cache — persisted across rebuilds so MiniLM / DeBERTa /
       # cross-encoder are downloaded once. Path matches HF_HOME set in the
       # Dockerfile and the CI cache convention (mlops.yml).
       - horrorbot_hf_cache:/root/.cache/huggingface
 
-    command: ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uv", "run", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+    # GPU offload for the LLM (NVIDIA Container Toolkit required — see
+    # docker/api/GPU.md). Honoured by `docker compose` outside swarm.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     depends_on:
       db:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/openapi.json', timeout=3).status == 200 else 1)"]
+      # curl (not python): the CUDA base has no `python` on PATH — the app runs
+      # via uv's managed interpreter in .venv. curl is installed in the image.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8000/api/openapi.json"]
       interval: 15s
       timeout: 5s
       retries: 5

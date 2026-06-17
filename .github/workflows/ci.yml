@@ -3,11 +3,23 @@
 # GitHub Actions CI/CD Pipeline — DevSecOps
 # ===================================================
 # Project : HorrorBot
-# Version : 3.1
-# Date    : April 2026
+# Version : 3.2
+# Date    : June 2026
 #
 # Adapted from GitLab CI 3-tier pipeline.
-# Branch model: single-branch (main only, no PR).
+# Branch model: runs on every branch push ('**') and on PRs targeting main.
+#
+# -- v3.2 note (DevSecOps hardening, aligned with the GitLab "strong" model) --
+#   - Least-privilege GITHUB_TOKEN (top-level permissions: contents: read).
+#   - Every third-party action/image pinned by immutable commit SHA / digest
+#     (supply chain); the trailing `# vX.Y.Z` comment records the human tag.
+#   - Structured audit logging (RGPD Art. 32 / HDS) via .github/scripts/audit.sh,
+#     sourced by every security job (scan_start / scan_end + workflow config hash).
+#   - step-security/harden-runner (egress audit) on every non-container job
+#     (skips frontend-tests + the OWASP container job; posts egress telemetry).
+#   - Docker image integrity check before Trivy (loaded-image id + size).
+#   - pipeline-status gate is skip-tolerant (fails only on failure/cancelled).
+#   SonarQube (Tier 3 of the GitLab model) is intentionally NOT used here.
 #
 # -- 2-tier architecture --
 #
@@ -20,18 +32,18 @@
 #
 # -- Execution strategy per job --
 #
-#   Job                     | push main | Blocking?
-#   ------------------------|-----------|----------------------------
-#   tests                   |     ✓     | Always
-#   frontend-tests          |     ✓     | Always
-#   security-bandit         |     ✓     | Always
-#   security-gitleaks       |     ✓     | Always
-#   security-python-deps    |     ✓     | Always
-#   security-hadolint       |     ✓     | Always (via .hadolint.yaml)
-#   prepare-export-deps     |     ✓     | —
-#   security-owasp          |     ✓     | Always (CVSS ≥ 7)
-#   security-docker-trivy   |     ✓     | Always (CRITICAL,HIGH)
-#   pipeline-status         |     ✓     | Single gate
+#   Job                     | push/PR | Blocking?
+#   ------------------------|---------|----------------------------
+#   tests                   |    ✓    | Always
+#   frontend-tests          |    ✓    | Always
+#   security-bandit         |    ✓    | Always
+#   security-gitleaks       |    ✓    | Always
+#   security-python-deps    |    ✓    | Always
+#   security-hadolint       |    ✓    | Always (via .hadolint.yaml)
+#   prepare-export-deps     |    ✓    | —
+#   security-owasp          |    ✓    | Always (CVSS ≥ 7)
+#   security-docker-trivy   |    ✓    | Always (CRITICAL,HIGH)
+#   pipeline-status         |    ✓    | Single gate
 #
 # -- Pre-commit / CI consistency --
 #
@@ -40,15 +52,37 @@
 #   - Gitleaks                → pre-commit (staged) + CI (full history)
 #   - Tests, deps scan, OWASP → CI only
 #   - Hadolint (Dockerfile)   → CI only (blocking, .hadolint.yaml)
-#   - Trivy (Docker image)    → CI only (OS-level CVEs only, pkg-types: os)
+#   - Trivy (Docker image)    → CI only (OS-level CVEs only, TRIVY_PKG_TYPES=os)
 # ===================================================
 
 name: CI/CD Pipeline — DevSecOps
 
 on:
   push:
+    branches: ['**']
+  pull_request:
     branches: [main]
   workflow_dispatch:
+
+# ===================================================
+# Least-privilege GITHUB_TOKEN (supply-chain hardening)
+# ===================================================
+# No job pushes code/images, comments, or creates releases, so a
+# read-only token is sufficient. Escalate per-job (e.g. id-token:
+# write) only if a future job needs it. Artifact up/download is
+# unaffected (separate runtime token).
+permissions:
+  contents: read
+
+# ===================================================
+# Supply-chain hardening notes
+# ===================================================
+# - Every third-party action/image is pinned by immutable commit SHA
+#   / image digest (the `# vX.Y.Z` comment records the human tag).
+#   Re-resolve digests before bumping a tag.
+# - step-security/harden-runner runs in `audit` mode (non-blocking):
+#   it posts egress telemetry to api.stepsecurity.io. Drop the step if
+#   external CI telemetry is disallowed by the data policy.
 
 # ===================================================
 # Global variables
@@ -84,11 +118,16 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
@@ -112,7 +151,7 @@ jobs:
             --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           files: ${{ env.REPORT_DIR }}/coverage.xml
           fail_ci_if_error: false
@@ -120,7 +159,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: test-reports
           path: ${{ env.REPORT_DIR }}/
@@ -139,10 +178,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: "22"
           cache: "npm"
@@ -184,7 +223,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: playwright-report
           path: src/frontend/playwright-report/
@@ -198,17 +237,24 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Run Bandit security scan
         run: |
           mkdir -p "${{ env.SECURITY_DIR }}"
+          . .github/scripts/audit.sh
+          audit_log "scan_start" "running"
           echo "=== Running Bandit SAST analysis ==="
           set +e
           timeout 4m uvx bandit[toml] -c pyproject.toml -r src -f json \
@@ -231,13 +277,15 @@ jobs:
           fi
 
           if [ ${BANDIT_STATUS} -ne 0 ]; then
+            audit_log "scan_end" "fail" "exit_code=${BANDIT_STATUS}"
             echo "::error::Bandit detected security issues — must be resolved"
             exit ${BANDIT_STATUS}
           fi
+          audit_log "scan_end" "pass" "issues=0"
 
       - name: Upload Bandit report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: bandit-report
           path: ${{ env.SECURITY_DIR }}/bandit-report.json
@@ -251,16 +299,27 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
       - name: Create security reports directory
         run: mkdir -p "${{ env.SECURITY_DIR }}"
 
+      - name: Audit — scan start
+        run: |
+          . .github/scripts/audit.sh
+          audit_log "scan_start" "running"
+
       - name: Run Gitleaks (full history)
-        uses: docker://zricethezav/gitleaks:latest
+        id: gitleaks
+        uses: docker://zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # :latest pinned 2026-06-17
         with:
           args: >-
             detect
@@ -269,9 +328,19 @@ jobs:
             --report-path=security-reports/gitleaks-report.json
             --verbose
 
+      - name: Audit — scan end
+        if: always()
+        run: |
+          . .github/scripts/audit.sh
+          if [ "${{ steps.gitleaks.outcome }}" = "success" ]; then
+            audit_log "scan_end" "pass" "secrets=0"
+          else
+            audit_log "scan_end" "fail" "secrets_detected=true"
+          fi
+
       - name: Upload Gitleaks report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: gitleaks-report
           path: security-reports/gitleaks-report.json
@@ -289,11 +358,16 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
@@ -325,6 +399,8 @@ jobs:
       - name: Run pip-audit + safety scans
         run: |
           mkdir -p "${{ env.SECURITY_DIR }}"
+          . .github/scripts/audit.sh
+          audit_log "scan_start" "running"
           echo "=== Python Dependency Security Scans ==="
 
           # -- pip-audit: scans via requirements file only --
@@ -342,6 +418,9 @@ jobs:
           #     (Perceiver, Transformer-XL, megatron_gpt2, SEW, X-CLIP, GLM4) are not used.
           #   CVE-2025-63396, CVE-2025-3000..3001, CVE-2025-2998..2999, CVE-2025-2953, CVE-2025-3121, CVE-2025-3136, CVE-2025-2148..2149, CVE-2026-4538
           #     pytorch ×11: JIT memory corruption, LSTM/RNN ops, DoS — local-only, no untrusted model loading in HorrorBot.
+          #   GHSA-g75f-g53v-794x  bleach: ReDoS in linkify(parse_email=True) — NO upstream fix (bleach archived);
+          #     transitive via kaggle (offline ETL), HorrorBot never calls linkify on attacker input. Other two bleach
+          #     advisories (GHSA-gj48/-8rfp) fixed by bump to 6.4.0.
           # Review 2026-11-19.
           echo "--- pip-audit vulnerability scan ---"
           set +e
@@ -373,6 +452,7 @@ jobs:
             --ignore-vuln CVE-2025-3136 \
             --ignore-vuln CVE-2025-2148 \
             --ignore-vuln CVE-2025-2149 \
+            --ignore-vuln GHSA-g75f-g53v-794x \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?
@@ -411,15 +491,17 @@ jobs:
           # -- Aggregated result --
           FINAL_STATUS=$(( PIPA_STATUS + SAFETY_STATUS ))
           if [ ${FINAL_STATUS} -ne 0 ]; then
+            audit_log "scan_end" "fail" "pip_audit=${PIPA_STATUS},safety=${SAFETY_STATUS}"
             echo "::error::Vulnerabilities detected (pip-audit: ${PIPA_STATUS}, safety: ${SAFETY_STATUS})"
             exit 1
           else
+            audit_log "scan_end" "pass" "pip_audit=0,safety=0"
             echo "[OK] All Python dependency scans passed"
           fi
 
       - name: Upload dependency scan reports
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: dependency-security-reports
           path: |
@@ -440,14 +522,19 @@ jobs:
     timeout-minutes: 2
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Create security reports directory
         run: mkdir -p "${{ env.SECURITY_DIR }}"
 
       - name: Hadolint — docker/api/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: docker/api/Dockerfile
           format: json
@@ -455,7 +542,7 @@ jobs:
           no-fail: true
 
       - name: Hadolint — docker/frontend/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: docker/frontend/Dockerfile
           format: json
@@ -500,7 +587,7 @@ jobs:
 
       - name: Upload Hadolint report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: hadolint-report
           path: ${{ env.SECURITY_DIR }}/hadolint-report.json
@@ -519,11 +606,16 @@ jobs:
     timeout-minutes: 2
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -536,7 +628,7 @@ jobs:
           echo "[OK] requirements-full.txt generated ($(wc -l < requirements-full.txt) total dependencies)"
 
       - name: Upload requirements artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: requirements
           path: |
@@ -553,7 +645,7 @@ jobs:
     needs: [prepare-export-deps]
 
     container:
-      image: owasp/dependency-check-action:latest
+      image: owasp/dependency-check-action@sha256:71c7d3391628cfa22dd45e062744996540b811f20dbad000fbe84246a00f4827 # :latest pinned 2026-06-17
       options: --user root
 
     env:
@@ -570,10 +662,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Download requirements artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: requirements
 
@@ -590,6 +682,8 @@ jobs:
       - name: Run OWASP Dependency-Check
         run: |
           mkdir -p "${{ env.SECURITY_DIR }}/dependency-check"
+          . .github/scripts/audit.sh
+          audit_log "scan_start" "running"
           echo "=== OWASP Dependency-Check ==="
           echo "[INFO] requirements.txt ($(wc -l < requirements.txt) deps)"
 
@@ -626,6 +720,7 @@ jobs:
           set -e
 
           if [ ${OWASP_STATUS} -eq 124 ]; then
+            audit_log "scan_end" "fail" "reason=timeout_40m"
             echo "::error::OWASP Dependency-Check timed out after 40 minutes"
             exit 1
           fi
@@ -645,13 +740,15 @@ jobs:
           fi
 
           if [ ${OWASP_STATUS} -ne 0 ]; then
+            audit_log "scan_end" "fail" "exit_code=${OWASP_STATUS},cvss_threshold=7"
             echo "::error::OWASP Dependency-Check found CVEs with CVSS >= 7"
             exit ${OWASP_STATUS}
           fi
+          audit_log "scan_end" "pass" "vuln_count=0,cvss_threshold=7"
 
       - name: Upload OWASP reports
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: owasp-dependency-check
           path: ${{ env.SECURITY_DIR }}/dependency-check/
@@ -676,14 +773,20 @@ jobs:
             label: frontend
 
     steps:
+      - name: Harden runner (egress audit)
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2
+        with:
+          egress-policy: audit
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build Docker image — ${{ matrix.label }}
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -694,16 +797,36 @@ jobs:
       - name: Create security reports directory
         run: mkdir -p security-reports
 
-      # Trivy scans OS-level CVEs only (pkg-types: os).
+      # Integrity equivalent of the kaniko tarball check (strong model):
+      # the image is loaded into the local daemon, so we assert it exists
+      # and is non-trivial, and record its content-addressable id for audit.
+      - name: Audit — image integrity & scan start — ${{ matrix.label }}
+        run: |
+          . .github/scripts/audit.sh
+          audit_log "scan_start" "running" "image=${{ matrix.image }}:ci-scan"
+          IMG_ID=$(docker image inspect "${{ matrix.image }}:ci-scan" --format '{{.Id}}' 2>/dev/null || echo "")
+          IMG_SIZE=$(docker image inspect "${{ matrix.image }}:ci-scan" --format '{{.Size}}' 2>/dev/null || echo "0")
+          if [ -z "${IMG_ID}" ] || [ "${IMG_SIZE}" -lt 1024 ]; then
+            audit_log "image_check" "fail" "reason=missing_or_too_small,size=${IMG_SIZE}"
+            echo "::error::Built image missing or suspiciously small (${IMG_SIZE} bytes)"
+            exit 1
+          fi
+          audit_log "image_check" "pass" "image_id=${IMG_ID#sha256:},size=${IMG_SIZE}"
+          echo "[OK] Image integrity verified (${IMG_ID}, ${IMG_SIZE} bytes)"
+
+      # Trivy scans OS-level CVEs only (TRIVY_PKG_TYPES=os).
       # Python/JS/JAR deps are handled by OWASP Dependency-Check (security-owasp job)
       # to avoid double-scanning and diverging suppression files.
-      # Note: pkg-types replaces the deprecated vuln-type flag (Trivy >= 0.56).
+      # Note: trivy-action 0.35.0 has no `pkg-types` input — the restriction is
+      # applied via the TRIVY_PKG_TYPES env var, which the trivy binary reads.
+      # (pkg-types replaces the deprecated --vuln-type flag since Trivy >= 0.56.)
       - name: Trivy scan (table) — ${{ matrix.label }}
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        env:
+          TRIVY_PKG_TYPES: os
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
-          pkg-types: os
           format: table
           severity: ${{ env.TRIVY_SEVERITY }}
           exit-code: "0"
@@ -711,11 +834,13 @@ jobs:
 
       # Blocking scan — exit-code 1 fails the job on CRITICAL/HIGH OS CVEs
       - name: Trivy scan (JSON, blocking) — ${{ matrix.label }}
-        uses: aquasecurity/trivy-action@0.35.0
+        id: trivy_json
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        env:
+          TRIVY_PKG_TYPES: os
         with:
           image-ref: ${{ matrix.image }}:ci-scan
           scanners: vuln
-          pkg-types: os
           format: json
           severity: ${{ env.TRIVY_SEVERITY }}
           output: security-reports/trivy-${{ matrix.label }}-report.json
@@ -745,11 +870,21 @@ jobs:
 
       - name: Upload Trivy report — ${{ matrix.label }}
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: trivy-report-${{ matrix.label }}
           path: security-reports/trivy-${{ matrix.label }}-report.json
           retention-days: 7
+
+      - name: Audit — scan end — ${{ matrix.label }}
+        if: always()
+        run: |
+          . .github/scripts/audit.sh
+          if [ "${{ steps.trivy_json.outcome }}" = "success" ]; then
+            audit_log "scan_end" "pass" "severity=${{ env.TRIVY_SEVERITY }}"
+          else
+            audit_log "scan_end" "fail" "severity=${{ env.TRIVY_SEVERITY }}"
+          fi
 
   # ###########################################################
   #  PIPELINE STATUS — Single gate
@@ -797,9 +932,14 @@ jobs:
             "${{ needs.prepare-export-deps.result }}" \
             "${{ needs.security-owasp.result }}" \
             "${{ needs.security-docker-trivy.result }}"; do
-            if [ "${result}" != "success" ]; then
-              FAILED=$((FAILED + 1))
-            fi
+            # Fail on failure/cancelled; tolerate success/skipped (a job may
+            # legitimately skip — e.g. future path-scoping — without weakening
+            # the gate). 'skipped' propagates here only if a *needed* upstream
+            # job was itself skipped, which is an accepted no-op.
+            case "${result}" in
+              success | skipped) ;;
+              *) FAILED=$((FAILED + 1)) ;;
+            esac
           done
 
           if [ ${FAILED} -ne 0 ]; then

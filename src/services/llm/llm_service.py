@@ -13,6 +13,9 @@ from src.settings import settings
 
 logger = setup_logger("services.llm")
 
+# Truncation cap for INFO-level response previews; full text goes to DEBUG.
+_RESPONSE_LOG_MAX_CHARS = 500
+
 
 class LLMService:
     """Local LLM inference service using llama-cpp-python.
@@ -144,6 +147,27 @@ class LLMService:
     # Generation methods
     # -------------------------------------------------------------------------
 
+    def _log_response(self, text: str, usage: dict[str, int]) -> None:
+        """Log a generated response so answers stay auditable.
+
+        Emits a truncated preview at INFO and the full text at DEBUG, keeping
+        INFO readable while letting reviewers check faithfulness against the
+        sources logged by the RAG pipeline.
+
+        Args:
+            text: Generated response text.
+            usage: Token usage stats from the completion call.
+        """
+        preview = text[:_RESPONSE_LOG_MAX_CHARS]
+        suffix = "..." if len(text) > _RESPONSE_LOG_MAX_CHARS else ""
+        self._logger.info(
+            "LLM response (%d completion tokens): %s%s",
+            usage.get("completion_tokens", 0),
+            preview,
+            suffix,
+        )
+        self._logger.debug("LLM full response: %s", text)
+
     def generate(
         self,
         prompt: str,
@@ -171,10 +195,10 @@ class LLMService:
             stop=stop or [],
         )
 
-        return {
-            "text": result["choices"][0]["text"],
-            "usage": result.get("usage", {}),
-        }
+        text = result["choices"][0]["text"]
+        usage = result.get("usage", {})
+        self._log_response(text, usage)
+        return {"text": text, "usage": usage}
 
     def generate_chat(
         self,
@@ -201,10 +225,10 @@ class LLMService:
             temperature=temperature if temperature is not None else self._temperature,
         )
 
-        return {
-            "text": result["choices"][0]["message"]["content"],
-            "usage": result.get("usage", {}),
-        }
+        text = result["choices"][0]["message"]["content"]
+        usage = result.get("usage", {})
+        self._log_response(text, usage)
+        return {"text": text, "usage": usage}
 
     def generate_stream(
         self,
@@ -229,11 +253,17 @@ class LLMService:
             stream=True,
         )
 
+        # Accumulate chunks to log the full response once the stream drains;
+        # each non-empty delta is ~1 token, so the count is a close proxy.
+        parts: list[str] = []
         for chunk in stream:
             delta = chunk["choices"][0].get("delta", {})
             content = delta.get("content")
             if content:
+                parts.append(content)
                 yield content
+
+        self._log_response("".join(parts), {"completion_tokens": len(parts)})
 
     # -------------------------------------------------------------------------
     # Accessors

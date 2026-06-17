@@ -54,12 +54,17 @@ class RerankerService:
         self,
         query: str,
         documents: list[RetrievedDocument],
+        top_k: int | None = None,
     ) -> list[RetrievedDocument]:
         """Rerank documents using cross-encoder scores.
 
         Args:
             query: User query.
             documents: Documents from vector retrieval.
+            top_k: Max documents to return (default ``self._top_k``). The
+                pipeline passes the full pool size so it can blend the rerank
+                score with the retrieval prior before selecting the final cut;
+                a small cap here would discard candidates the blend needs.
 
         Returns:
             Reranked and filtered list of documents (top_k, above min_score).
@@ -67,6 +72,7 @@ class RerankerService:
         if not documents:
             return []
 
+        limit = top_k if top_k is not None else self._top_k
         model = self._load_model()
 
         # Build (query, document) pairs
@@ -89,7 +95,7 @@ class RerankerService:
                 continue
             doc.rerank_score = float(score)
             results.append(doc)
-            if len(results) >= self._top_k:
+            if len(results) >= limit:
                 break
 
         logger.info(

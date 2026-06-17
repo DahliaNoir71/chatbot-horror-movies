@@ -16,6 +16,22 @@ def _get_log_level_from_env() -> int:
     return getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
 
 
+def _file_logging_enabled() -> bool:
+    """Return whether dated log files should be written.
+
+    Disabled automatically under pytest so the test suite never pollutes the
+    application's ``logs/`` directory, and overridable in any other context via
+    ``LOG_TO_FILE=0``. Defaults to enabled (production / container behaviour and
+    standalone scripts such as benchmarks keep their file logs).
+
+    Returns:
+        True when a file handler should be attached.
+    """
+    if "pytest" in sys.modules or "PYTEST_VERSION" in os.environ:
+        return False
+    return os.environ.get("LOG_TO_FILE", "1").strip().lower() not in {"0", "false", "no"}
+
+
 def setup_logger(
     name: str,
     level: int | None = None,
@@ -47,9 +63,10 @@ def setup_logger(
     console_handler = _create_console_handler(formatter, level)
     logger.addHandler(console_handler)
 
-    file_handler = _create_file_handler(name, formatter, level, log_dir)
-    if file_handler:
-        logger.addHandler(file_handler)
+    if _file_logging_enabled():
+        file_handler = _create_file_handler(name, formatter, level, log_dir)
+        if file_handler:
+            logger.addHandler(file_handler)
 
     _LOGGERS_CACHE[name] = logger
     return logger

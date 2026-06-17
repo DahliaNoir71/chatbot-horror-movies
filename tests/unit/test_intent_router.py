@@ -6,7 +6,7 @@ Tests that each intent is routed to the correct pipeline
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -195,6 +195,111 @@ class TestIntentRouterFallback:
         await router.handle("Bonjour", session_id=existing_id, user_id="user1")
 
         mock_session_manager.get_or_create.assert_called_once_with(existing_id, "user1")
+
+
+# =========================================================================
+# Structured (franchise) and open-knowledge (definitional) intents
+# =========================================================================
+
+
+class TestStructuredAndOpenIntents:
+    """Verify franchise → SQL service and definitional → open-knowledge routing."""
+
+    @staticmethod
+    async def test_handle_franchise_calls_service(
+        mock_rag_pipeline, mock_session_manager
+    ):
+        """franchise intent calls the franchise service, not RAG."""
+        classifier = _make_classifier("franchise")
+        franchise = MagicMock()
+        franchise.answer.return_value = "D'après ma base, la saga « Saw » compte au moins 5 films."
+        router = IntentRouter(
+            classifier=classifier,
+            rag_pipeline=mock_rag_pipeline,
+            session_manager=mock_session_manager,
+            franchise=franchise,
+        )
+
+        result = await router.handle(
+            "combien de films dans la saga Saw", session_id=None, user_id="u1"
+        )
+
+        assert result.intent == "franchise"
+        assert "Saw" in result.text
+        franchise.answer.assert_called_once()
+        mock_rag_pipeline.execute.assert_not_called()
+
+    @staticmethod
+    async def test_handle_definitional_uses_open_knowledge(
+        mock_rag_pipeline, mock_session_manager
+    ):
+        """definitional intent answers from open knowledge (answer_open), not RAG."""
+        classifier = _make_classifier("definitional")
+        mock_rag_pipeline.answer_open = AsyncMock(
+            return_value="ℹ️ *...* La body horror est un sous-genre."
+        )
+        router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
+
+        result = await router.handle(
+            "qu'est-ce que la body horror", session_id=None, user_id="u1"
+        )
+
+        assert result.intent == "definitional"
+        mock_rag_pipeline.answer_open.assert_called_once()
+        mock_rag_pipeline.execute.assert_not_called()
+
+    @staticmethod
+    async def test_stream_franchise_emits_chunk_then_done(
+        mock_rag_pipeline, mock_session_manager
+    ):
+        """franchise stream emits the service answer as one chunk, then done."""
+        classifier = _make_classifier("franchise")
+        franchise = MagicMock()
+        franchise.answer.return_value = "Saga answer"
+        router = IntentRouter(
+            classifier=classifier,
+            rag_pipeline=mock_rag_pipeline,
+            session_manager=mock_session_manager,
+            franchise=franchise,
+        )
+
+        events = [
+            ev
+            async for ev in router.handle_stream(
+                "combien de films dans la saga Saw", session_id=None, user_id="u1"
+            )
+        ]
+
+        assert any(ev.type == "chunk" and ev.content == "Saga answer" for ev in events)
+        assert events[-1].type == "done"
+        assert events[-1].intent == "franchise"
+        mock_rag_pipeline.execute_stream.assert_not_called()
+
+    @staticmethod
+    async def test_stream_definitional_emits_generation(
+        mock_rag_pipeline, mock_session_manager
+    ):
+        """definitional stream emits a generation stage and streams open tokens."""
+        classifier = _make_classifier("definitional")
+        mock_rag_pipeline.answer_open_stream = MagicMock(
+            return_value=iter(["La ", "body ", "horror."])
+        )
+        router = _build_router(classifier, mock_rag_pipeline, mock_session_manager)
+
+        events = [
+            ev
+            async for ev in router.handle_stream(
+                "qu'est-ce que la body horror", session_id=None, user_id="u1"
+            )
+        ]
+
+        stages = [ev.stage for ev in events if ev.type == "stage"]
+        assert "generation" in stages
+        assert events[-1].type == "done"
+        assert events[-1].intent == "definitional"
+        chunks = "".join(ev.content for ev in events if ev.type == "chunk" and ev.content)
+        assert "body" in chunks
+        mock_rag_pipeline.execute_stream.assert_not_called()
 
 
 # =========================================================================

@@ -46,6 +46,13 @@ class TestSetupLogger:
         setup_logger(name)
         assert name in _LOGGERS_CACHE
 
+    @staticmethod
+    def test_no_file_handler_under_pytest() -> None:
+        """File logging is suppressed under pytest so the suite never writes
+        into the application's logs/ directory."""
+        logger = setup_logger("test.logger.no_file")
+        assert not any(isinstance(h, logging.FileHandler) for h in logger.handlers)
+
 
 class TestCreateConsoleHandler:
     @staticmethod

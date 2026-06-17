@@ -29,17 +29,20 @@ const confidencePercent = computed(() =>
     : null
 )
 
-const hasSources = computed(() =>
-  !isUser.value && props.message.sources && props.message.sources.length > 0
+const hasSources = computed(
+  () =>
+    !isUser.value && props.message.sources && props.message.sources.length > 0
 )
 
-const hasTimings = computed(() =>
-  !isUser.value && props.message.timings != null
+const hasTimings = computed(
+  () => !isUser.value && props.message.timings != null
 )
 
-const hasTokenUsage = computed(() =>
-  !isUser.value && props.message.token_usage != null
-    && Object.keys(props.message.token_usage).length > 0
+const hasTokenUsage = computed(
+  () =>
+    !isUser.value &&
+    props.message.token_usage != null &&
+    Object.keys(props.message.token_usage).length > 0
 )
 </script>
 
@@ -94,20 +97,16 @@ const hasTokenUsage = computed(() =>
       </div>
 
       <!-- Benchmark: token usage -->
-      <div
-        v-if="hasTokenUsage"
-        class="mt-1 text-xs text-smoke-gray-400"
-      >
-        🪙 prompt {{ message.token_usage!.prompt_tokens ?? '?' }}
-        · completion {{ message.token_usage!.completion_tokens ?? '?' }}
+      <div v-if="hasTokenUsage" class="mt-1 text-xs text-smoke-gray-400">
+        🪙 prompt {{ message.token_usage!.prompt_tokens ?? '?' }} · completion
+        {{ message.token_usage!.completion_tokens ?? '?' }}
       </div>
 
       <!-- Benchmark: sources -->
-      <div
-        v-if="hasSources"
-        class="mt-2 border-t border-deep-black-700 pt-2"
-      >
-        <p class="text-xs text-smoke-gray-400 mb-1">📚 Sources ({{ message.sources!.length }})</p>
+      <div v-if="hasSources" class="mt-2 border-t border-deep-black-700 pt-2">
+        <p class="text-xs text-smoke-gray-400 mb-1">
+          📚 Sources ({{ message.sources!.length }})
+        </p>
         <ul class="space-y-1">
           <li
             v-for="(src, idx) in message.sources"
@@ -115,12 +114,14 @@ const hasTokenUsage = computed(() =>
             class="text-xs text-smoke-gray-300 flex items-baseline gap-2"
           >
             <span class="font-medium">{{ src.title }}</span>
-            <span v-if="src.year" class="text-smoke-gray-400">({{ src.year }})</span>
+            <span v-if="src.year" class="text-smoke-gray-400"
+              >({{ src.year }})</span
+            >
             <span class="text-smoke-gray-500">
-              sim {{ (src.similarity_score * 100).toFixed(1) }}%
-              <template v-if="src.rerank_score != null">
-                · rerank {{ src.rerank_score.toFixed(2) }}
+              <template v-if="src.similarity_score > 0">
+                sim {{ (src.similarity_score * 100).toFixed(1) }}%
               </template>
+              <template v-else>correspondance lexicale</template>
             </span>
           </li>
         </ul>

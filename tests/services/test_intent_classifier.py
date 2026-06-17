@@ -63,6 +63,50 @@ class TestIntentClassifier:
         assert result["intent"] == FALLBACK_INTENT
 
     @staticmethod
+    def test_classify_meta_question_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Self-referential meta-questions route to the 'meta' template, not RAG."""
+        result = classifier.classify("Sur quels critères as-tu choisi ces films ?")
+        assert result["intent"] == "meta"
+        assert result["confidence"] == approx(1.0)
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
+    def test_classify_filmography_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Director/actor filmography questions route to 'filmography', not RAG."""
+        result = classifier.classify("Films d'horreur réalisés par James Wan")
+        assert result["intent"] == "filmography"
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
+    def test_classify_franchise_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Saga-count questions route to 'franchise', not RAG."""
+        result = classifier.classify("Combien de films dans la saga vendredi 13 ?")
+        assert result["intent"] == "franchise"
+        assert result["confidence"] == approx(1.0)
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
+    def test_classify_definitional_bypasses_rag(classifier, mock_pipeline) -> None:
+        """Genre-definition questions route to 'definitional', not RAG."""
+        result = classifier.classify("Qu'est-ce que la body horror ?")
+        assert result["intent"] == "definitional"
+        assert result["confidence"] == approx(1.0)
+        mock_pipeline.assert_not_called()
+
+    @staticmethod
+    def test_definitional_requires_domain_keyword(classifier, mock_pipeline) -> None:
+        """A definitional phrasing without a horror keyword is not hijacked."""
+        mock_pipeline.return_value = {
+            "labels": [CL["off_topic"], CL["needs_database"], CL["conversational"]],
+            "scores": [0.9, 0.06, 0.04],
+        }
+
+        result = classifier.classify("Qu'est-ce que la photosynthèse ?")
+
+        assert result["intent"] != "definitional"
+        mock_pipeline.assert_called_once()
+
+    @staticmethod
     def test_classify_high_confidence(classifier, mock_pipeline) -> None:
         """High-confidence result returns the top label."""
         mock_pipeline.return_value = {

@@ -5,7 +5,7 @@ Routes classified intents to: template responses or RAG+LLM pipeline.
 
 import asyncio
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -18,6 +18,14 @@ from src.monitoring.metrics import (
     CLASSIFIER_REQUESTS_TOTAL,
 )
 from src.services.chat.session import SessionManager, get_session_manager
+from src.services.filmography.filmography_service import (
+    FilmographyService,
+    get_filmography_service,
+)
+from src.services.franchise.franchise_service import (
+    FranchiseService,
+    get_franchise_service,
+)
 from src.services.intent.classifier import IntentClassifier, get_intent_classifier
 from src.services.intent.prompts import get_template_response
 
@@ -31,7 +39,7 @@ logger = setup_logger("services.intent.router")
 # =============================================================================
 
 RAG_INTENTS = {"needs_database"}
-TEMPLATE_INTENTS = {"conversational", "thanks", "off_topic"}
+TEMPLATE_INTENTS = {"conversational", "thanks", "off_topic", "meta"}
 
 
 # =============================================================================
@@ -120,6 +128,8 @@ class IntentRouter:
         classifier: IntentClassifier | None = None,
         rag_pipeline: "RAGPipeline | None" = None,
         session_manager: SessionManager | None = None,
+        filmography: FilmographyService | None = None,
+        franchise: FranchiseService | None = None,
     ) -> None:
         """Initialize router with injectable dependencies.
 
@@ -127,6 +137,8 @@ class IntentRouter:
             classifier: Override intent classifier (for testing).
             rag_pipeline: Override RAG pipeline (for testing).
             session_manager: Override session manager (for testing).
+            filmography: Override filmography service (for testing).
+            franchise: Override franchise service (for testing).
         """
         self._classifier = classifier or get_intent_classifier()
         if rag_pipeline is None:
@@ -136,6 +148,8 @@ class IntentRouter:
         else:
             self._rag_pipeline = rag_pipeline
         self._session_manager = session_manager or get_session_manager()
+        self._filmography = filmography or get_filmography_service()
+        self._franchise = franchise or get_franchise_service()
         self._logger = logger
 
     async def handle(
@@ -172,6 +186,12 @@ class IntentRouter:
 
         if intent in TEMPLATE_INTENTS:
             text = get_template_response(intent, user_message) or ""
+        elif intent == "filmography":
+            text = await asyncio.to_thread(self._filmography.answer, user_message)
+        elif intent == "franchise":
+            text = await asyncio.to_thread(self._franchise.answer, user_message)
+        elif intent == "definitional":
+            text = await self._rag_pipeline.answer_open(user_message, history)
         elif intent in RAG_INTENTS:
             rag_result = await self._rag_pipeline.execute(intent, user_message, history)
             text = rag_result.text
@@ -235,6 +255,16 @@ class IntentRouter:
 
         if intent in RAG_INTENTS:
             substream = self._stream_rag(intent, confidence, sid, user_message, history)
+        elif intent == "filmography":
+            substream = self._stream_structured(
+                intent, confidence, sid, user_message, self._filmography.answer
+            )
+        elif intent == "franchise":
+            substream = self._stream_structured(
+                intent, confidence, sid, user_message, self._franchise.answer
+            )
+        elif intent == "definitional":
+            substream = self._stream_open(intent, confidence, sid, user_message, history)
         else:
             substream = self._stream_template(intent, confidence, sid, user_message)
         async for event in substream:
@@ -271,6 +301,63 @@ class IntentRouter:
         yield StreamEvent(type="chunk", content=text)
         yield StreamEvent(type="done", intent=intent, confidence=confidence, session_id=session_id)
 
+    async def _stream_structured(
+        self,
+        intent: str,
+        confidence: float,
+        session_id: UUID,
+        user_message: str,
+        answer_fn: Callable[[str], str],
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a structured (non-LLM) answer as one chunk, then done.
+
+        Shared by the filmography and franchise intents, whose answers are
+        full strings from a synchronous SQL lookup (offloaded to a thread).
+
+        Args:
+            intent: Classified intent ("filmography" or "franchise").
+            confidence: Classifier confidence.
+            session_id: Session UUID.
+            user_message: The user's query text.
+            answer_fn: Synchronous service callable returning the answer text.
+
+        Yields:
+            One chunk event with the answer, then a done event.
+        """
+        text = await asyncio.to_thread(answer_fn, user_message)
+        self._session_manager.add_message(session_id, "assistant", text)
+        yield StreamEvent(type="chunk", content=text)
+        yield StreamEvent(type="done", intent=intent, confidence=confidence, session_id=session_id)
+
+    async def _stream_open(
+        self,
+        intent: str,
+        confidence: float,
+        session_id: UUID,
+        user_message: str,
+        history: list[dict[str, str]],
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream an open-knowledge (un-grounded) answer: generation, then done.
+
+        Used by the ``definitional`` intent: the synopsis corpus cannot ground
+        a genre/concept definition, so the answer comes from the LLM's general
+        knowledge with an explicit "not from my database" disclaimer prefix.
+
+        Args:
+            intent: Classified intent ("definitional").
+            confidence: Classifier confidence.
+            session_id: Session UUID.
+            user_message: The user's query text.
+            history: Conversation history messages.
+
+        Yields:
+            A generation stage marker, one chunk per token, then a done event.
+        """
+        yield StreamEvent(type="stage", stage="generation")
+        token_stream = self._rag_pipeline.answer_open_stream(user_message, history)
+        async for event in self._stream_tokens(token_stream, session_id, intent, confidence, None):
+            yield event
+
     async def _stream_rag(
         self,
         intent: str,
@@ -300,6 +387,36 @@ class IntentRouter:
         )
 
         yield StreamEvent(type="stage", stage="generation")
+        async for event in self._stream_tokens(
+            token_stream, session_id, intent, confidence, documents
+        ):
+            yield event
+
+    async def _stream_tokens(
+        self,
+        token_stream: Iterator[str],
+        session_id: UUID,
+        intent: str,
+        confidence: float,
+        documents: list | None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Pump a blocking token iterator into chunk events, then emit done.
+
+        The LLM iterator is blocking; it is advanced one token at a time via
+        ``asyncio.to_thread`` so the event loop keeps flushing SSE. When
+        ``documents`` is provided (RAG path), a grounding check is logged on the
+        full text; ``None`` marks the un-grounded open-knowledge path.
+
+        Args:
+            token_stream: Blocking iterator of generated text tokens.
+            session_id: Session UUID.
+            intent: Classified intent.
+            confidence: Classifier confidence.
+            documents: RAG documents for the grounding check, or None.
+
+        Yields:
+            One chunk event per token, then a done event.
+        """
         parts: list[str] = []
         while True:
             token = await asyncio.to_thread(next, token_stream, _STREAM_END)
@@ -308,13 +425,19 @@ class IntentRouter:
             parts.append(token)
             yield StreamEvent(type="chunk", content=token)
 
-        self._session_manager.add_message(session_id, "assistant", "".join(parts))
+        full_text = "".join(parts)
+        self._session_manager.add_message(session_id, "assistant", full_text)
+
+        if documents is not None:
+            from src.services.rag.pipeline import log_grounding
+
+            log_grounding(full_text, documents)
         yield StreamEvent(
             type="done",
             intent=intent,
             confidence=confidence,
             session_id=session_id,
-            documents=documents,
+            documents=documents or [],
         )
 
     async def _classify_with_metrics(self, text: str) -> dict:
@@ -340,6 +463,11 @@ class IntentRouter:
             f"(confidence: {round(result['confidence'], 3)}, "
             f"duration: {round(duration_ms)}ms)"
         )
+
+        # Audit off_topic refusals: log the (truncated) query so false refusals
+        # of horror-adjacent questions are reviewable instead of silently dropped.
+        if result["intent"] == "off_topic":
+            self._logger.info("off_topic query rejected: %s", text[:80])
 
         result["duration_ms"] = duration_ms
         return result

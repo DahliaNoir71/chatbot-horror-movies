@@ -19,7 +19,20 @@ name: MLOps Pipeline
 on:
   # Push sur les fichiers de donnees ou modeles
   push:
-    branches: [main, develop]
+    branches: ['**']
+    paths:
+      - 'tests/fixtures/**'
+      - 'src/services/embedding/**'
+      - 'src/services/intent/**'
+      - 'src/services/rag/**'
+      - 'tests/model/**'
+      - 'scripts/generate_sample_embeddings.py'
+      - 'scripts/mlops_report.py'
+      - '.github/workflows/mlops.yml'
+
+  # Pull request vers main (memes filtres de chemins)
+  pull_request:
+    branches: [main]
     paths:
       - 'tests/fixtures/**'
       - 'src/services/embedding/**'
@@ -344,6 +357,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [generate-report, test-intent-classifier, generate-embeddings, evaluate-rag]
     if: >
+      github.ref == 'refs/heads/main' &&
       needs.generate-report.result == 'success' &&
       needs.test-intent-classifier.result == 'success' &&
       needs.generate-embeddings.result == 'success' &&

@@ -5,6 +5,7 @@ needs_database (RAG), conversational (template), off_topic (template).
 """
 
 import re
+from collections.abc import Callable
 from functools import lru_cache
 
 from src.etl.utils.logger import setup_logger
@@ -97,6 +98,14 @@ _CONVERSATIONAL_KEYWORDS = {
     "bientot",
     "prochaine",
     "bye bye",
+    # Small talk / "how are you" pleasantries — route to conversational, not RAG.
+    "comment vas-tu",
+    "comment ça va",
+    "comment allez-vous",
+    "comment tu vas",
+    "ça va",
+    "how are you",
+    "quoi de neuf",
 }
 
 # Maximum word count for conversational keyword pre-check.
@@ -122,6 +131,48 @@ _THANKS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Meta / self-referential follow-ups about the bot's OWN previous answer
+# (e.g. "sur quels critères les as-tu choisis ?"). These must NOT hit RAG —
+# there is nothing to retrieve about the assistant's reasoning, so routing them
+# to needs_database yields irrelevant docs or a confusing circuit-breaker refusal.
+_META_PATTERN = re.compile(
+    r"as-tu chois|tu as chois|as-tu s[eé]lectionn|pourquoi ces (?:films|choix)|"
+    r"pourquoi avoir chois|comment as-tu chois|ta s[eé]lection|tes choix|"
+    r"why did you (?:choose|pick|select)|how did you (?:choose|pick)",
+    re.IGNORECASE,
+)
+
+# Director / actor filmography questions ("films réalisés par X", "filmographie
+# de X", "joue X", "avec <Name>"). Served by a structured SQL lookup (not RAG),
+# so a complete filmography is never truncated by the vector top_k cap.
+# Split in two (kept under SonarQube regex-complexity limit): role/verb cues are
+# case-insensitive; the "avec <Name>" cue requires a capitalised first letter to
+# avoid matching thematic queries like "films avec des enfants possédés".
+_FILMOGRAPHY_CUES = re.compile(
+    r"r[eé]alis[eé]s?\s+par|r[eé]alisateur|filmographie|\bjoue\b",
+    re.IGNORECASE,
+)
+_FILMOGRAPHY_ACTOR = re.compile(r"\bavec\s+[A-ZÀ-Ÿ]")
+
+# Franchise/saga counting questions ("combien de films dans la saga X",
+# "la franchise Saw"). Served by a structured SQL lookup (full count) instead
+# of the top_k-capped RAG path which truncates a saga to 5 titles.
+_FRANCHISE_PATTERN = re.compile(
+    r"\b(?:saga|franchise|trilogie|quadrilogie)\b|"
+    r"combien\s+(?:de|d')\s*(?:films?|[eé]pisodes?|opus|volets?)",
+    re.IGNORECASE,
+)
+
+# Genre/concept definition questions ("qu'est-ce que la body horror",
+# "c'est quoi le found footage"). The synopsis corpus has no definition docs,
+# so these are answered from open knowledge with an explicit disclaimer rather
+# than grounded on weakly-matched film synopses.
+_DEFINITIONAL_PATTERN = re.compile(
+    r"qu'est[- ]ce que|qu'est[- ]ce qu'|c'est quoi|je ne sais pas ce qu|"
+    r"que (?:signifie|veut dire)|d[eé]finition d|what\s+(?:is|are|'s)",
+    re.IGNORECASE,
+)
+
 # Secondary confidence threshold — between this and the main threshold,
 # always route to needs_database (benefit of the doubt).
 _SECONDARY_THRESHOLD = 0.35
@@ -134,7 +185,7 @@ _SECONDARY_THRESHOLD = 0.35
 # Mapped 1:1 with INTENT_LABELS.
 CANDIDATE_LABEL_MAP: dict[str, str] = {
     "needs_database": "question about horror films or movie recommendations",
-    "conversational": "social greeting or farewell",
+    "conversational": "social greeting, small talk such as 'how are you', or farewell",
     "thanks": "expressing gratitude or saying thank you",
     "off_topic": "question about a non-film topic such as weather, sports, cooking, science or history",
 }
@@ -224,23 +275,15 @@ class IntentClassifier:
                 "all_scores": {},
             }
 
-        # Pre-check: thanks messages bypass zero-shot (must run before the
-        # generic conversational check since "merci" is in both keyword sets).
-        if self._is_thanks(text):
+        # Deterministic pre-checks bypass the zero-shot model for messages whose
+        # intent is reliably detectable by keyword/pattern (and which DeBERTa
+        # handles poorly or routes to a structured path instead of RAG).
+        precheck = self._precheck_intent(text)
+        if precheck is not None:
             return {
-                "intent": "thanks",
+                "intent": precheck,
                 "confidence": 1.0,
-                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"thanks": 1.0},
-            }
-
-        # Pre-check: short greeting/farewell messages bypass zero-shot.
-        # DeBERTa struggles with these because they're neither questions
-        # nor topic-specific, but keyword detection is reliable.
-        if self._is_simple_conversational(text):
-            return {
-                "intent": "conversational",
-                "confidence": 1.0,
-                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {"conversational": 1.0},
+                "all_scores": dict.fromkeys(INTENT_LABELS, 0.0) | {precheck: 1.0},
             }
 
         result = self.pipeline(
@@ -292,6 +335,68 @@ class IntentClassifier:
             "all_scores": scores,
         }
 
+    def _precheck_intent(self, text: str) -> str | None:
+        """Resolve a deterministic intent without the zero-shot model.
+
+        Runs ordered pattern/keyword checks that bypass DeBERTa. Order is
+        load-bearing: ``thanks`` before ``conversational`` ("merci" is in both
+        keyword sets), and ``filmography`` before ``franchise`` ("combien de
+        films a réalisé X" is a filmography, not a saga count).
+
+        Args:
+            text: User query text.
+
+        Returns:
+            The matched intent label, or None when no pre-check fires (the
+            caller then falls back to the zero-shot model).
+        """
+        checks: tuple[tuple[Callable[[str], bool], str], ...] = (
+            (self._is_thanks, "thanks"),
+            (self._is_meta, "meta"),
+            (self._is_filmography, "filmography"),
+            (self._is_franchise, "franchise"),
+            (self._is_definitional, "definitional"),
+            (self._is_simple_conversational, "conversational"),
+        )
+        for predicate, intent in checks:
+            if predicate(text):
+                return intent
+        return None
+
+    @staticmethod
+    def _is_franchise(text: str) -> bool:
+        """Check if text asks how many films a franchise/saga contains.
+
+        Such counting questions need the full saga, which the vector top_k cap
+        truncates; they are served by a structured SQL lookup instead.
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a franchise/saga counting request.
+        """
+        return bool(_FRANCHISE_PATTERN.search(text))
+
+    @staticmethod
+    def _is_definitional(text: str) -> bool:
+        """Check if text asks for a horror genre/concept definition.
+
+        Definitions ("what is body horror") cannot be grounded on a synopsis
+        corpus, so they are routed to the open-knowledge path. A horror domain
+        keyword is required to avoid hijacking off-topic definitions.
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a horror-domain definitional question.
+        """
+        lower = text.lower()
+        return bool(_DEFINITIONAL_PATTERN.search(lower)) and any(
+            kw in lower for kw in _HORROR_DOMAIN_KEYWORDS
+        )
+
     @staticmethod
     def _is_simple_conversational(text: str) -> bool:
         """Check if text is a simple greeting or farewell.
@@ -330,6 +435,37 @@ class IntentClassifier:
         if any(kw in lower for kw in _HORROR_DOMAIN_KEYWORDS):
             return False
         return bool(_THANKS_PATTERN.search(lower))
+
+    @staticmethod
+    def _is_meta(text: str) -> bool:
+        """Check if text is a self-referential question about the bot's answer.
+
+        Detects follow-ups like "on what criteria did you choose these?" that ask
+        about the assistant's own prior selection. They have no answer in the film
+        corpus, so they are routed to a template instead of RAG.
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a meta-question about the bot's reasoning.
+        """
+        return bool(_META_PATTERN.search(text))
+
+    @staticmethod
+    def _is_filmography(text: str) -> bool:
+        """Check if text asks for a director's or actor's filmography.
+
+        Such questions need a complete list and are served by a structured SQL
+        lookup rather than the vector RAG path (whose top_k truncates lists).
+
+        Args:
+            text: User query text.
+
+        Returns:
+            True if the message is a filmography request.
+        """
+        return bool(_FILMOGRAPHY_CUES.search(text) or _FILMOGRAPHY_ACTOR.search(text))
 
     @staticmethod
     def _has_domain_keyword(text: str) -> bool:

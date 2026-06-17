@@ -35,7 +35,7 @@ def _make_pipeline(
     llm = MagicMock()
     llm.generate_chat.return_value = {"text": "LLM response", "usage": {}}
 
-    retrieval_settings = RetrievalSettings(min_rerank_score=min_score)
+    retrieval_settings = RetrievalSettings(min_rerank_score=min_score, open_fallback_enabled=False)
 
     pipeline = RAGPipeline(
         retriever=retriever,
@@ -65,10 +65,7 @@ class TestRAGPipelineRerankThreshold:
         result = await pipeline.execute("rag", "scary movie")
 
         assert len(result.documents) == 2
-        assert all(
-            d.rerank_score is not None and d.rerank_score >= -2.0
-            for d in result.documents
-        )
+        assert all(d.rerank_score is not None and d.rerank_score >= -2.0 for d in result.documents)
         llm.generate_chat.assert_called_once()
 
     @pytest.mark.unit
@@ -89,3 +86,24 @@ class TestRAGPipelineRerankThreshold:
         with patch("src.services.rag.pipeline.RAG_NO_CONTEXT_RESPONSES_TOTAL") as mock_counter:
             await pipeline.execute("rag", "scary movie")
             mock_counter.inc.assert_called_once()
+
+    @pytest.mark.unit
+    async def test_stream_all_below_threshold_returns_no_context(self) -> None:
+        docs = [_make_doc(-3.0), _make_doc(-2.5)]
+        pipeline, llm = _make_pipeline(docs, min_score=-2.0)
+
+        token_stream, documents = await pipeline.execute_stream("rag", "scary movie")
+
+        assert documents == []
+        assert "reformuler" in "".join(token_stream)
+        llm.generate_stream.assert_not_called()
+
+    @pytest.mark.unit
+    async def test_stream_above_threshold_calls_llm(self) -> None:
+        docs = [_make_doc(0.5), _make_doc(-1.0)]
+        pipeline, llm = _make_pipeline(docs, min_score=-2.0)
+
+        _, documents = await pipeline.execute_stream("rag", "scary movie")
+
+        assert len(documents) == 2
+        llm.generate_stream.assert_called_once()
