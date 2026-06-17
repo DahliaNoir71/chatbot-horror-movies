@@ -344,6 +344,9 @@ jobs:
           #     (Perceiver, Transformer-XL, megatron_gpt2, SEW, X-CLIP, GLM4) are not used.
           #   CVE-2025-63396, CVE-2025-3000..3001, CVE-2025-2998..2999, CVE-2025-2953, CVE-2025-3121, CVE-2025-3136, CVE-2025-2148..2149, CVE-2026-4538
           #     pytorch ×11: JIT memory corruption, LSTM/RNN ops, DoS — local-only, no untrusted model loading in HorrorBot.
+          #   GHSA-g75f-g53v-794x  bleach: ReDoS in linkify(parse_email=True) — NO upstream fix (bleach archived);
+          #     transitive via kaggle (offline ETL), HorrorBot never calls linkify on attacker input. Other two bleach
+          #     advisories (GHSA-gj48/-8rfp) fixed by bump to 6.4.0.
           # Review 2026-11-19.
           echo "--- pip-audit vulnerability scan ---"
           set +e
@@ -375,6 +378,7 @@ jobs:
             --ignore-vuln CVE-2025-3136 \
             --ignore-vuln CVE-2025-2148 \
             --ignore-vuln CVE-2025-2149 \
+            --ignore-vuln GHSA-g75f-g53v-794x \
             -f json \
             -o "${{ env.SECURITY_DIR }}/pip-audit.json"
           PIPA_STATUS=$?

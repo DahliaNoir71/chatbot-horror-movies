@@ -50,6 +50,18 @@
     <cve>CVE-2026-40217</cve>
   </suppress>
 
+  <suppress>
+    <notes>CVE-2026-47101 (CVSS 8.7): unclecode-litellm — transitive dep bundled by crawl4ai; no patched fork exists (single version 1.81.13). HorrorBot uses crawl4ai for HTML scraping only (AsyncWebCrawler/BrowserConfig, no LLMExtractionStrategy), so litellm's proxy is never instantiated. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
+    <cve>CVE-2026-47101</cve>
+  </suppress>
+
+  <suppress>
+    <notes>CVE-2026-47102 (CVSS 8.7): unclecode-litellm — transitive dep bundled by crawl4ai; no patched fork exists (single version 1.81.13). HorrorBot uses crawl4ai for HTML scraping only (AsyncWebCrawler/BrowserConfig, no LLMExtractionStrategy), so litellm's proxy is never instantiated. Review 2026-11-19.</notes>
+    <packageUrl regex="true">^pkg:pypi/.*litellm@.*$</packageUrl>
+    <cve>CVE-2026-47102</cve>
+  </suppress>
+
   <!-- =================================================================
        prometheus-client — Direct Python dependency (>=0.23.1, locked 0.25.0)
        =================================================================
