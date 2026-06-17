@@ -129,13 +129,19 @@ def _check_normalization(individual: dict) -> tuple[dict, str | None]:
 
 
 def _check_batch_consistency(
-    individual: dict, batch: list, sorted_texts: list[str],
+    service, batch: list, sorted_texts: list[str],
 ) -> tuple[dict, str | None]:
-    """Verify batch embeddings match individually-generated ones."""
+    """Verify batched passage embeddings match single-passage encodings.
+
+    e5 applies an asymmetric prefix (``query:`` vs ``passage:``), so a batched
+    passage vector must be compared against the *passage* path encoded one text
+    at a time — not against ``generate`` (the query path). This isolates the
+    batching variable instead of conflating it with the prefix difference.
+    """
     failures = sum(
         1
         for i, text in enumerate(sorted_texts)
-        if _cosine_similarity(individual[text], batch[i]) < 0.99
+        if _cosine_similarity(service.generate_batch([text])[0], batch[i]) < 0.99
     )
     result = {"passed": failures == 0, "failures": failures}
     error = f"Batch consistency: {failures} mismatches" if failures else None
@@ -155,13 +161,13 @@ def _check_non_zero(individual: dict) -> tuple[dict, str | None]:
 
 
 def _run_validations(
-    individual: dict, batch: list, sorted_texts: list[str], expected_dim: int,
+    service, individual: dict, batch: list, sorted_texts: list[str], expected_dim: int,
 ) -> tuple[dict[str, dict], list[str]]:
     """Run all validation checks and return results + errors."""
     checks = [
         ("dimension_check", _check_dimensions(individual, expected_dim)),
         ("normalization_check", _check_normalization(individual)),
-        ("batch_consistency", _check_batch_consistency(individual, batch, sorted_texts)),
+        ("batch_consistency", _check_batch_consistency(service, batch, sorted_texts)),
         ("non_zero_check", _check_non_zero(individual)),
     ]
     validations = {}
@@ -178,26 +184,40 @@ def _run_validations(
 # ------------------------------------------------------------------
 
 
-def _score_similarity_pairs(
-    individual: dict, pairs: list[dict], *, min_threshold: bool,
-) -> list[dict]:
-    """Score similarity or dissimilarity pairs against their thresholds."""
-    key = "expected_min_similarity" if min_threshold else "expected_max_similarity"
-    results = []
-    for pair in pairs:
-        sim = _cosine_similarity(
-            individual[pair["query_a"]], individual[pair["query_b"]]
-        )
-        threshold = pair[key]
-        passed = sim >= threshold if min_threshold else sim <= threshold
-        results.append({
-            "query_a": pair["query_a"],
-            "query_b": pair["query_b"],
-            "similarity": round(sim, 4),
-            "threshold": threshold,
-            "passed": passed,
-        })
-    return results
+def _pair_similarity(individual: dict, pair: dict) -> float:
+    """Cosine similarity between a pair's two query embeddings."""
+    return _cosine_similarity(individual[pair["query_a"]], individual[pair["query_b"]])
+
+
+def _pair_row(pair: dict, similarity: float, *, passed: bool) -> dict:
+    """Build a result row for a scored query pair."""
+    return {
+        "query_a": pair["query_a"],
+        "query_b": pair["query_b"],
+        "similarity": round(similarity, 4),
+        "passed": passed,
+    }
+
+
+def _score_pairs(
+    individual: dict, similar: list[dict], dissimilar: list[dict],
+) -> tuple[list[dict], list[dict], float]:
+    """Score query pairs by topical separation instead of absolute thresholds.
+
+    The property under test is model-agnostic: every related pair must rank
+    above every unrelated pair. A related pair passes when it scores above the
+    strongest unrelated pair; an unrelated pair passes when it scores below the
+    weakest related pair. Returns both scored lists plus the separation margin
+    ``min(related) - max(unrelated)`` (positive means clean separation).
+    """
+    related = [(p, _pair_similarity(individual, p)) for p in similar]
+    unrelated = [(p, _pair_similarity(individual, p)) for p in dissimilar]
+    floor_related = min((s for _, s in related), default=0.0)
+    ceil_unrelated = max((s for _, s in unrelated), default=0.0)
+
+    sim_scored = [_pair_row(p, s, passed=s > ceil_unrelated) for p, s in related]
+    dissim_scored = [_pair_row(p, s, passed=s < floor_related) for p, s in unrelated]
+    return sim_scored, dissim_scored, round(floor_related - ceil_unrelated, 4)
 
 
 # ------------------------------------------------------------------
@@ -214,6 +234,7 @@ def _print_summary(
     validations: dict,
     sim_pairs: list[dict],
     dissim_pairs: list[dict],
+    separation_margin: float,
     errors: list[str],
 ) -> None:
     """Print human-readable summary to stdout."""
@@ -237,6 +258,7 @@ def _print_summary(
     dissim_passed = sum(1 for p in dissim_pairs if p["passed"])
     print(f"  Similarity pairs:    {sim_passed}/{len(sim_pairs)} passed")
     print(f"  Dissimilarity pairs: {dissim_passed}/{len(dissim_pairs)} passed")
+    print(f"  Topical separation:  {separation_margin:+.4f} (related vs unrelated)")
 
     if errors:
         print(f"\n  FAILED: {len(errors)} validation error(s)")
@@ -271,13 +293,12 @@ def main() -> int:
     print(f"Batch:      {len(sorted_texts)} texts in {batch_dur:.2f}s")
 
     validations, errors = _run_validations(
-        individual, batch, sorted_texts, EMBEDDING_DIMENSION,
+        service, individual, batch, sorted_texts, EMBEDDING_DIMENSION,
     )
-    sim_pairs = _score_similarity_pairs(
-        individual, rag_data.get("similarity_pairs", []), min_threshold=True,
-    )
-    dissim_pairs = _score_similarity_pairs(
-        individual, rag_data.get("dissimilar_pairs", []), min_threshold=False,
+    sim_pairs, dissim_pairs, separation_margin = _score_pairs(
+        individual,
+        rag_data.get("similarity_pairs", []),
+        rag_data.get("dissimilar_pairs", []),
     )
 
     all_passed = len(errors) == 0
@@ -291,6 +312,7 @@ def main() -> int:
         "validations": validations,
         "similarity_pairs": sim_pairs,
         "dissimilar_pairs": dissim_pairs,
+        "separation_margin": separation_margin,
         "overall_passed": all_passed,
         "errors": errors,
     }
@@ -302,7 +324,8 @@ def main() -> int:
 
     _print_summary(
         service, EMBEDDING_DIMENSION, len(sorted_texts),
-        ind_dur, batch_dur, validations, sim_pairs, dissim_pairs, errors,
+        ind_dur, batch_dur, validations, sim_pairs, dissim_pairs,
+        separation_margin, errors,
     )
     print(f"  Metrics written to: {output_path}")
 

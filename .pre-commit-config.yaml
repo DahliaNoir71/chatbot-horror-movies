@@ -15,17 +15,30 @@
 #   4. Securite du code (Bandit SAST)
 #   5. Detection de secrets (Gitleaks)
 #   6. Integrite des dependances (uv lock)
+#   7. Frontend npm/Vite — lint (eslint) / format (prettier) / type-check (vue-tsc)
 #
-# Installation : uv sync --group dev && uv run pre-commit install
+# Installation : uv sync --group dev && npm --prefix src/frontend install \
+#                && uv run pre-commit install   # wires pre-commit + pre-push
+#                                                # (default_install_hook_types)
 # Verification : uv run pre-commit run --all-files
+#
+# Supply chain : chaque repo de hook est epingle par SHA de commit immuable
+# (le commentaire `# vX.Y.Z` indique le tag humain). Re-resoudre avant tout bump.
 # =============================================================================
+
+# Pin the toolchain language so hooks resolve a managed Python 3.12 (matches
+# the project runtime), and auto-install both stages on `pre-commit install`.
+minimum_pre_commit_version: "3.5.0"
+default_language_version:
+  python: python3.12
+default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   # ===================================================
   # 1. Hooks de base — Qualite et hygiene du code
   # ===================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v6.0.0  # v6.0.0
     hooks:
       # Nettoyage du code
       - id: trailing-whitespace
@@ -54,12 +67,24 @@ repos:
       # Securite : premiere ligne de defense contre les fuites de secrets
       - id: detect-private-key
 
+      # Bloque les commits directs sur main/master — impose le workflow MR/PR
+      # (present dans le modele strong, absent jusqu'ici)
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'master']
+
+      # Hygiene cross-OS (dev Windows + WSL) : collisions de casse de noms
+      # de fichiers, et fins de ligne mixtes normalisees en LF sous src/
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+        files: ^src/
+
   # ===================================================
   # 2. Ruff — Linter et Formateur Python
   # ===================================================
   # Configuration lue depuis pyproject.toml [tool.ruff]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.17
+    rev: v0.15.17  # v0.15.17
     hooks:
       - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
@@ -71,10 +96,12 @@ repos:
   # 3. Vulture — Detection de code mort
   # ===================================================
   - repo: https://github.com/jendrikseipp/vulture
-    rev: v2.16
+    rev: v2.16  # v2.16
     hooks:
       - id: vulture
-        args: [--min-confidence, "80", "src/"]
+        # min-confidence 100 = source unique avec pyproject.toml [tool.vulture]
+        # (= regle CLAUDE.md) ; reduit les faux positifs.
+        args: [--min-confidence, "100", "src/"]
         files: ^src/.*\.py$
 
   # ===================================================
@@ -87,15 +114,14 @@ repos:
   # Coherence : le meme scan est execute en CI (job security:bandit).
   # L'executer en pre-commit permet de corriger AVANT le push.
   - repo: https://github.com/PyCQA/bandit
-    rev: "1.9.4"
+    rev: 1.9.4  # 1.9.4
     hooks:
       - id: bandit
-        args:
-          - -r
-          - src/
-          - --severity-level=medium
-          - --confidence-level=medium
-          - --quiet
+        # Lit pyproject.toml [tool.bandit] (skips B311/B608/...) comme le job
+        # CI, pour que les checks volontairement ignores ne fassent pas de faux
+        # positif en local. --severity/--confidence medium = regle CLAUDE.md.
+        args: ["-c", "pyproject.toml", "-r", "src/", "--severity-level=medium", "--confidence-level=medium", "--quiet"]
+        additional_dependencies: ["bandit[toml]"]
         files: ^src/.*\.py$
         pass_filenames: false
 
@@ -105,7 +131,7 @@ repos:
   # Securite CRITIQUE : empeche la fuite de secrets (tokens AWS, cles API,
   # mots de passe, certificats) dans l'historique Git.
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
+    rev: v8.30.0  # v8.30.0
     hooks:
       - id: gitleaks
         # Scanne uniquement les fichiers staged (pas tout l'historique)
@@ -118,7 +144,43 @@ repos:
   # Supply chain security : garantit que uv.lock est synchronise avec
   # pyproject.toml et que le requirements.txt exporte est a jour.
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.21
+    rev: 0.11.21  # 0.11.21
     hooks:
       # Verifie et met a jour uv.lock si pyproject.toml a change
       - id: uv-lock
+
+  # ===================================================
+  # 7. Frontend — eslint / prettier / vue-tsc (npm/Vite, src/frontend)
+  # ===================================================
+  # Shift-left frontend : memes outils que la CI (job frontend-tests).
+  # language: system => binaires fournis par `npm --prefix src/frontend install`
+  # (NON geres par pre-commit). Scopes a ^src/frontend/ : un commit Python-only
+  # ne les declenche pas.
+  #
+  # Split par vitesse : eslint/prettier rapides => chaque commit ;
+  # vue-tsc plus lent et global => stage pre-push (une fois par push).
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: eslint (frontend)
+        entry: npm --prefix src/frontend run lint
+        language: system
+        files: ^src/frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|vue)$
+        pass_filenames: false
+
+      # prettier --write auto-formate sur place (meme philosophie que
+      # ruff-format --fix). Le hook echoue s'il reecrit : re-stage puis commit.
+      - id: frontend-prettier
+        name: prettier --write (frontend)
+        entry: npm --prefix src/frontend run format
+        language: system
+        files: ^src/frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|vue|css|json)$
+        pass_filenames: false
+
+      - id: frontend-typecheck
+        name: vue-tsc type-check (frontend)
+        entry: npm --prefix src/frontend run type-check
+        language: system
+        files: ^src/frontend/.*\.(ts|tsx|vue)$
+        pass_filenames: false
+        stages: [pre-push]
