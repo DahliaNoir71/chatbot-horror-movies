@@ -1,10 +1,10 @@
 # MLOps Evaluation Report — HorrorBot
 
 **Status**: ALL PASSED
-**Date**: 2026-03-12 09:56:22 UTC
-**Commit**: `52e0b327`
+**Date**: 2026-10-11 08:02:25 UTC
+**Commit**: `3967a8e5`
 **Branch**: `refs/heads/main`
-**Run**: [#22995958858](https://github.com/DahliaNoir71/chatbot-horror-movies/actions/runs/22995958858)
+**Run**: [#38123185788](https://github.com/DahliaNoir71/chatbot-horror-movies/actions/runs/38123185788)
 
 ---
 
@@ -12,33 +12,30 @@
 
 | Component | Tests | Passed | Failed | Time | Status |
 |-----------|-------|--------|--------|------|--------|
-| validate-data | 21 | 21 | 0 | 13.72s | PASS |
-| intent-classifier | 6 | 6 | 0 | 323.43s | PASS |
-| embeddings | 7 | 7 | 0 | 5.75s | PASS |
-| rag-evaluation | 19 | 19 | 0 | 12.69s | PASS |
+| validate-data | 21 | 21 | 0 | 1.71s | PASS |
+| intent-classifier | 5 | 5 | 0 | 141.08s | PASS |
+| embeddings | 6 | 6 | 0 | 8.44s | PASS |
+| rag-evaluation | 19 | 19 | 0 | 1.45s | PASS |
 
 ## Intent Classifier (DeBERTa-v3 zero-shot)
 
-**Overall Accuracy**: 62.5%
-**Total Cases**: 56
-**Weak Intents** (known limitation): horror_trivia, film_details
+**Overall Accuracy**: 78.7%
+**Total Cases**: 61
+**Weak Intents** (known limitation): 
 
 | Intent | Recall | Correct / Total | Weak? |
 |--------|--------|-----------------|-------|
-| farewell | 75.0% | 6/8 |  |
-| film_details | 12.5% | 1/8 | Yes |
-| greeting | 87.5% | 7/8 |  |
-| horror_discussion | 100.0% | 8/8 |  |
-| horror_recommendation | 87.5% | 7/8 |  |
-| horror_trivia | 0.0% | 0/8 | Yes |
-| out_of_scope | 75.0% | 6/8 |  |
+| conversational | 62.5% | 10/16 |  |
+| needs_database | 96.6% | 28/29 |  |
+| off_topic | 62.5% | 5/8 |  |
+| thanks | 100.0% | 5/5 |  |
 
-## Embedding Model (all-MiniLM-L6-v2)
+## Embedding Model (intfloat/multilingual-e5-base)
 
-**Model**: all-MiniLM-L6-v2
-**Dimension**: 384
-**Texts Processed**: 112
-**Performance**: 34.31 ms/text (individual), 0.297s (batch)
+**Model**: intfloat/multilingual-e5-base
+**Dimension**: 768
+**Texts Processed**: 117
+**Performance**: 215.52 ms/text (individual), 1.667s (batch)
 
 | Validation | Status | Failures |
 |------------|--------|----------|
